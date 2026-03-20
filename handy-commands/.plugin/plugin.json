@@ -1,0 +1,7 @@
+{
+  "name": "handy-commands",
+  "version": "1.0.0",
+  "description": "Helpful slash commands for common development workflows.",
+  "license": "MIT",
+  "keywords": ["commands", "workflow", "pr", "git"]
+}

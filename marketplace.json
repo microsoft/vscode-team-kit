@@ -1,0 +1,15 @@
+{
+  "name": "vscode-team-kit",
+  "owner": {
+    "name": "Microsoft"
+  },
+  "plugins": [
+    {
+      "name": "handy-commands",
+      "source": "./handy-commands/",
+      "description": "Helpful slash commands for common development workflows.",
+      "version": "1.0.0",
+      "keywords": ["commands", "workflow", "pr", "git"]
+    }
+  ]
+}
