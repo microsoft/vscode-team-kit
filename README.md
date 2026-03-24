@@ -13,6 +13,7 @@ A collection of useful [agent plugins](https://github.com/anthropics/open-plugin
 | Plugin | Description |
 |---|---|
 | [handy-commands](handy-commands/) | Helpful slash commands for common development workflows (`/pr-comments`, …) |
+| [ban-ast](ban-ast/) | Ban code patterns via Tree Sitter AST queries — rejects edits unless justified |
 
 ## Contributing
 

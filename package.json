@@ -2,6 +2,13 @@
   "name": "@vscode/team-kit",
   "version": "1.0.0",
   "private": true,
+  "dependencies": {
+    "tree-sitter": "^0.21.1",
+    "tree-sitter-typescript": "^0.23.2"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
   "devDependencies": {
     "@types/node": "^25.5.0"
   }

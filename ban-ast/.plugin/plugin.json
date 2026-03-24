@@ -1,0 +1,7 @@
+{
+  "name": "ban-ast",
+  "version": "1.0.0",
+  "description": "Ban code patterns using Tree Sitter AST queries. Rejects edits that introduce banned patterns unless justified.",
+  "license": "MIT",
+  "keywords": ["ast", "tree-sitter", "linting", "ban", "hooks"]
+}

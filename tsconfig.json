@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "moduleResolution": "nodenext",
+    "module": "nodenext",
+    "target": "es2024"
+  }
+}

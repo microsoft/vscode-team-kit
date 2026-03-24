@@ -10,6 +10,13 @@
       "description": "Helpful slash commands for common development workflows.",
       "version": "1.0.0",
       "keywords": ["commands", "workflow", "pr", "git"]
+    },
+    {
+      "name": "ban-ast",
+      "source": "./ban-ast/",
+      "description": "Ban code patterns using Tree Sitter AST queries with justification overrides.",
+      "version": "1.0.0",
+      "keywords": ["ast", "tree-sitter", "linting", "ban", "hooks"]
     }
   ]
 }

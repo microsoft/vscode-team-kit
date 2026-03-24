@@ -1,6 +1,6 @@
 # Writing Plugins
 
-This repo is a plugin marketplace following the [Open Plugin spec](https://github.com/anthropics/open-plugin). Each top-level directory containing a `.plugin/plugin.json` is a plugin.
+This repo is a plugin marketplace following the [Open Plugin spec](https://open-plugins.com/plugin-builders/specification.md). Each top-level directory containing a `.plugin/plugin.json` is a plugin.
 
 ## Creating a New Plugin
 
@@ -38,3 +38,21 @@ install().then(() => import('./impl.mts'));
 ```
 
 This runs `npm install` if `package.json` or `package-lock.json` have changed since the last install.
+
+## Edit Tools
+
+The `common/edit-tools.mts` module describes the built-in file-editing tools (`replace_string_in_file`, `multi_replace_string_in_file`, `apply_patch`) and provides `extractEditInputs(toolName, toolInput)` to normalise their inputs into a common `EditInput[]` shape.
+
+Use it in PreToolUse hook scripts to introspect which files and changes an edit tool is about to make:
+
+```js
+import { extractEditInputs, editedFilePaths, isEditTool } from '<team-kit>/common/edit-tools.mts';
+
+// In a hook script, read the event from stdin:
+const event = JSON.parse(await readStdin());
+if (isEditTool(event.tool_name)) {
+  const edits = extractEditInputs(event.tool_name, event.tool_input);
+  const files = editedFilePaths(edits);
+  // ... inspect edits or files
+}
+```
