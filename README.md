@@ -15,6 +15,8 @@ A collection of useful [agent plugins](https://github.com/anthropics/open-plugin
 | [handy-commands](handy-commands/) | Helpful slash commands for common development workflows (`/pr-comments`, …) |
 | [ban-ast](ban-ast/) | Ban code patterns via Tree Sitter AST queries — rejects edits unless justified |
 | [component-explorer](component-explorer/) | Set up and use the VS Code Component Explorer for fixture-based visual testing with MCP-powered screenshots |
+| [model-council](model-council/) | Multi-model council for code review and planning — model-pinned agents independently review or plan, then synthesize by consensus |
+| [review-areas](review-areas/) | Area-focused code review — fans out parallel subagents across correctness, tests, security, performance, and product |
 
 ## Contributing
 

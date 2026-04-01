@@ -1,0 +1,7 @@
+{
+  "name": "review-areas",
+  "version": "1.0.0",
+  "description": "Area-focused code review that fans out to parallel subagents — each examining a different review area (correctness, tests, security, performance, product).",
+  "license": "MIT",
+  "keywords": ["review", "code-review", "subagents", "quality"]
+}

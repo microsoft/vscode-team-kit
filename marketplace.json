@@ -24,6 +24,20 @@
       "description": "Skills for setting up and using the VS Code Component Explorer — fixture-based visual testing with MCP-powered screenshot comparison.",
       "version": "1.0.0",
       "keywords": ["component-explorer", "fixtures", "screenshots", "visual-testing", "mcp"]
+    },
+    {
+      "name": "model-council",
+      "source": "./model-council/",
+      "description": "Multi-model council for code review and planning — model-pinned agents independently review or plan, then findings are synthesized by consensus.",
+      "version": "1.1.0",
+      "keywords": ["review", "code-review", "planning", "agents", "multi-model", "quality"]
+    },
+    {
+      "name": "review-areas",
+      "source": "./review-areas/",
+      "description": "Area-focused code review that fans out parallel subagents across different review perspectives.",
+      "version": "1.0.0",
+      "keywords": ["review", "code-review", "subagents", "quality"]
     }
   ]
 }
