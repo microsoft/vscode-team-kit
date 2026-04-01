@@ -6,7 +6,8 @@ Skills for setting up and using the [VS Code Component Explorer](https://github.
 
 | Skill | Description |
 |---|---|
-| [add-component-explorer](skills/add-component-explorer/) | Set up and integrate the component explorer into a Vite project |
+| [setup-component-explorer-light](skills/setup-component-explorer-light/) | Lightweight setup — install packages and add the Vite plugin |
+| [setup-component-explorer-full](skills/setup-component-explorer-full/) | Full setup including CLI, MCP server, VS Code tasks and launch config |
 | [use-component-explorer](skills/use-component-explorer/) | Write fixtures, take screenshots, compare components, and use MCP tools |
 
 ## What is the Component Explorer?
