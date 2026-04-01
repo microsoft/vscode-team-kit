@@ -110,6 +110,12 @@ defineFixture({
 
 Fixtures must not mutate global state. Each fixture's `render` function should only modify the provided `container` element and return a `dispose` function that fully cleans up. No writes to `document.body`, global variables, `localStorage`, shared singletons, or other state outside the container. This ensures fixtures can be rendered in any order, in parallel, and multiple times without interference.
 
+### No Global Styles
+
+Do not use global CSS selectors like `:root`, `html`, `body`, or `*`. Every style must be scoped to a class name (e.g. `.app-root`, `.my-component`). Components are rendered in isolation inside the explorer — global styles leak across fixtures and break the isolated rendering model.
+
+App-level CSS files (resets, CSS variables on `:root`, etc.) are fine for the app itself, but they must not be imported by components or fixture files. Keep app-level styles in separate entry points (e.g. `index.css` imported only by the app's `main.ts`) so they are never loaded during fixture rendering. If a component needs shared variables or resets, apply them within the fixture's container element or via the project-local wrapper (see below).
+
 ### Use a Local Wrapper Instead of `defineFixture` Directly
 
 Do **not** use `defineFixture` / `defineFixtureGroup` from `@vscode/component-explorer` directly in fixture files. Instead, create a project-local wrapper (e.g. `fixtureUtils.ts`) that applies project-wide conventions (theme variants, shared styles, DI setup, disposable management). Fixture files then import from that local module.

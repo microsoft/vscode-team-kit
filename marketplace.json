@@ -17,6 +17,13 @@
       "description": "Ban code patterns using Tree Sitter AST queries with justification overrides.",
       "version": "1.0.0",
       "keywords": ["ast", "tree-sitter", "linting", "ban", "hooks"]
+    },
+    {
+      "name": "component-explorer",
+      "source": "./component-explorer/",
+      "description": "Skills for setting up and using the VS Code Component Explorer — fixture-based visual testing with MCP-powered screenshot comparison.",
+      "version": "1.0.0",
+      "keywords": ["component-explorer", "fixtures", "screenshots", "visual-testing", "mcp"]
     }
   ]
 }

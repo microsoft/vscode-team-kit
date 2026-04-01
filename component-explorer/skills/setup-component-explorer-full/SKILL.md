@@ -1,6 +1,6 @@
 ---
-name: setup-component-explorer
-description: Set up and integrate the Component Explorer into a vite based project.
+name: setup-component-explorer-full
+description: Full setup of the Component Explorer including CLI, MCP server, VS Code tasks and launch config.
 ---
 
 # Skill: Setup Component Explorer
@@ -156,11 +156,14 @@ If other launch configurations already exist, merge the new configuration into t
 
 ## Step 7: Create a First Fixture and Verify
 
-Use the **use-component-explorer** skill for guidance on writing fixtures, including project-specific wrapper functions and best practices.
+**Important:** Before writing any fixtures, read the **use-component-explorer** skill. It covers fixture patterns, project-specific wrappers, and best practices that are essential for correct usage.
 
 Create a `.fixture.tsx` (or `.fixture.ts`) file to verify the setup works:
 
-1. Start the dev server: `npx vite` (or `pnpm dev`, etc.)
-2. Open `http://localhost:5173/___explorer` to see the explorer UI.
-3. Run the "Component Explorer Server" VS Code task (or the launch configuration) to start the server.
+1. Start the dev server as a background terminal process: `npx vite` (or `pnpm dev`, etc.)
+2. Once the server is ready, open the component explorer in VS Code's Simple Browser by running the VS Code command:
+   ```
+   simpleBrowser.show with url: http://localhost:5173/___explorer
+   ```
+3. Run the "Component Explorer Server" VS Code task (or the launch configuration) to start the daemon.
 4. Verify the MCP server connects (Copilot can now `list_fixtures`, `screenshot`, etc.).
