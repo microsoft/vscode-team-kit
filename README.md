@@ -18,6 +18,7 @@ A collection of useful [agent plugins](https://github.com/anthropics/open-plugin
 | [model-council](model-council/) | Multi-model council for code review and planning — model-pinned agents independently review or plan, then synthesize by consensus |
 | [review-areas](review-areas/) | Area-focused code review — fans out parallel subagents across correctness, tests, security, performance, and product |
 | [monitor-pr](monitor-pr/) | Monitor a pull request until CI finishes and Copilot's review arrives — via non-polling async terminal scripts |
+| [github-inbox](github-inbox/) | Triage and act on your GitHub notifications — smart grouping, rules, memory, and sub-agents for review, triage, and investigation |
 
 ## Contributing
 
