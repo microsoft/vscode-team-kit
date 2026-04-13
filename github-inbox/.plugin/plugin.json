@@ -1,0 +1,7 @@
+{
+  "name": "github-inbox",
+  "version": "1.0.0",
+  "description": "Triage and act on your GitHub notifications — smart grouping, rules, memory, and sub-agents for review, triage, and investigation.",
+  "license": "MIT",
+  "keywords": ["github", "notifications", "inbox", "triage", "agents"]
+}

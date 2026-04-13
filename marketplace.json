@@ -45,6 +45,13 @@
       "description": "Monitor a pull request until CI status and Copilot review are available via non-polling async terminal scripts.",
       "version": "1.0.0",
       "keywords": ["pr", "pull-request", "ci", "code-review", "copilot", "monitor", "gh"]
+    },
+    {
+      "name": "github-inbox",
+      "source": "./github-inbox/",
+      "description": "Triage and act on your GitHub notifications — smart grouping, rules, memory, and sub-agents for review, triage, and investigation.",
+      "version": "1.0.0",
+      "keywords": ["github", "notifications", "inbox", "triage", "agents"]
     }
   ]
 }
