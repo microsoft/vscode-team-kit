@@ -1,6 +1,6 @@
 ---
 name: use-component-explorer
-description: Read this skill when the project uses the component explorer and you deal with UI (fixtures, screenshots, read when adding/changing UI).
+description: Read this skill when the project uses the component explorer and you deal with UI (fixtures, screenshots, visual testing, read when adding/changing UI).
 ---
 
 # Skill: Use Component Explorer

@@ -1,0 +1,18 @@
+id: should-not-trigger-001
+name: Should not trigger for general code questions
+description: |
+  Negative test — a general coding question should not
+  invoke the manage-bans skill.
+tags:
+  - negative
+
+inputs:
+  prompt: "Explain how this sorting algorithm works"
+  context:
+    language: python
+
+expected:
+  outcomes:
+    - type: task_completed
+  behavior:
+    max_tool_calls: 5

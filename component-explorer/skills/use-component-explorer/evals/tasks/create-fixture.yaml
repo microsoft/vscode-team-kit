@@ -1,0 +1,22 @@
+id: create-fixture-001
+name: Create a basic component fixture
+description: |
+  Test that the skill creates a valid fixture file using
+  defineFixture with a render function.
+tags:
+  - basic
+  - happy-path
+
+inputs:
+  prompt: "Create a fixture for my Button component"
+  context:
+    language: typescript
+    framework: react
+
+expected:
+  output_contains:
+    - "(?i)fixture"
+  outcomes:
+    - type: task_completed
+  behavior:
+    max_tool_calls: 10

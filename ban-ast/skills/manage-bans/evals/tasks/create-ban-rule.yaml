@@ -1,0 +1,21 @@
+id: create-ban-rule-001
+name: Create a ban rule for console.log
+description: |
+  Test that the skill creates a valid ban rule with proper
+  frontmatter and tree-sitter S-expression query.
+tags:
+  - basic
+  - happy-path
+
+inputs:
+  prompt: "Ban console.log calls in this project"
+  context:
+    language: typescript
+
+expected:
+  output_contains:
+    - "(?i)ban"
+  outcomes:
+    - type: task_completed
+  behavior:
+    max_tool_calls: 10

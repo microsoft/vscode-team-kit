@@ -1,0 +1,30 @@
+name: council-plan-eval
+description: |
+  Evaluation suite for the council-plan skill.
+  Tests that the skill correctly triggers for multi-model
+  planning and architecture decision requests.
+skill: council-plan
+version: "1.0"
+
+config:
+  trials_per_task: 1
+  timeout_seconds: 300
+  parallel: false
+  executor: copilot-sdk
+  model: claude-sonnet-4.6
+
+graders:
+  - type: text
+    name: no_errors
+    config:
+      regex_not_match:
+        - "(?i)fatal error|crashed|exception occurred"
+
+  - type: code
+    name: has_output
+    config:
+      assertions:
+        - "len(output) > 10"
+
+tasks:
+  - "tasks/*.yaml"

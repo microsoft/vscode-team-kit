@@ -1,0 +1,59 @@
+skill: setup-component-explorer
+
+should_trigger_prompts:
+  - prompt: "Set up the component explorer in my project"
+    reason: "Direct setup request"
+    confidence: high
+
+  - prompt: "Add component explorer to this Vite app"
+    reason: "Explicit integration request with Vite context"
+    confidence: high
+
+  - prompt: "I want to integrate visual testing with component explorer"
+    reason: "Visual testing setup request — but description says 'set up and integrate', not 'visual testing'"
+    confidence: medium
+
+  - prompt: "Install @vscode/component-explorer packages"
+    reason: "Package install is implied by setup but not explicit in description"
+    confidence: medium
+
+  - prompt: "Configure the component explorer Vite plugin"
+    reason: "Vite plugin config is implied by setup but not explicit in description"
+    confidence: medium
+
+  - prompt: "How do I add component explorer to my project?"
+    reason: "Question about setup process"
+    confidence: high
+
+should_not_trigger_prompts:
+  - prompt: "Write a React component for a login form"
+    reason: "Component creation, not explorer setup"
+    confidence: high
+
+  - prompt: "Set up Jest for unit testing"
+    reason: "Different testing framework"
+    confidence: high
+
+  - prompt: "Deploy my app to production"
+    reason: "Deployment, not setup"
+    confidence: high
+
+  - prompt: "Review my pull request"
+    reason: "Code review, not setup"
+    confidence: high
+
+  - prompt: "Fix the CSS styling on this page"
+    reason: "CSS fix, not explorer setup"
+    confidence: high
+
+  - prompt: "What does this function do?"
+    reason: "Code explanation, unrelated"
+    confidence: high
+
+  - prompt: "Set up the full component explorer with MCP server and VS Code tasks"
+    reason: "Full setup should use setup-component-explorer-full variant"
+    confidence: high
+
+  - prompt: "I want a minimal component explorer integration"
+    reason: "Minimal setup should use setup-component-explorer-light variant"
+    confidence: medium

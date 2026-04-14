@@ -1,0 +1,67 @@
+skill: manage-bans
+
+should_trigger_prompts:
+  - prompt: "Ban console.log in the project"
+    reason: "Direct request to ban a code pattern"
+    confidence: high
+
+  - prompt: "Create an AST rule to prevent eval()"
+    reason: "Explicit AST rule creation request"
+    confidence: high
+
+  - prompt: "Add a tree-sitter lint rule to forbid any types"
+    reason: "Tree-sitter rule creation matches skill domain"
+    confidence: high
+
+  - prompt: "I want to prevent developers from using document.write"
+    reason: "Banning a specific code pattern"
+    confidence: high
+
+  - prompt: "Set up a banned pattern for raw SQL queries"
+    reason: "Creating a ban rule for a code construct"
+    confidence: medium
+
+  - prompt: "How do I add a justification override for a ban rule?"
+    reason: "Justification overrides are documented in skill body but not prominent in description"
+    confidence: medium
+
+  - prompt: "Create a BANNED_AST.md file"
+    reason: "Direct reference to ban file format"
+    confidence: high
+
+  - prompt: "Add a global ban rule to my home directory"
+    reason: "Setting up global bans in ~/.BANNED_AST.md"
+    confidence: high
+
+should_not_trigger_prompts:
+  - prompt: "Write unit tests for my module"
+    reason: "Test writing is a different task"
+    confidence: high
+
+  - prompt: "Fix the bug in my authentication code"
+    reason: "Bug fixing, not banning patterns"
+    confidence: high
+
+  - prompt: "Refactor this function to be more readable"
+    reason: "Refactoring, not banning patterns"
+    confidence: high
+
+  - prompt: "Set up ESLint for my project"
+    reason: "ESLint setup is a different linting tool"
+    confidence: medium
+
+  - prompt: "Review my pull request"
+    reason: "Code review, not pattern banning"
+    confidence: high
+
+  - prompt: "Deploy my app to Azure"
+    reason: "Completely unrelated deployment task"
+    confidence: high
+
+  - prompt: "What does this function do?"
+    reason: "Code explanation, not banning"
+    confidence: high
+
+  - prompt: "Create a new React component"
+    reason: "Code creation, not pattern banning"
+    confidence: high

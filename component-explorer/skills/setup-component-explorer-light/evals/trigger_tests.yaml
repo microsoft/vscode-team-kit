@@ -1,0 +1,43 @@
+skill: setup-component-explorer-light
+
+should_trigger_prompts:
+  - prompt: "Quickly add component explorer to my project"
+    reason: "Quick/minimal setup implies light variant"
+    confidence: medium
+
+  - prompt: "Just install the component explorer Vite plugin"
+    reason: "Minimal plugin-only setup"
+    confidence: high
+
+  - prompt: "Add lightweight component explorer setup"
+    reason: "Explicit lightweight request"
+    confidence: high
+
+  - prompt: "Set up component explorer without the CLI"
+    reason: "Without CLI implies light variant"
+    confidence: high
+
+  - prompt: "I want a minimal component explorer integration"
+    reason: "Minimal setup matches light variant"
+    confidence: high
+
+should_not_trigger_prompts:
+  - prompt: "Set up the full component explorer with MCP and VS Code tasks"
+    reason: "Full setup should use full variant"
+    confidence: high
+
+  - prompt: "Write a fixture for my component"
+    reason: "Fixture writing is use-component-explorer skill"
+    confidence: high
+
+  - prompt: "Fix this TypeScript error"
+    reason: "Error fixing, not setup"
+    confidence: high
+
+  - prompt: "Review my code changes"
+    reason: "Code review, not setup"
+    confidence: high
+
+  - prompt: "Set up ESLint and Prettier"
+    reason: "Different tooling setup"
+    confidence: high

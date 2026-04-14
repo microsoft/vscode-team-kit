@@ -1,0 +1,67 @@
+skill: council-plan
+
+should_trigger_prompts:
+  - prompt: "Plan with council"
+    reason: "Exact trigger phrase from skill description"
+    confidence: high
+
+  - prompt: "Multi-model plan for adding authentication"
+    reason: "Multi-model plan is an explicit trigger"
+    confidence: high
+
+  - prompt: "Get different perspectives on our approach to caching"
+    reason: "Multiple perspectives matches council planning"
+    confidence: high
+
+  - prompt: "Council plan for the database migration"
+    reason: "Direct skill name invocation"
+    confidence: high
+
+  - prompt: "Debate approaches for implementing the search feature"
+    reason: "Debate approaches is an explicit trigger"
+    confidence: high
+
+  - prompt: "Compare strategies for the API redesign"
+    reason: "Compare strategies is listed in skill description"
+    confidence: high
+
+  - prompt: "Cross-plan the microservices architecture"
+    reason: "Cross-plan is an explicit trigger"
+    confidence: high
+
+  - prompt: "I want multiple models to propose plans for this refactor"
+    reason: "Explicitly requesting multi-model planning"
+    confidence: high
+
+should_not_trigger_prompts:
+  - prompt: "Review my code changes"
+    reason: "Code review should trigger council-review, not plan"
+    confidence: high
+
+  - prompt: "Write unit tests for this module"
+    reason: "Test writing, not planning"
+    confidence: high
+
+  - prompt: "Fix the bug in the login flow"
+    reason: "Bug fixing, not planning"
+    confidence: high
+
+  - prompt: "Deploy to production"
+    reason: "Deployment, completely unrelated"
+    confidence: high
+
+  - prompt: "Explain what this function does"
+    reason: "Code explanation, not planning"
+    confidence: high
+
+  - prompt: "Create a new component"
+    reason: "Code creation, not planning"
+    confidence: high
+
+  - prompt: "Plan this feature"
+    reason: "Single-model planning, not council"
+    confidence: medium
+
+  - prompt: "Review my PR with multiple models"
+    reason: "Review, not planning — should trigger council-review"
+    confidence: high

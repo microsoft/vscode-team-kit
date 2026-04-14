@@ -1,0 +1,22 @@
+id: council-plan-001
+name: Basic council planning request
+description: |
+  Test that the skill responds to a council planning request
+  with multi-model plan synthesis.
+tags:
+  - basic
+  - happy-path
+
+inputs:
+  prompt: "Plan with council how to add authentication to the app"
+  context:
+    project_type: web-app
+
+expected:
+  output_contains:
+    - "plan"
+    - "(?i)council|model|perspective"
+  outcomes:
+    - type: task_completed
+  behavior:
+    max_tool_calls: 20

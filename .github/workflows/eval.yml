@@ -1,0 +1,36 @@
+name: Skill Evaluations
+
+on:
+  pull_request:
+    paths:
+      - '*/skills/**'
+  workflow_dispatch:
+
+jobs:
+  evaluate-skills:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install waza
+        run: curl -fsSL https://raw.githubusercontent.com/microsoft/waza/main/install.sh | bash
+
+      - name: Run skill evaluations
+        run: waza run --discover --verbose
+
+      - name: Check skill readiness
+        run: |
+          for skill in ban-ast/skills/manage-bans \
+                       component-explorer/skills/setup-component-explorer \
+                       component-explorer/skills/setup-component-explorer-full \
+                       component-explorer/skills/setup-component-explorer-light \
+                       component-explorer/skills/use-component-explorer \
+                       model-council/skills/council-plan \
+                       model-council/skills/council-review \
+                       review-areas/skills/review-areas; do
+            echo "--- Checking $skill ---"
+            waza check "$skill" || true
+          done
+
+      - name: Count skill tokens
+        run: waza tokens count ban-ast/skills/ component-explorer/skills/ model-council/skills/ review-areas/skills/

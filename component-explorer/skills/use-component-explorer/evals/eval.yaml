@@ -1,0 +1,30 @@
+name: use-component-explorer-eval
+description: |
+  Evaluation suite for the use-component-explorer skill.
+  Tests that the skill correctly guides writing fixtures,
+  fixture groups, and variants for visual testing.
+skill: use-component-explorer
+version: "1.0"
+
+config:
+  trials_per_task: 1
+  timeout_seconds: 300
+  parallel: false
+  executor: copilot-sdk
+  model: claude-sonnet-4.6
+
+graders:
+  - type: text
+    name: no_errors
+    config:
+      regex_not_match:
+        - "(?i)fatal error|crashed|exception occurred"
+
+  - type: code
+    name: has_output
+    config:
+      assertions:
+        - "len(output) > 10"
+
+tasks:
+  - "tasks/*.yaml"
