@@ -8,6 +8,11 @@ on:
         required: false
         type: boolean
         default: true
+      full:
+        description: 'Run full eval suite (not just trigger tests)'
+        required: false
+        type: boolean
+        default: true
   pull_request:
     branches: [main]
     paths:
@@ -15,20 +20,14 @@ on:
       - '**/evals/**'
       - '.waza.yaml'
       - '.github/workflows/waza-eval.yml'
-  push:
-    branches: [main]
-    paths:
-      - '**/skills/**'
-      - '**/evals/**'
-      - '.waza.yaml'
-      - '.github/workflows/waza-eval.yml'
+
+concurrency:
+  group: waza-eval-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
   pull-requests: write
-
-env:
-  WAZA_VERSION: '0.23.0'
 
 jobs:
   evaluate:
@@ -50,6 +49,13 @@ jobs:
           ARGS=(run --discover --output results.json --format github-comment)
           if [ "${{ inputs.verbose }}" = "true" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             ARGS+=(--verbose)
+          fi
+          # PR runs: trigger tests only (fast). Manual dispatch: full suite.
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            ARGS+=(--task "trigger_tests*")
+          fi
+          if [ "${{ inputs.full }}" = "false" ]; then
+            ARGS+=(--task "trigger_tests*")
           fi
           waza "${ARGS[@]}" | tee comment.md
         env:
