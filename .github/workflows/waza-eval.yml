@@ -52,6 +52,8 @@ jobs:
             ARGS+=(--verbose)
           fi
           waza "${ARGS[@]}" | tee comment.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.COPILOT_TOKEN }}
 
       - name: Comment on PR
         if: github.event_name == 'pull_request'
