@@ -70,12 +70,12 @@ If only one of the two terminals has completed, leave the other running.
 
 After a `NEW_COPILOT_REVIEW` or `UNRESOLVED_COPILOT_REVIEW_COMMENTS` result:
 
-1. **Fix the code in the working tree** using your own judgment. Do not commit, push, or resolve the threads yet.
-2. **Decide whether to push the fixes**:
-    - If the user has already told you to keep iterating on this PR in the current conversation, proceed directly to step 3.
-    - Otherwise, use the `vscode_askQuestions` tool to ask whether to commit and push. Present a brief summary of what you changed; if you are unsure whether a fix fully addresses a comment, include that uncertainty in the question.
-3. **When pushing**, commit and push the changes, **then** resolve the review threads you addressed. Resolving happens at the moment of push, not before.
-4. **If the user declines**, leave the working tree changes in place and do not resolve anything.
+1. **Repeat the Copilot review comments to the user** before making edits. Include the file, line, and body from the terminal output so the user can see exactly what Copilot asked for.
+2. **Fix the code in the working tree** using your own judgment.
+3. **Stop after making local changes. DO NOT commit, push, or resolve review threads.** Leave the edits unstaged in the working tree for the user to review.
+4. **Do not ask whether to commit or push as part of this skill.** Only commit, push, or resolve threads if the user gives an explicit follow-up instruction after reviewing the local changes.
+
+Only use the following commands after the user explicitly asks you to commit, push, or resolve review threads.
 
 To find unresolved Copilot thread IDs:
 ```sh
@@ -102,12 +102,12 @@ When `wait-for-ci.mts` reports `CI_FAILED`, investigate whether the failures are
     gh run rerun <run-id> --failed
     ```
     Then kill the old `wait-for-ci.mts` terminal with `kill_terminal` and start a fresh one per step 2. Tell the user briefly that you identified the failure as an unrelated flake and retried it.
-5. **If the failure looks real** (touches code you changed, clean assertion failure, compile error in your diff, etc.), do NOT retry. Handle it the same way as a Copilot review comment: fix it in the working tree, then decide whether to push per step 4's rules. If you are not confident you understand the failure, ask the user for guidance instead of guessing at a fix.
+5. **If the failure looks real** (touches code you changed, clean assertion failure, compile error in your diff, etc.), do NOT retry. Handle it the same way as a Copilot review comment: explain the failure to the user, fix it in the working tree, and stop without committing, pushing, or resolving anything. If you are not confident you understand the failure, ask the user for guidance instead of guessing at a fix.
 6. **Never retry the same job more than once in this conversation** without the user's explicit permission. If a retried job fails again, stop and treat it as a real failure even if it still looks flaky.
 
-### 6. After Pushing Fixes
+### 6. After Explicitly Requested Pushes
 
-New commits re-trigger CI and may invalidate the existing Copilot review. After pushing fixes, kill any still-running monitor terminals with `kill_terminal` and re-run this skill to watch the fresh run.
+If the user later explicitly asks you to commit and push the local fixes, new commits re-trigger CI and may invalidate the existing Copilot review. After pushing fixes, kill any still-running monitor terminals with `kill_terminal` and re-run this skill to watch the fresh run.
 
 ## Notes
 
