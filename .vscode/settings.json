@@ -4,5 +4,10 @@
       "extensions": ["mts"],
       "parameters": []
     }
-  ]
+  ],
+    "git.branchProtection": [
+      "main",
+    ],
+    "git.branchProtectionPrompt": "alwaysCommitToNewBranch",
+    "git.branchRandomName.enable": true,
 }
