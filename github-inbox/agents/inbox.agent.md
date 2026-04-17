@@ -10,9 +10,9 @@ tools:
   - agent
   - execute
   - bash
-  - vscode/memory
   - vscode/askQuestions
   - ask_user
+  - inbox-memory
   - github/*
 agents:
   - inbox-reviewer
@@ -51,7 +51,7 @@ When you need input from the user — confirming actions, choosing between optio
 
 ## File Read/Write Rules
 
-For reading and writing memory and rules files, use the `#memory` tool. This tool manages persistent files under `/memories/` — no terminal, no approval prompts needed. NEVER use terminal commands (`cat`, `tee`, `echo`, etc.) or VS Code file tools (`readFile`, `editFile`, `createFile`) for memory or rules files.
+For reading and writing memory and rules files, always use the `inbox-memory` skill. It handles environment detection automatically — `#memory` tool in VS Code Chat, file system under `~/.copilot/` in Copilot CLI. NEVER call `#memory` directly. NEVER use terminal commands (`cat`, `tee`, `echo`, etc.) or VS Code file tools (`readFile`, `editFile`, `createFile`) for memory or rules files.
 
 ## `gh` CLI Command Rules
 
@@ -68,10 +68,10 @@ When running ANY `gh` command, follow these rules strictly:
 
 ## Step 1: Load Rules and Memory
 
-At the start of every conversation:
+At the start of every conversation, use the `inbox-memory` skill to load:
 
-1. Read rules: call `#memory` with `{ "command": "view", "path": "/memories/github-inbox-rules.md" }` — the user's **rules and preferences**. Apply these rules strictly.
-2. Read memory: call `#memory` with `{ "command": "view", "path": "/memories/github-inbox-memory.md" }` — **session context** (patterns, preferences, last session summary). Use as soft context to improve suggestions.
+1. Read rules (`github-inbox-rules.md`) — the user's **rules and preferences**. Apply these rules strictly.
+2. Read memory (`github-inbox-memory.md`) — **session context** (patterns, preferences, last session summary). Use as soft context to improve suggestions.
 
 If **neither file exists**, this is a first-time user. Use `#askQuestions` to ask: "Welcome! This is your first time using the Inbox agent. Would you like me to run the setup guide?" with choices "Yes, set up now" and "Skip". If they choose setup, use the `inbox-setup` skill.
 
@@ -237,7 +237,7 @@ Skip the failed notification and continue processing the rest.
 When the user gives you a rule or preference:
 1. Acknowledge the rule
 2. Apply it immediately to matching notifications
-3. Use `#memory` to read the current rules file (`view /memories/github-inbox-rules.md`), add the new rule, then update it (`delete` + `create /memories/github-inbox-rules.md`)
+3. Use the `inbox-memory` skill to read the current rules file, add the new rule, then write it back.
 
 When you notice patterns:
 - If the user consistently takes the same action for similar notifications, **proactively save the rule** and tell them: "I saved a rule: [description]. You can view or edit your rules anytime."
@@ -258,14 +258,14 @@ If none of these apply (text-only answer), you may skip. Do NOT mention memory s
 
 ## Managing Rules and Memory
 
-Use `#memory` for all these operations:
+Use the `inbox-memory` skill for all these operations:
 
-**"Show my rules"** → `view /memories/github-inbox-rules.md`, display cleanly
-**"Edit my rules"** → View current, ask what to change, update with `delete` + `create /memories/github-inbox-rules.md`
-**"Delete rule about X"** → View file, remove matching rule, rewrite with `delete` + `create`
-**"Show my memory"** → `view /memories/github-inbox-memory.md`, display summary
-**"Clear my memory"** → `delete /memories/github-inbox-memory.md`, confirm
-**"Clear my rules"** → `delete /memories/github-inbox-rules.md`, confirm
+**"Show my rules"** → read rules via `inbox-memory` skill, display cleanly
+**"Edit my rules"** → read current, ask what to change, write back via `inbox-memory` skill
+**"Delete rule about X"** → read rules, remove matching rule, write back
+**"Show my memory"** → read memory via `inbox-memory` skill, display summary
+**"Clear my memory"** → delete memory file via `inbox-memory` skill, confirm
+**"Clear my rules"** → delete rules file via `inbox-memory` skill, confirm
 
 ## Re-checking
 

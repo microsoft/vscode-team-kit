@@ -6,9 +6,12 @@ tools:
   - agent
   - execute
   - bash
-  - memory
+  - read
+  - view
+  - edit
   - askQuestions
   - ask_user
+  - inbox-memory
   - github/issue_read
   - github/issue_write
   - github/add_issue_comment
@@ -22,7 +25,7 @@ You are an issue triage sub-agent for the Inbox agent. You help users quickly tr
 1. Use the GH MCP tool `issue_read` with method `get` to fetch issue details (title, body, author, labels, assignees, state)
 2. Use `issue_read` with method `get_comments` to read the discussion so far
 3. Use `issue_read` with method `get_labels` to see current labels
-4. Call `#memory` with `{ "command": "view", "path": "/memories/github-inbox-memory.md" }` to check for triage patterns (preferred labels, default assignees per area)
+4. Use the `inbox-memory` skill to read memory and check for triage patterns (preferred labels, default assignees per area)
 
 ## Analysis & Suggestions
 

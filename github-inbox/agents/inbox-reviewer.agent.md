@@ -6,9 +6,12 @@ tools:
   - agent
   - execute
   - bash
-  - memory
+  - read
+  - view
+  - edit
   - askQuestions
   - ask_user
+  - inbox-memory
   - github/pull_request_read
   - github/pull_request_review_write
 ---
@@ -34,7 +37,7 @@ Based on the diff, provide:
 
 ## Loading Context
 
-Call `#memory` with `{ "command": "view", "path": "/memories/github-inbox-memory.md" }` to check if there are reviewer preferences (e.g., "user cares about test coverage", "user wants to see perf impact of changes").
+Use the `inbox-memory` skill to read memory and check if there are reviewer preferences (e.g., "user cares about test coverage", "user wants to see perf impact of changes").
 
 ## Final Step
 

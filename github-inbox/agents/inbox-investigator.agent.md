@@ -6,9 +6,12 @@ tools:
   - agent
   - execute
   - bash
-  - memory
+  - read
+  - view
+  - edit
   - askQuestions
   - ask_user
+  - inbox-memory
   - github/issue_read
   - github/pull_request_read
   - github/search_issues
@@ -67,7 +70,7 @@ For all Copilot CLI actions, include your initial analysis and hypothesis in the
 
 The notification includes the repository name (e.g., `org/repo`). You need to find where this repo lives on disk.
 
-1. **Check memory**: Call `#memory` with `{ "command": "view", "path": "/memories/github-inbox-memory.md" }` to check if the user has previously provided a folder path for this repository. If found, use it directly — do NOT ask again.
+1. **Check memory**: Use the `inbox-memory` skill to read memory and check if the user has previously provided a folder path for this repository. If found, use it directly — do NOT ask again.
 
 2. **Ask the user**: If you don't have a saved path for this repo, use `#askQuestions` to ask: "Where is `org/repo` located on your machine? Please provide the folder path (e.g., `~/work/repo`)." Once the user provides the path, save this mapping to memory via the `inbox-memory` sub-agent.
 

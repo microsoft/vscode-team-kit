@@ -86,6 +86,8 @@ Check if the GitHub MCP server is running. If `github.copilot.chat.githubMcpServ
 
 After setup is complete, save to memory that setup has been completed:
 
-Call `#memory` with `{ "command": "create", "path": "/memories/github-inbox-memory.md", "file_text": "# Inbox Memory\n\n## Setup State\n- Setup completed on <date>\n- All required VS Code settings are present and verified\n" }`
+Use the `inbox-memory` skill to save setup status:
+
+Write to memory: `"# Inbox Memory\n\n## Setup State\n- Setup completed on <date>\n- All required VS Code settings are present and verified\n"`
 
 If the memory file already exists, use `delete` first, then `create` with the merged content.

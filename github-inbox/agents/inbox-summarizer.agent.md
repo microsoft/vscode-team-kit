@@ -6,7 +6,7 @@ tools:
   - agent
   - execute
   - bash
-  - memory
+  - inbox-memory
   - github/issue_read
   - github/pull_request_read
   - github/search_issues
