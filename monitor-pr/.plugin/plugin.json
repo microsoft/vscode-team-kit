@@ -5,8 +5,3 @@
   "license": "MIT",
   "keywords": ["pr", "pull-request", "ci", "code-review", "copilot", "monitor", "gh"]
 }
-{
-	"name": "monitor-pr",
-	"version": "1.0.0",
-	"description": ""
-}
