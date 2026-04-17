@@ -105,6 +105,8 @@ When `wait-for-ci.mts` reports `CI_FAILED`, investigate whether the failures are
 5. **If the failure looks real** (touches code you changed, clean assertion failure, compile error in your diff, etc.), do NOT retry. Handle it the same way as a Copilot review comment: explain the failure to the user, fix it in the working tree, and stop without committing, pushing, or resolving anything. If you are not confident you understand the failure, ask the user for guidance instead of guessing at a fix.
 6. **Never retry the same job more than once in this conversation** without the user's explicit permission. If a retried job fails again, stop and treat it as a real failure even if it still looks flaky.
 
+**Merge conflict exception:** If the failing check is a mergeability check (for example, `mergeable: CONFLICTING`, `mergeStateStatus: DIRTY`, or a required merge check such as `VS Code Merge Check`) and the fix is only resolving merge conflicts with the base branch, you may commit the merge-conflict resolution automatically after validating it. Do not apply this exception to ordinary compile/test failures or review comments.
+
 ### 6. After Explicitly Requested Pushes
 
 If the user later explicitly asks you to commit and push the local fixes, new commits re-trigger CI and may invalidate the existing Copilot review. After pushing fixes, kill any still-running monitor terminals with `kill_terminal` and re-run this skill to watch the fresh run.
