@@ -1,0 +1,63 @@
+skill: council-review
+
+# council-review triggers on multi-model / council keywords.
+# Generic "review my code" without council/multi-model language
+# may match review-areas instead — that's fine.
+
+should_trigger_prompts:
+  - prompt: "Council review my recent changes"
+    reason: "Direct council keyword"
+    confidence: high
+
+  - prompt: "Multi-model review of this PR"
+    reason: "Multi-model is the core differentiator"
+    confidence: high
+
+  - prompt: "Cross-review the diff"
+    reason: "Cross-review is an explicit trigger"
+    confidence: high
+
+  - prompt: "Have multiple models inspect these changes"
+    reason: "Multiple models is the core use case"
+    confidence: high
+
+  - prompt: "Debate the review findings from different models"
+    reason: "Debate/discuss findings is an explicit trigger"
+    confidence: high
+
+  - prompt: "I want independent reviews from different models"
+    reason: "Independent multi-model reviews"
+    confidence: high
+
+should_not_trigger_prompts:
+  - prompt: "Plan the architecture for a new feature"
+    reason: "Planning should trigger council-plan, not review"
+    confidence: high
+
+  - prompt: "Write a new component"
+    reason: "Code creation, not review"
+    confidence: high
+
+  - prompt: "Fix this compilation error"
+    reason: "Error fixing, not review"
+    confidence: high
+
+  - prompt: "Deploy to staging"
+    reason: "Deployment, completely unrelated"
+    confidence: high
+
+  - prompt: "Plan with council"
+    reason: "Planning, not review — should trigger council-plan"
+    confidence: high
+
+  - prompt: "Explain this code"
+    reason: "Code explanation, not review"
+    confidence: high
+
+  - prompt: "Review my code"
+    reason: "Generic review without multi-model keywords should go to review-areas, not council"
+    confidence: medium
+
+  - prompt: "Compare strategies for implementing auth"
+    reason: "Strategy comparison is planning, not review"
+    confidence: high

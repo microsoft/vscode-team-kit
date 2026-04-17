@@ -1,0 +1,23 @@
+id: light-setup-001
+name: Lightweight setup
+description: |
+  Test that the skill responds with the minimal setup —
+  install packages and add the Vite plugin only.
+tags:
+  - basic
+  - happy-path
+
+inputs:
+  prompt: "Add a minimal component explorer setup to my Vite project"
+  context:
+    framework: vite
+    language: typescript
+
+expected:
+  output_contains:
+    - "component-explorer"
+    - "vite"
+  outcomes:
+    - type: task_completed
+  behavior:
+    max_tool_calls: 10

@@ -1,0 +1,23 @@
+id: basic-setup-001
+name: Basic setup request
+description: |
+  Test that the skill responds to a basic setup request
+  with installation and configuration steps.
+tags:
+  - basic
+  - happy-path
+
+inputs:
+  prompt: "Set up the component explorer in my Vite project"
+  context:
+    framework: vite
+    language: typescript
+
+expected:
+  output_contains:
+    - "component-explorer"
+    - "npm install"
+  outcomes:
+    - type: task_completed
+  behavior:
+    max_tool_calls: 15

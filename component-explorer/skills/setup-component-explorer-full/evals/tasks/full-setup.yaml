@@ -1,0 +1,23 @@
+id: full-setup-001
+name: Full setup with MCP and tasks
+description: |
+  Test that the skill responds with the complete setup
+  including CLI, MCP server, VS Code tasks and launch config.
+tags:
+  - basic
+  - happy-path
+
+inputs:
+  prompt: "Set up the complete component explorer with MCP server and VS Code tasks"
+  context:
+    framework: vite
+    language: typescript
+
+expected:
+  output_contains:
+    - "component-explorer"
+    - "mcp"
+  outcomes:
+    - type: task_completed
+  behavior:
+    max_tool_calls: 20

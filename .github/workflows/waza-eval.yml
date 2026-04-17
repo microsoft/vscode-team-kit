@@ -1,0 +1,83 @@
+name: Waza Skill Evaluation
+
+on:
+  workflow_dispatch:
+    inputs:
+      verbose:
+        description: 'Enable verbose output'
+        required: false
+        type: boolean
+        default: true
+      full:
+        description: 'Run full eval suite (not just trigger tests)'
+        required: false
+        type: boolean
+        default: true
+  pull_request:
+    branches: [main]
+    paths:
+      - '**/skills/**'
+      - '**/evals/**'
+      - '.waza.yaml'
+      - '.github/workflows/waza-eval.yml'
+
+concurrency:
+  group: waza-eval-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  evaluate:
+    name: Run Skill Evaluations
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install waza
+        run: curl -fsSL https://raw.githubusercontent.com/microsoft/waza/main/install.sh | bash
+
+      - name: Verify waza
+        run: waza --version
+
+      - name: Run evaluations
+        id: eval
+        run: |
+          ARGS=(run --discover --output results.json --format github-comment)
+          if [ "${{ inputs.verbose }}" = "true" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            ARGS+=(--verbose)
+          fi
+          # PR runs: trigger tests only (fast). Manual dispatch: full suite.
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            ARGS+=(--task "trigger_tests*")
+          fi
+          if [ "${{ inputs.full }}" = "false" ]; then
+            ARGS+=(--task "trigger_tests*")
+          fi
+          waza "${ARGS[@]}" | tee comment.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.COPILOT_TOKEN }}
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        run: |
+          if [ -s comment.md ]; then
+            gh pr comment "${{ github.event.pull_request.number }}" --body-file comment.md
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: waza-evaluation-results
+          path: |
+            results.json
+            summary.json
+            transcripts/
+          retention-days: 30
+          if-no-files-found: warn

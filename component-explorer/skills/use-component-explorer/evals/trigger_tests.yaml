@@ -1,0 +1,63 @@
+skill: use-component-explorer
+
+should_trigger_prompts:
+  - prompt: "Create a fixture for my Button component"
+    reason: "Direct fixture creation request"
+    confidence: high
+
+  - prompt: "Write a component explorer fixture for the sidebar"
+    reason: "Explicit fixture writing request"
+    confidence: high
+
+  - prompt: "Add visual test fixtures for this UI component"
+    reason: "Visual testing with fixtures"
+    confidence: high
+
+  - prompt: "How do I write a fixture group for related components?"
+    reason: "Fixture group usage question"
+    confidence: high
+
+  - prompt: "Create fixture variants for light and dark themes"
+    reason: "Fixture variants are a core feature"
+    confidence: high
+
+  - prompt: "I'm adding a new UI element, help me create the fixture"
+    reason: "UI change triggers fixture creation"
+    confidence: medium
+
+  - prompt: "Add a screenshot test for this component"
+    reason: "Screenshots are in description but 'screenshot test' requires inferring the fixture connection"
+    confidence: medium
+
+  - prompt: "Update the fixture for the dialog component"
+    reason: "Modifying existing fixtures"
+    confidence: high
+
+  - prompt: "Fix the layout of this page"
+    reason: "Fixing layout is changing UI — description says 'read when adding/changing UI'"
+    confidence: medium
+
+should_not_trigger_prompts:
+  - prompt: "Set up component explorer in my project"
+    reason: "Setup is a different skill (setup-component-explorer)"
+    confidence: high
+
+  - prompt: "Install the component explorer packages"
+    reason: "Installation is setup, not usage"
+    confidence: high
+
+  - prompt: "Write a unit test with Jest"
+    reason: "Unit testing, not fixture writing"
+    confidence: high
+
+  - prompt: "Fix the database connection error"
+    reason: "Backend issue, not UI fixtures"
+    confidence: high
+
+  - prompt: "Deploy my application to production"
+    reason: "Deployment, completely unrelated"
+    confidence: high
+
+  - prompt: "Create a new REST API endpoint"
+    reason: "Backend work, not UI fixtures"
+    confidence: high

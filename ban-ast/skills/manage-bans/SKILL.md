@@ -161,3 +161,14 @@ PASS [should-not-match]: "foo(\"code\")"
 
 2 test(s): 2 passed, 0 failed.
 ```
+
+## Justification Override
+
+If a banned pattern is strictly necessary, include a justification comment in the code to bypass the ban for that specific instance:
+
+```typescript
+// <no-eval> justification: required for dynamic plugin loading
+const result = eval(expression);
+```
+
+The hook checks for `<rule-name> justification: <non-empty reason>` anywhere in the new code. If found, that rule is not enforced for that edit. The reason must be non-empty to ensure overrides are intentional and documented.

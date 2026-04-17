@@ -1,0 +1,43 @@
+skill: setup-component-explorer-full
+
+should_trigger_prompts:
+  - prompt: "Set up the full component explorer with MCP server and VS Code tasks"
+    reason: "Explicit full setup request"
+    confidence: high
+
+  - prompt: "I need the complete component explorer integration with CLI and launch config"
+    reason: "Complete setup with all features"
+    confidence: high
+
+  - prompt: "Configure component explorer with MCP server for AI agent integration"
+    reason: "MCP server is in description but 'AI agent integration' is not"
+    confidence: medium
+
+  - prompt: "Add component explorer with VS Code tasks and launch configuration"
+    reason: "VS Code tasks and launch config are in description"
+    confidence: high
+
+  - prompt: "Set up component explorer CLI daemon"
+    reason: "CLI is in description but 'daemon' phrasing may not match"
+    confidence: medium
+
+should_not_trigger_prompts:
+  - prompt: "Just add the Vite plugin for component explorer"
+    reason: "Minimal setup should use light variant"
+    confidence: medium
+
+  - prompt: "Write a fixture for my Button component"
+    reason: "Fixture writing is use-component-explorer skill"
+    confidence: high
+
+  - prompt: "Run my unit tests"
+    reason: "Unrelated test execution"
+    confidence: high
+
+  - prompt: "Review my pull request"
+    reason: "Code review, not setup"
+    confidence: high
+
+  - prompt: "Deploy my application"
+    reason: "Deployment, completely unrelated"
+    confidence: high

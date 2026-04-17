@@ -1,0 +1,22 @@
+id: review-areas-001
+name: Basic area-focused review
+description: |
+  Test that the skill responds to a review request
+  with parallel area-focused subagent reviews.
+tags:
+  - basic
+  - happy-path
+
+inputs:
+  prompt: "Review my pull request for correctness and security"
+  context:
+    project_type: web-app
+
+expected:
+  output_contains:
+    - "review"
+    - "(?i)correctness|security|area"
+  outcomes:
+    - type: task_completed
+  behavior:
+    max_tool_calls: 20

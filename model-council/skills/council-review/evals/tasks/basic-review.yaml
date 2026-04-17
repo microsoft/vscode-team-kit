@@ -1,0 +1,21 @@
+id: council-review-001
+name: Basic council review request
+description: |
+  Test that the skill responds to a council review request
+  with multi-model consensus review.
+tags:
+  - basic
+  - happy-path
+
+inputs:
+  prompt: "Council review my recent changes"
+  context:
+    project_type: web-app
+
+expected:
+  output_contains:
+    - "review"
+  outcomes:
+    - type: task_completed
+  behavior:
+    max_tool_calls: 20
