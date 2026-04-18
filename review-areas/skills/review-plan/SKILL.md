@@ -5,21 +5,22 @@ description: "Review an implementation plan produced by the Plan agent. It is CR
 
 # Skill: Review Plan
 
-Fan out parallel read-only subagents, each assigned a different plan-review area, then synthesize the highest-signal findings. This catches gaps that a single read-through misses because each subagent goes deep on its area — one checks feasibility against the actual codebase while another stress-tests sequencing.
+Your goal is to CRITICALLY review the given implementation plan. Provide thorough, constructive feedback that enhances the plan's quality and likelihood of successful execution and solving the stated goal.
+
+Fan out parallel read-only subagents, each assigned a different plan-review area, then synthesize the highest-signal findings. Each subagent goes deep on one area, catching gaps a single pass misses.
 
 ## Review Areas
 
-Pick 2–4 areas based on the plan's complexity. Not every review needs all areas — match the areas to the risk profile.
+Pick 2–4 areas based on the plan's complexity and risk profile.
 
-| Area | When to include | Focus |
-|------|----------------|-------|
-| **Completeness** | Always | Missing requirements, unaddressed edge cases, gaps between the stated goal and proposed steps, unclear expected outcomes |
-| **Feasibility** | Always | Technical soundness of proposed changes, references to nonexistent APIs or patterns, incorrect assumptions about the codebase |
-| **Grounding** | Always | References to deprecated or renamed APIs, outdated library versions, hallucinated functions or parameters, patterns from training data that don't match the actual codebase or current docs |
-| **Sequencing** | Plans with 3+ steps | Dependency correctness between steps, parallelism opportunities missed, blocking-step identification, optimal ordering |
-| **Scope** | Always | Over-engineering, unnecessary refactors, gold-plating, scope creep beyond stated goal, or under-specification that will cause ambiguity during implementation |
-| **Verification** | Plans with verification steps | Are verification steps specific and actionable? Do they cover the riskiest parts of the change? Missing test strategies |
-| **Risk** | Plans touching auth, data, APIs, or infra | Unaddressed failure modes, migration risks, backward compatibility gaps, missing rollback strategy |
+| Area | Focus |
+|------|-------|
+| **Completeness** | Missing requirements, unaddressed edge cases, gaps between the stated goal and proposed steps, unclear expected outcomes |
+| **Grounding** | Technical soundness and factual accuracy — references to nonexistent or deprecated APIs, hallucinated functions, incorrect codebase assumptions, outdated versions. Use web search to validate uncertain claims. Suggest alternative approaches when the plan is fundamentally wrong |
+| **Sequencing** | Dependency correctness between steps, parallelism opportunities missed, blocking-step identification, optimal ordering |
+| **Scope** | Over-engineering, gold-plating, scope creep or under-specification, scope disproportionate to value delivered |
+| **Verification** | Are verification steps specific, actionable, and covering the riskiest parts of the change? Missing test strategies |
+| **Risk** | Unaddressed failure modes, migration risks, backward compatibility gaps, missing rollback strategy |
 
 ## Workflow
 
@@ -33,7 +34,7 @@ Pick 2–4 areas based on the plan's complexity. Not every review needs all area
 
 Launch 2–4 parallel subagents using the area prompts below. Each subagent works in isolation — do not share one area's findings with another before synthesis.
 
-Each gets a self-contained prompt with its area, the plan location, and the return format. Subagents read the full plan from session memory themselves.
+Each gets a self-contained prompt with its area, the plan location, and the return format. Subagents read the full plan from session memory themselves. Subagents may surface findings their area doesn't explicitly list — don't constrain them to only the listed focus items.
 
 ### 3 — Synthesize
 
@@ -59,14 +60,9 @@ Always save the synthesized findings to session memory at `/memories/session/pla
 
 ## Signal Filter
 
-Keep only findings that would cause real problems during implementation:
-- A step depends on something that doesn't exist in the codebase
-- A requirement from the goal is missing from the steps
-- Steps are ordered in a way that creates unnecessary blocking or rework
-- The scope clearly exceeds or falls short of the stated goal
-- Verification steps wouldn't actually catch the riskiest changes
+Before reporting a finding, ask: *Does this change what a developer would actually do — or how likely the plan is to succeed?* Ground every finding in something observable: a file that doesn't exist, an API that behaves differently, a requirement the steps don't cover, a sequence that creates rework.
 
-Drop: stylistic preferences about plan formatting, speculative concerns without evidence, suggestions to add more steps "just in case", pre-existing codebase problems unrelated to the plan.
+If a concern is speculative, cosmetic, or unrelated to the plan's goal, leave it out.
 
 ## Area Prompt
 
@@ -80,12 +76,12 @@ The plan is in session memory at `/memories/session/plan.md`. Read it with your 
 
 Focus on: {FOCUS}
 
-Use your tools to read the full plan, inspect the codebase, and verify assumptions. Trace the plan's references through the codebase.
+Use your tools to read the full plan, inspect the codebase, verify assumptions, and run existing tests or check lint/compile errors for evidence. Use web search to validate uncertain API or version claims.
 
 Rules:
 - Stay read-only. Do not edit files.
-- Only flag issues that would cause real problems during implementation — gaps, wrong assumptions, broken dependencies, or scope mismatches.
-- Do not report issues outside your area.
+- Only flag issues that would change what a developer actually does or how likely the plan is to succeed.
+- Do not report issues outside your area, but do surface unexpected findings within it.
 - Do not rewrite the plan — describe the problem and why it matters.
 - Keep your response short. No preamble, no formatting commentary.
 
