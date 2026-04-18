@@ -7,7 +7,6 @@ Area-focused code review that fans out parallel subagents — each examining a d
 | Skill | Description |
 |---|---|
 | [review-areas](skills/review-areas/) | Fan out area-specific subagents in parallel and merge findings by severity |
-| [review-plan](skills/review-plan/) | Review an implementation plan (e.g. from Plan agent) across completeness, feasibility, sequencing, scope, and risk |
 
 ## How It Works
 
@@ -33,8 +32,6 @@ review-areas/
 ├── .plugin/plugin.json
 ├── README.md
 └── skills/
-    ├── review-areas/
-    │   └── SKILL.md
-    └── review-plan/
+    └── review-areas/
         └── SKILL.md
 ```

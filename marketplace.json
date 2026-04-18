@@ -40,6 +40,13 @@
       "keywords": ["review", "code-review", "subagents", "quality"]
     },
     {
+      "name": "review-plan",
+      "source": "./review-plan/",
+      "description": "Review implementation plans before coding — fans out subagents across completeness, feasibility, sequencing, scope, and risk.",
+      "version": "1.0.0",
+      "keywords": ["review", "plan", "subagents", "quality"]
+    },
+    {
       "name": "monitor-pr",
       "source": "./monitor-pr/",
       "description": "Monitor a pull request until CI status and Copilot review are available via non-polling async terminal scripts.",

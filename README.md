@@ -16,7 +16,8 @@ A collection of useful [agent plugins](https://github.com/anthropics/open-plugin
 | [ban-ast](ban-ast/) | Ban code patterns via Tree Sitter AST queries — rejects edits unless justified |
 | [component-explorer](component-explorer/) | Set up and use the VS Code Component Explorer for fixture-based visual testing with MCP-powered screenshots |
 | [model-council](model-council/) | Multi-model council for code review and planning — model-pinned agents independently review or plan, then synthesize by consensus |
-| [review-areas](review-areas/) | Area-focused code review and plan review — fans out parallel subagents across correctness, tests, security, performance, product, and plan-specific areas like feasibility and sequencing |
+| [review-areas](review-areas/) | Area-focused code review — fans out parallel subagents across correctness, tests, security, performance, and product |
+| [review-plan](review-plan/) | Review implementation plans before coding — fans out subagents across completeness, feasibility, sequencing, scope, and risk |
 | [monitor-pr](monitor-pr/) | Monitor a pull request until CI finishes and Copilot's review arrives — via non-polling async terminal scripts |
 | [github-inbox](github-inbox/) | Triage and act on your GitHub notifications — smart grouping, rules, memory, and sub-agents for review, triage, and investigation |
 

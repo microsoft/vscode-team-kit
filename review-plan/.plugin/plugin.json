@@ -1,0 +1,7 @@
+{
+  "name": "review-plan",
+  "version": "1.0.0",
+  "description": "Review implementation plans before handing off to coding — fans out parallel subagents across completeness, feasibility, sequencing, scope, and risk.",
+  "license": "MIT",
+  "keywords": ["review", "plan", "subagents", "quality"]
+}

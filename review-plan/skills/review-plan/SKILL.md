@@ -32,7 +32,7 @@ Pick 2–4 areas based on the plan's complexity and risk profile.
 
 ### 2 — Fan Out
 
-Launch 2–4 parallel subagents using the area prompts below. Each subagent works in isolation — do not share one area's findings with another before synthesis.
+Launch 2–5 parallel subagents using the area prompts below. Each subagent works in isolation — do not share one area's findings with another before synthesis.
 
 Each gets a self-contained prompt with its area, the plan location, and the return format. Subagents read the full plan from session memory themselves. Subagents may surface findings their area doesn't explicitly list — don't constrain them to only the listed focus items.
 
@@ -94,19 +94,3 @@ Return format:
 
 If the plan is sound for your area: "No issues found in {AREA}."
 ```
-
-## Output Shape
-
-**Plan Summary** (50 words max):
-What the plan proposes and its expected outcome.
-
-**What's Solid** (1–3 items):
-Acknowledge strong aspects of the plan worth preserving during revision.
-
-**Critical Issues** (0–5 items, severity order):
-Each with the area that surfaced it and a proposed revision.
-
-**Suggestions** (0–5 items):
-Improvements that didn't reach "blocking" but would strengthen the plan.
-
-**Verdict**: Ready / Needs Revisions / Rethink Needed — with a specific next step.
