@@ -38,10 +38,14 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install waza
-        run: curl -fsSL https://raw.githubusercontent.com/microsoft/waza/main/install.sh | bash
-
-      - name: Verify waza
-        run: waza --version
+        run: |
+          WAZA_URL="https://github.com/microsoft/waza/releases/download/v0.23.0/waza-linux-amd64"
+          WAZA_SHA256="9cf7c99292100892b3274155b39f62e54c66d6dbd43d69b1a626a9ef5d35668b"
+          curl -fSL -o waza "$WAZA_URL"
+          echo "${WAZA_SHA256}  waza" | sha256sum -c --status
+          chmod +x waza
+          sudo mv waza /usr/local/bin/waza
+          waza --version
 
       - name: Run evaluations
         id: eval

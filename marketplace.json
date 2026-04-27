@@ -59,6 +59,13 @@
       "description": "Triage and act on your GitHub notifications — smart grouping, rules, memory, and sub-agents for review, triage, and investigation.",
       "version": "1.0.0",
       "keywords": ["github", "notifications", "inbox", "triage", "agents"]
+    },
+    {
+      "name": "build-health",
+      "source": "./build-health/",
+      "description": "Analyze VS Code rolling build health on Azure DevOps — download recent builds, identify failures, show break/fix transitions with error details and commit links.",
+      "version": "1.0.0",
+      "keywords": ["build", "ci", "pipeline", "azure-devops", "build-champ", "rolling-build"]
     }
   ]
 }
