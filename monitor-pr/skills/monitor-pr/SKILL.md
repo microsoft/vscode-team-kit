@@ -71,11 +71,11 @@ If only one of the two terminals has completed, leave the other running.
 After a `NEW_COPILOT_REVIEW` or `UNRESOLVED_COPILOT_REVIEW_COMMENTS` result:
 
 1. **Repeat the Copilot review comments to the user** before making edits. Include the file, line, and body from the terminal output so the user can see exactly what Copilot asked for.
-2. **Fix the code in the working tree** using your own judgment.
-3. **Stop after making local changes. DO NOT commit, push, or resolve review threads.** Leave the edits unstaged in the working tree for the user to review.
-4. **Do not ask whether to commit or push as part of this skill.** Only commit, push, or resolve threads if the user gives an explicit follow-up instruction after reviewing the local changes.
+2. **Handle each comment immediately** using your own judgment. This may mean editing code, deciding the comment is not worth changing, or confirming that no code change is needed.
+3. **Resolve the corresponding Copilot review thread as soon as you have handled it.** Resolve it even when you decide not to make a code change. Do not leave Copilot comment threads open after they have been considered. Tell the user that you've resolved the comments.
+4. **Do not push without explicit user approval.**
 
-Only use the following commands after the user explicitly asks you to commit, push, or resolve review threads.
+Use the following commands to find and resolve Copilot review threads after handling each comment.
 
 To find unresolved Copilot thread IDs:
 ```sh
@@ -86,6 +86,8 @@ To resolve a thread:
 ```sh
 gh api graphql -f query='mutation { resolveReviewThread(input: {threadId: "<THREAD_ID>"}) { thread { isResolved } } }'
 ```
+
+Resolve only the Copilot threads you have handled. If multiple Copilot comments map to the same underlying issue and a single edit handles all of them, resolve all of those handled threads before stopping.
 
 ### 5. Handling CI Failures
 
@@ -102,14 +104,12 @@ When `wait-for-ci.mts` reports `CI_FAILED`, investigate whether the failures are
     gh run rerun <run-id> --failed
     ```
     Then kill the old `wait-for-ci.mts` terminal with `kill_terminal` and start a fresh one per step 2. Tell the user briefly that you identified the failure as an unrelated flake and retried it.
-5. **If the failure looks real** (touches code you changed, clean assertion failure, compile error in your diff, etc.), do NOT retry. Handle it the same way as a Copilot review comment: explain the failure to the user, fix it in the working tree, and stop without committing, pushing, or resolving anything. If you are not confident you understand the failure, ask the user for guidance instead of guessing at a fix.
+5. **If the failure looks real** (touches code you changed, clean assertion failure, compile error in your diff, etc.), do NOT retry. Explain the failure to the user, fix it locally, and do not push without explicit user approval. If you are not confident you understand the failure, ask the user for guidance instead of guessing at a fix.
 6. **Never retry the same job more than once in this conversation** without the user's explicit permission. If a retried job fails again, stop and treat it as a real failure even if it still looks flaky.
-
-**Merge conflict exception:** If the failing check is a mergeability check (for example, `mergeable: CONFLICTING`, `mergeStateStatus: DIRTY`, or a required merge check such as `VS Code Merge Check`) and the fix is only resolving merge conflicts with the base branch, you may commit the merge-conflict resolution automatically after validating it. Do not apply this exception to ordinary compile/test failures or review comments.
 
 ### 6. After Explicitly Requested Pushes
 
-If the user later explicitly asks you to commit and push the local fixes, new commits re-trigger CI and may invalidate the existing Copilot review. After pushing fixes, kill any still-running monitor terminals with `kill_terminal` and re-run this skill to watch the fresh run.
+If the user later explicitly asks you to push the local fixes, new commits re-trigger CI and may invalidate the existing Copilot review. After pushing fixes, kill any still-running monitor terminals with `kill_terminal` and re-run this skill to watch the fresh run.
 
 ## Notes
 
