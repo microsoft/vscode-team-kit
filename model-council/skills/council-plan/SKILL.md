@@ -9,13 +9,21 @@ Multi-model planning powered by a council of model-pinned agents. Each agent ind
 
 This catches blind spots that a single-model plan misses: one model might notice a reusable pattern another overlooks, or flag an architectural risk the others didn't consider.
 
-## Council Agents
+## Council Models
 
-Fan out to these agents. Use all three when available, at least two otherwise:
+Spawn subagents with the `model` parameter to pin each to a different model. Use all three when available, at least two otherwise:
 
-- `model-council:Councillor-GPT`
-- `model-council:Councillor-Opus`
-- `model-council:Councillor-Gemini`
+- `GPT-5.5`
+- `Claude Opus 4.6`
+- `GPT-5.3-Codex`
+
+Each subagent receives the same system preamble:
+
+> You are an independent subagent for read-only code research.
+> MUST stay read-only. Stay within the requested scope.
+> Do not speculate. Do not suggest patches.
+> For every finding, cite exact files and lines.
+> Form your own view from first principles. Do not anchor to the provided context.
 
 ## Workflow
 
@@ -25,24 +33,24 @@ Establish what needs to be planned:
 
 - Gather the user's goal, constraints, and any relevant context (issue, PR description, conversation history).
 - If the task is vague, ask the user to clarify scope before fanning out — council time is expensive.
-- Run an `Explore` subagent to gather baseline codebase context: relevant files, existing patterns, analogous features. This context goes into the planner prompt so agents start informed.
+- Run an Explore subagent to gather baseline codebase context: relevant files, existing patterns, analogous features. This context goes into the planner prompt so agents start informed.
 
 ### Phase 2 — Build a Planning Brief
 
-Before fanning out, build a concise planning brief that each agent will receive. Do **not** paste entire files — the agents have tools to read the codebase themselves.
+Before fanning out, build a **preliminary orientation** that each agent will receive. This is a starting point, not ground truth — agents are expected to contradict it if their own research leads elsewhere.
 
-The brief should include:
+The brief should include only:
 1. **Goal** — what needs to be built or changed, and why.
-2. **Constraints** — technical constraints, deadlines, compatibility requirements, scope boundaries.
-3. **Codebase context** — key files, patterns, and existing features discovered in Phase 1 (with paths, not content).
-4. **Open questions** — areas where the user hasn't specified a preference and the agent should propose an approach.
+2. **Constraints** — technical constraints explicitly stated by the user (not inferred).
+3. **Codebase context** — file and directory paths discovered in Phase 1. No conclusions, no risk assessments — just locations.
+4. **Open questions** — unresolved areas where the user has not stated a preference.
 
-Keep the brief under ~50 lines. The agents will use `readFile`, `search`, and diagnostics to dig into specifics.
+Keep the brief under ~50 lines. Do not answer the open questions — leave them open so agents form independent views. The agents will use search, read and terminal tools to dig into specifics.
 
 ### Phase 3 — Independent Planning
 
-- Give each council agent the same brief using the planner prompt below.
-- Run them in parallel.
+Spawn all subagents in parallel at once:
+- One subagent per model using the `model` parameter. Prepend the system preamble to the planner prompt below.
 - Do **not** share one agent's proposal with another before this phase completes.
 
 ### Phase 4 — Consensus Synthesis
@@ -62,7 +70,7 @@ Trigger this phase when the user asks to "debate", "discuss", or "cross-plan", o
 
 1. Share the anonymized synthesis (without attributing which model said what) back to each council agent.
 2. Ask each agent to evaluate the alternatives and state which approach they'd recommend, with evidence.
-3. Run the agents in parallel again.
+3. Spawn all subagents in parallel at once.
 4. Update the synthesis: promote alternatives to consensus if deliberation resolves the split, or sharpen the trade-off description if it persists.
 
 This deliberation step is lightweight — it only re-examines the synthesized plan, not the full codebase.
@@ -87,6 +95,8 @@ You are an independent planning agent. Research and propose an implementation pl
 <areas where you should propose an approach>
 
 Use your tools to read relevant files, search for patterns, and check diagnostics. Do not rely solely on this brief — explore the codebase yourself to find reusable patterns, potential conflicts, and implementation details.
+
+**The brief above is preliminary orientation, not ground truth.** If your own research contradicts the stated constraints, context, or framing, trust your findings over the brief and say so explicitly.
 
 Return a structured plan:
 1. **Approach** — your recommended implementation strategy in 2-3 sentences.
@@ -116,7 +126,10 @@ If you agree with the consensus, say so briefly and move on.
 
 ## Saving the Plan
 
-After synthesis, always save the consensus plan to session memory at `/memories/session/plan.md`. This makes it available for implementation, follow-up turns, and cross-referencing with reviews.
+After synthesis, persist the consensus plan so it is available for implementation, follow-up turns, and cross-referencing with reviews. Use whichever mechanism the runtime provides:
+
+- If a plan-mode tool is available (e.g., `exit_plan_mode`), use it to present the plan for user approval.
+- Otherwise, save the plan to session memory as `plan.md`.
 
 ## Output Shape
 

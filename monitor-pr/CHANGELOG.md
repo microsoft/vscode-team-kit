@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.0 (2026-05-11)
+
+- Handle each Copilot review comment immediately using agent judgment; resolve threads even when no code change is made (#19)
+- Clarify CI failure handling: do not retry real failures, fix locally, never push without explicit user approval (#19)
+
 ## 1.1.0 (2026-04-19)
 
 - Clarify handling of merge conflicts in skill instructions (#12)
