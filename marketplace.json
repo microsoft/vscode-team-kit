@@ -44,7 +44,7 @@
     {
       "name": "ban-ast",
       "source": "./ban-ast/",
-      "description": "Ban code patterns using Tree Sitter AST queries with justification overrides.",
+      "description": "Ban code patterns using Tree Sitter AST queries. Rejects edits that introduce banned patterns unless justified.",
       "version": "1.1.0",
       "categories": ["code-quality"],
       "status": "stable",
@@ -72,8 +72,8 @@
     {
       "name": "model-council",
       "source": "./model-council/",
-      "description": "Multi-model council for code review and planning — model-pinned agents independently review or plan, then findings are synthesized by consensus.",
-      "version": "1.2.0",
+      "description": "Multi-model council for code review and planning — model-pinned subagents independently review or plan, then findings are synthesized by consensus.",
+      "version": "2.0.0",
       "categories": ["review"],
       "status": "stable",
       "maintainers": ["digitarald"],
@@ -86,7 +86,7 @@
     {
       "name": "review-areas",
       "source": "./review-areas/",
-      "description": "Area-focused code review that fans out parallel subagents across different review perspectives.",
+      "description": "Area-focused code review that fans out to parallel subagents — each examining a different review area (correctness, tests, security, performance, product).",
       "version": "1.2.0",
       "categories": ["review"],
       "status": "stable",
@@ -100,7 +100,7 @@
     {
       "name": "review-plan",
       "source": "./review-plan/",
-      "description": "Review implementation plans before coding — fans out subagents across completeness, feasibility, sequencing, scope, and risk.",
+      "description": "Review implementation plans before handing off to coding — fans out parallel subagents across completeness, feasibility, sequencing, scope, and risk.",
       "version": "1.0.0",
       "categories": ["review"],
       "status": "stable",
@@ -110,8 +110,8 @@
     {
       "name": "monitor-pr",
       "source": "./monitor-pr/",
-      "description": "Monitor a pull request until CI status and Copilot review are available via non-polling async terminal scripts.",
-      "version": "1.1.0",
+      "description": "Monitor a pull request until CI status and Copilot review are available — non-polling async terminal scripts that notify the agent when CI or reviews complete.",
+      "version": "1.2.0",
       "categories": ["ci"],
       "status": "stable",
       "maintainers": ["roblourens"],
