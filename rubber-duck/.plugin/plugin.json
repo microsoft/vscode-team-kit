@@ -1,0 +1,10 @@
+{
+  "name": "rubber-duck",
+  "version": "1.0.0",
+  "description": "Constructive devil's advocate that critically reviews proposals, designs, implementations, or tests — categorizes feedback as Blocking, Non-Blocking, or Suggestion.",
+  "license": "MIT",
+  "categories": ["review"],
+  "status": "stable",
+  "maintainers": ["digitarald"],
+  "keywords": ["review", "critic", "rubber-duck", "feedback", "quality"]
+}

@@ -25,6 +25,7 @@ Install any plugin directly in VS Code:
 | [review-areas](review-areas/) | Fans out parallel subagents across correctness, tests, security, performance, and product — then synthesizes only the findings worth blocking a PR for |
 | [model-council](model-council/) | Sends the same review to GPT, Claude, and Gemini independently, then surfaces where they agree and where they disagree |
 | [review-plan](review-plan/) | Reviews implementation plans *before* you start coding — checks completeness, feasibility, sequencing, scope creep, and risk |
+| [rubber-duck](rubber-duck/) | Constructive devil's advocate — critically reviews proposals, designs, code, or tests and categorizes findings by severity |
 
 ### Ship — from commit to merge
 
@@ -57,6 +58,7 @@ Install any plugin directly in VS Code:
 Every plugin here runs in our daily workflow. A few patterns that emerged:
 
 - **review-areas after every non-trivial change.** It's the default. We run it before pushing, not after — fixing issues locally is cheaper than addressing PR comments.
+- **rubber-duck early and often.** Get a quick second opinion on a design or plan before investing in implementation. It's lighter than a full review-areas pass.
 - **review-plan before implementing.** Plan-mode produces a plan; review-plan stress-tests it. Catching a bad assumption before coding saves hours.
 - **monitor-pr to stay in flow.** Push the PR, start the monitor, move to the next task. The agent tells you when something needs attention.
 - **ban-ast for rules the team agrees on.** Instead of documenting "don't use X" in a wiki nobody reads, we encode it as a hook that blocks the edit and explains why.
@@ -75,6 +77,7 @@ A few guidelines:
 Plugins work independently, but some are better together:
 
 - **review-areas → monitor-pr** — Review your code, push the PR, monitor CI and Copilot's review in one flow.
+- **rubber-duck → review-plan → review-areas** — Quick critique on the idea, thorough plan review, then deep code review. Progressive depth.
 - **review-plan → review-areas** — Review the plan before coding, review the code after. Catches issues at both stages.
 - **ban-ast + review-areas** — Ban patterns enforce rules on every edit; review-areas catches what slips through.
 - **handy-commands + monitor-pr** — `/pr-comments` to address feedback, then monitor the resulting CI run.
