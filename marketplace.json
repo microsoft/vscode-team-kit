@@ -28,6 +28,11 @@
       "id": "testing",
       "label": "Testing",
       "description": "Visual testing and fixture-based component exploration."
+    },
+    {
+      "id": "debugging",
+      "label": "Debugging",
+      "description": "Debug Adapter Protocol tooling for driving debug sessions from the CLI."
     }
   ],
   "plugins": [
@@ -146,6 +151,20 @@
       "status": "stable",
       "maintainers": ["digitarald"],
       "keywords": ["review", "critic", "rubber-duck", "feedback", "quality"]
+    },
+    {
+      "name": "dap-cli",
+      "description": "Agent skill for driving dap-cli — DAP debugging, breakpoints, stack/variables inspection, launch.json configs, js-debug, debugpy, Playwright interop.",
+      "version": "0.1.0",
+      "categories": ["debugging"],
+      "status": "stable",
+      "maintainers": ["roblourens"],
+      "keywords": ["debugging", "dap", "debug-adapter-protocol", "js-debug", "debugpy", "playwright"],
+      "repository": "https://github.com/roblourens/dap-cli",
+      "source": {
+        "source": "github",
+        "repo": "roblourens/dap-cli"
+      }
     }
   ]
 }

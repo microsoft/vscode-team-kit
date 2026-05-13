@@ -53,6 +53,12 @@ Install any plugin directly in VS Code:
 | [build-health](build-health/) | Analyzes VS Code's rolling build pipeline on Azure DevOps — finds failures, shows break/fix transitions, links to commits |
 | [component-explorer](component-explorer/) | Sets up fixture-based visual testing with MCP-powered screenshot comparison for UI components |
 
+### Debug — drive debuggers from agent mode
+
+| Plugin | What it does |
+|---|---|
+| [dap-cli](https://github.com/roblourens/dap-cli) ↗ | Drives any DAP debugger (Node.js, Python, Chrome) from the CLI — breakpoints, stepping, variable inspection, launch.json support |
+
 ## How we use these
 
 Every plugin here runs in our daily workflow. A few patterns that emerged:
