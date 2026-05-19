@@ -53,6 +53,12 @@ Install any plugin directly in VS Code:
 | [build-health](build-health/) | Analyzes VS Code's rolling build pipeline on Azure DevOps — finds failures, shows break/fix transitions, links to commits |
 | [component-explorer](component-explorer/) | Sets up fixture-based visual testing with MCP-powered screenshot comparison for UI components |
 
+### Research — investigate and synthesize
+
+| Plugin | What it does |
+|---|---|
+| [research](research/) | Decomposes a research query into parallel subagents, iteratively searches web and code sources, then synthesizes a citation-rich report with confidence levels |
+
 ### Debug — drive debuggers from agent mode
 
 | Plugin | What it does |
