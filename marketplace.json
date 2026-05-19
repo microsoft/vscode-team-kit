@@ -113,6 +113,15 @@
       "keywords": ["review", "plan", "subagents", "quality"]
     },
     {
+      "name": "follow-goal",
+      "source": "./follow-goal/",
+      "description": "Give the agent a durable objective with a verifiable stopping condition — like Codex /goal. Sets, tracks, pauses, resumes, or clears a long-running goal across turns.",
+      "version": "1.0.0",
+      "categories": ["workflow"],
+      "status": "experimental",
+      "keywords": ["goal", "long-running", "objective", "workflow", "commands"]
+    },
+    {
       "name": "monitor-pr",
       "source": "./monitor-pr/",
       "description": "Monitor a pull request until CI status and Copilot review are available — non-polling async terminal scripts that notify the agent when CI or reviews complete.",
