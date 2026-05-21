@@ -20,5 +20,6 @@ Dispatch based on what the user typed after `/goal`:
 Rules:
 
 - If `goal.md` does not exist in session storage and the user typed something other than a new objective, tell them there is no active goal and show them the `/goal <objective>` syntax.
+- If `setArtifacts` tool is available: After creating the `goal.md` file, mark the file as plan-artifact.
 - If a goal is already `active` and the user sets a new one, ask whether to replace, pause, or clear the existing goal first.
 - Never invent a stop condition the user didn't give you. If they can't articulate one, push back — a goal without a verifiable end state is not ready.

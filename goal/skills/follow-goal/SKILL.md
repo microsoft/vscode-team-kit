@@ -9,7 +9,7 @@ user-invocable: false
 
 Run a long, durable objective across many turns toward a verifiable stop condition — instead of stopping after one normal exchange.
 
-> **Requires session storage.** Goal state lives in session storage as `goal.md`. Do not fall back to writing `goal.md` into the workspace.
+> **Requires session storage.** Goal state lives in session storage as `goal.md` and is marked a artifact. Do not fall back to writing `goal.md` into the workspace.
 
 A goal has four parts. Capture all four before starting work:
 

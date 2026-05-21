@@ -16,9 +16,13 @@
 // ---------------------------------------------------------------------------
 
 export const EDIT_TOOL_NAMES = [
+  'create_file',
   'replace_string_in_file',
   'multi_replace_string_in_file',
   'apply_patch',
+  // Copilot CLI edit tools
+  'create',
+  'edit',
 ] as const;
 
 export type EditToolName = (typeof EDIT_TOOL_NAMES)[number];
@@ -30,6 +34,12 @@ export function isEditTool(toolName: string): toolName is EditToolName {
 // ---------------------------------------------------------------------------
 // Tool input shapes (as provided in tool_input on stdin)
 // ---------------------------------------------------------------------------
+
+export interface CreateFileInput {
+  filePath: string;
+  content: string;
+  explanation?: string;
+}
 
 export interface ReplaceStringInput {
   filePath: string;
@@ -46,6 +56,19 @@ export interface MultiReplaceStringInput {
 export interface ApplyPatchInput {
   input: string;
   explanation?: string;
+}
+
+// Copilot CLI tool shapes
+
+export interface CliCreateInput {
+  path: string;
+  file_text: string;
+}
+
+export interface CliEditInput {
+  path: string;
+  old_str: string;
+  new_str: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -136,6 +159,19 @@ export function extractEditInputs(
   }
 
   switch (toolName) {
+    case 'create_file': {
+      const input = toolInput as CreateFileInput;
+      if (!input.filePath) return [];
+      return [
+        {
+          type: 'string',
+          filePath: input.filePath,
+          oldString: '',
+          newString: input.content ?? '',
+        },
+      ];
+    }
+
     case 'replace_string_in_file': {
       const input = toolInput as ReplaceStringInput;
       if (!input.filePath) return [];
@@ -166,6 +202,33 @@ export function extractEditInputs(
       const input = toolInput as ApplyPatchInput;
       if (typeof input.input !== 'string') return [];
       return parsePatchFiles(input.input);
+    }
+
+    // Copilot CLI tools
+    case 'create': {
+      const input = toolInput as CliCreateInput;
+      if (!input.path) return [];
+      return [
+        {
+          type: 'string',
+          filePath: input.path,
+          oldString: '',
+          newString: input.file_text ?? '',
+        },
+      ];
+    }
+
+    case 'edit': {
+      const input = toolInput as CliEditInput;
+      if (!input.path) return [];
+      return [
+        {
+          type: 'string',
+          filePath: input.path,
+          oldString: input.old_str ?? '',
+          newString: input.new_str ?? '',
+        },
+      ];
     }
 
     default:
