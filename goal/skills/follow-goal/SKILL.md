@@ -1,26 +1,28 @@
 ---
 name: follow-goal
 description: "Give the agent a durable objective with a verifiable stopping condition, then keep iterating across turns until that condition is met. Use when the user says 'set a goal', 'follow a goal', '/goal …', 'keep working until …', or asks for a long-running task with a clear end state (migrations, large refactors, retry-until-green loops, experiments)."
+user-invocable: false
 ---
+<!-- Inspired by Codex's `/goal` command. -->
 
 # Skill: Follow Goal
 
-Run a long, durable objective across many turns toward a verifiable stop condition — instead of stopping after one normal exchange. Inspired by Codex's `/goal` command.
+Run a long, durable objective across many turns toward a verifiable stop condition — instead of stopping after one normal exchange.
 
-> **Requires the `memory` tool.** Goal state lives in virtual `/memories/session/...` paths handled by Copilot's memory tool. If the memory tool is not available in this agent, stop and tell the user to enable it — do not fall back to writing `goal.md` into the workspace.
+> **Requires session storage.** Goal state lives in session storage as `goal.md`. Do not fall back to writing `goal.md` into the workspace.
 
 A goal has four parts. Capture all four before starting work:
 
 1. **Objective** — what to achieve, in one sentence.
 2. **Stop condition** — an observable, verifiable signal that "done" has been reached (a command exits 0, a file matches a spec, tests pass, parity check passes, etc.).
-3. **Validation** — the concrete commands or artifacts that prove progress (test command, build command, lint, diff against reference).
+3. **Validation** — the concrete commands or artifacts that prove progress (test command, build command, lint, diff against reference, review or rubber duck skills).
 4. **Constraints** — what NOT to change, scope boundaries, files/areas off-limits.
 
 If any of these are missing or vague, ask the user before saving the goal. A goal without a verifiable stop condition is not a goal — it's a wish.
 
 ## State
 
-The goal lives in session memory at `/memories/session/goal.md` as a single markdown file with this shape:
+The goal lives in session storage as `goal.md` — a single markdown file with this shape:
 
 ```markdown
 ---
@@ -51,7 +53,7 @@ max_checkpoints: 20   # hard safety budget
 
 ## Sub-commands
 
-The `/goal` slash command dispatches to this skill. Behavior depends on the argument:
+The `goal` skill dispatches to this skill. Behavior depends on the argument:
 
 | Invocation | Action |
 |---|---|

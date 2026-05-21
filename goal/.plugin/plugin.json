@@ -1,5 +1,5 @@
 {
-  "name": "follow-goal",
+  "name": "goal",
   "version": "1.0.0",
   "description": "Give the agent a durable objective with a verifiable stopping condition — like Codex /goal. Sets, tracks, pauses, resumes, or clears a long-running goal across turns.",
   "license": "MIT",

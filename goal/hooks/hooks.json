@@ -2,7 +2,7 @@
   "hooks": {
     "PostToolUse": [
       {
-        "matcher": "memory",
+        "matcher": "memory|create|edit",
         "hooks": [
           {
             "type": "command",

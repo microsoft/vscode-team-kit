@@ -113,8 +113,8 @@
       "keywords": ["review", "plan", "subagents", "quality"]
     },
     {
-      "name": "follow-goal",
-      "source": "./follow-goal/",
+      "name": "goal",
+      "source": "./goal/",
       "description": "Give the agent a durable objective with a verifiable stopping condition — like Codex /goal. Sets, tracks, pauses, resumes, or clears a long-running goal across turns.",
       "version": "1.0.0",
       "categories": ["workflow"],

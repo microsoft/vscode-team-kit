@@ -33,7 +33,7 @@ Install any plugin directly in VS Code:
 |---|---|
 | [monitor-pr](monitor-pr/) | Launches background terminals that watch CI and Copilot's code review, then notifies the agent when either finishes — no polling, no tab-switching |
 | [handy-commands](handy-commands/) | Slash commands for the things you do every day: `/commit-and-pr`, `/pr-comments`, `/fix-issue` |
-| [follow-goal](follow-goal/) | `/goal` slash command that gives the agent a durable objective with a verifiable stopping condition — keeps iterating checkpoint-by-checkpoint across turns until done |
+| [goal](goal/) | `/goal` slash command that gives the agent a durable objective with a verifiable stopping condition — keeps iterating checkpoint-by-checkpoint across turns until done |
 
 ### Triage — stay on top of GitHub
 
