@@ -162,6 +162,16 @@
       "keywords": ["review", "critic", "rubber-duck", "feedback", "quality"]
     },
     {
+      "name": "research",
+      "source": "./research/",
+      "description": "Deep research orchestrator — decomposes queries, fans out parallel subagents for web and code search, iteratively refines findings, then synthesizes citation-rich reports.",
+      "version": "1.0.0",
+      "categories": ["workflow"],
+      "status": "stable",
+      "maintainers": ["digitarald"],
+      "keywords": ["research", "deep-research", "web-search", "agents", "reports", "citations"]
+    },
+    {
       "name": "dap-cli",
       "description": "Agent skill for driving dap-cli — DAP debugging, breakpoints, stack/variables inspection, launch.json configs, js-debug, debugpy, Playwright interop.",
       "version": "0.1.0",

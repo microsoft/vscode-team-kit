@@ -1,0 +1,10 @@
+{
+  "name": "research",
+  "version": "1.0.0",
+  "description": "Deep research orchestrator — decomposes queries, fans out parallel subagents for web and code search, iteratively refines findings, then synthesizes citation-rich reports.",
+  "license": "MIT",
+  "categories": ["workflow"],
+  "status": "stable",
+  "maintainers": ["digitarald"],
+  "keywords": ["research", "deep-research", "web-search", "agents", "reports", "citations"]
+}
