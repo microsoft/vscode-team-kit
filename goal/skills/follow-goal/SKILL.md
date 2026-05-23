@@ -9,7 +9,11 @@ user-invocable: false
 
 Run a long, durable objective across many turns toward a verifiable stop condition — instead of stopping after one normal exchange.
 
-> **Requires session storage.** Goal state lives in session storage as `goal.md` and is marked a artifact. Do not fall back to writing `goal.md` into the workspace.
+> **Requires session storage + artifact.**
+> 1. **Persist** — Save `goal.md` to session storage. This is the durable source of truth, readable across turns.
+> 2. **Mark as artifact** — After saving, call `setArtifacts` to mark the file as a `plan` artifact so the user can see live goal state in the UI.
+>
+> Do not write `goal.md` into the workspace. Do not rely on the artifact alone — artifacts are UI-only and cannot be read back by tools.
 
 A goal has four parts. Capture all four before starting work:
 

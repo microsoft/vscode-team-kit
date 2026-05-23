@@ -1,13 +1,13 @@
 ---
 name: goal
 description: "Set, inspect, or control a durable goal — the agent keeps iterating across turns until the stop condition is met."
-argument-hint: Set a new objective (verifiable stop condition, validation commands, and constraints)
+argument-hint: <objective>|pause|resume|clear
 disable-model-invocation: true
 ---
 
 You are handling the `/goal` command. Invoke the **follow-goal** skill to do the actual work.
 
-Persist goal state into session storage as `goal.md`. Do not write the goal to the workspace.
+Persist goal state into session storage as `goal.md`. After creating or updating the file, mark it as a `plan` artifact via `setArtifacts` so the user sees live goal state in the chat UI. Do not write the goal to the workspace.
 
 Dispatch based on what the user typed after `/goal`:
 
@@ -20,6 +20,6 @@ Dispatch based on what the user typed after `/goal`:
 Rules:
 
 - If `goal.md` does not exist in session storage and the user typed something other than a new objective, tell them there is no active goal and show them the `/goal <objective>` syntax.
-- If `setArtifacts` tool is available: After creating the `goal.md` file, mark the file as plan-artifact.
+- After every write to `goal.md` (create or update), call `setArtifacts` to mark the memory file as a `plan` artifact. This keeps the UI widget in sync with the persisted state.
 - If a goal is already `active` and the user sets a new one, ask whether to replace, pause, or clear the existing goal first.
 - Never invent a stop condition the user didn't give you. If they can't articulate one, push back — a goal without a verifiable end state is not ready.
