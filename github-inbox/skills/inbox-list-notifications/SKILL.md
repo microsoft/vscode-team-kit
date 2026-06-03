@@ -23,8 +23,9 @@ This is the ONLY command you should run. Do NOT modify it. Do NOT add anything t
 
 - **NEVER** pipe to `jq`, `python`, `python3`, or any other program
 - **NEVER** add `2>/dev/null` or any redirects
-- **NEVER** add `GH_PAGER=cat` or any environment variable prefixes
 - **NEVER** wrap the command in a script
+- **ALWAYS** prepend `GH_PAGER=cat` to `gh api` calls to avoid interactive pagers
+- **NEVER** add other environment variable prefixes
 - The `--jq` flag handles all JSON filtering — no external tools needed
 - The `--paginate` flag handles pagination — no manual page loops needed
 
