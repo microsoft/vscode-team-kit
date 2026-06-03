@@ -32,5 +32,4 @@ Replace `{thread_id}`, `{owner}`, `{repo}`, `{number}` with actual values.
 ## Rules
 
 - Run each `gh api` command as a **separate** terminal invocation — NEVER chain with `&&`
-- NEVER add `2>/dev/null`, `GH_PAGER=cat`, or pipe to other programs
 - Use `--jq` for filtering — it is built into `gh`

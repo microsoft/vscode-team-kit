@@ -59,7 +59,8 @@ For reading and writing memory and rules files, always use the `inbox-memory` sk
 When running ANY `gh` command, follow these rules strictly:
 - Use `--jq` for JSON filtering — NEVER pipe to `jq`, `python`, `python3`, `node`, or any external program
 - NEVER pipe ANY command output to `python`, `python3`, `node`, or any scripting language — this includes piping files, `cat` output, or `gh` output
-- NEVER add `2>/dev/null`, redirects, `GH_PAGER=cat`, or env var prefixes
+- On `gh api` calls, always prepend `GH_PAGER=cat` to avoid interactive pagers: `GH_PAGER=cat gh api ...` but never add other env var prefixes
+- NEVER add `2>/dev/null`, redirects
 - NEVER chain read commands with `&&` — run each as a separate terminal invocation
 - NEVER wrap commands in scripts or send `q` to quit a pager
 - NEVER use `| head`, `| tail`, `| grep`, `| sort`, or any pipe after `gh` commands — use `--jq` and `--limit` flags instead
@@ -202,8 +203,7 @@ Adding comment to [Bug report (#5678)](https://github.com/org/repo/issues/5678):
 NEVER run a command without this summary.
 
 **Notification actions (via `gh` CLI skills):**
-- **Dismiss one:** `inbox-dismiss-notification` skill
-- **Dismiss multiple:** `inbox-dismiss-multiple-notifications` skill
+- **Dismiss notification(s):** `inbox-dismiss-notification` skill
 - **Dismiss all in group:** `inbox-mark-all-read` skill
 - **Mute/Ignore thread:** `inbox-manage-subscription` skill
 - **View PR/Issue:** `inbox-open-notification` skill
