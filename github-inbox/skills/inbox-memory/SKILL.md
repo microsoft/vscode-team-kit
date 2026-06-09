@@ -21,16 +21,25 @@ This skill reads and writes persistent memory and rules files for the Inbox agen
 
 ## Storage strategy
 
-Try the `#memory` tool first (available in VS Code Chat). If `#memory` is **not available** (e.g. Copilot CLI), fall back to the file system under `~/.copilot/`:
+Two possible backends:
 
-- `~/.copilot/github-inbox-memory.md`
-- `~/.copilot/github-inbox-rules.md`
+- **`#memory` tool** (VS Code Chat) — stores under the virtual path `/memories/`
+- **File system** (`~/.copilot/`) — used by Copilot CLI; also usable from VS Code Chat
+  - `~/.copilot/github-inbox-memory.md`
+  - `~/.copilot/github-inbox-rules.md`
 
-### How to detect which backend to use
+### How to pick a backend (run ONCE per session, cache the choice)
 
-1. Attempt `#memory` with `{ "command": "view", "path": "/memories/github-inbox-memory.md" }`.
-2. If it succeeds or returns "file not found" — `#memory` is available. Use it for all reads and writes.
-3. If the tool itself is unavailable (tool not found / not supported error) — switch to the file-system fallback for the rest of the session.
+1. Detect availability of `#memory`: try `{ "command": "view", "path": "/memories/github-inbox-memory.md" }`. If the tool itself errors as unavailable, `#memory` is NOT available.
+2. Check for existing CLI memory: see if `~/.copilot/github-inbox-memory.md` or `~/.copilot/github-inbox-rules.md` exist and are non-empty (use `ls -la ~/.copilot/` or `#view`).
+3. Decide:
+   - If `#memory` is unavailable → use **file system** (`~/.copilot/`). No prompt.
+   - If `#memory` is available AND `~/.copilot/` has NO existing inbox files → use **`#memory`**. No prompt.
+   - If `#memory` is available AND `~/.copilot/` has existing inbox files → **ASK the user** with `#askQuestions` which backend to use. Show them what was found (file names + sizes or a one-line preview). Options:
+     - "Use `~/.copilot/` (existing CLI memory)" — recommended when CLI files exist
+     - "Use VS Code `#memory` (start fresh / keep VS Code-only)"
+     - "Use VS Code `#memory` and import from `~/.copilot/`" — copy current CLI files into `#memory` once
+4. Cache the chosen backend for the rest of the session and use it for ALL subsequent reads and writes. Do NOT mix backends within a session.
 
 ## Reading
 
