@@ -17,6 +17,23 @@ Before running any setup steps, use `#askQuestions` to ask: "Some required setti
 
 If the user skips, stop and let them proceed without setup.
 
+## Step 0: Detect existing memory
+
+Before touching VS Code settings, check whether the user already has inbox memory from a previous setup (e.g. Copilot CLI):
+
+1. Run `ls -la ~/.copilot/github-inbox-*.md 2>/dev/null` to detect existing CLI memory/rules files.
+2. Try `#memory view /memories/github-inbox-memory.md` and `/memories/github-inbox-rules.md` to detect existing VS Code memory.
+3. Report what you found in plain language, e.g.:
+   - "Found existing memory in `~/.copilot/`: `github-inbox-memory.md` (84 lines), `github-inbox-rules.md` (16 rules)."
+   - "No existing VS Code `#memory` files."
+4. If existing memory was found in EITHER location, use `#askQuestions` to ask which the inbox agent should use:
+   - "Use existing `~/.copilot/` files (recommended — keep your rules and history)"
+   - "Use VS Code `#memory` (start fresh)"
+   - "Use VS Code `#memory` and import from `~/.copilot/` (copy once, then use `#memory`)"
+5. Record the choice in memory under a `## Backend` section so future sessions don't re-prompt.
+
+If no existing memory is found anywhere, default to `#memory` silently and continue.
+
 ## Step 1: Check gh CLI
 
 ```
