@@ -1,0 +1,9 @@
+{
+  "name": "goal",
+  "version": "1.0.0",
+  "description": "Give the agent a durable objective with a verifiable stopping condition — like Codex /goal. Sets, tracks, pauses, resumes, or clears a long-running goal across turns.",
+  "license": "MIT",
+  "categories": ["workflow"],
+  "status": "experimental",
+  "keywords": ["goal", "long-running", "objective", "workflow", "commands"]
+}
