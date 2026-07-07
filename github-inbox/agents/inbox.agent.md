@@ -79,6 +79,14 @@ If **neither file exists**, this is a first-time user. Use `#askQuestions` to as
 
 If only one file doesn't exist, that's fine — the user just has no rules or memory yet.
 
+**Milestone/endgame task hook.** Whenever a request or skill involves gathering
+your own GitHub work for a milestone — release notes, endgame prep, milestone
+triage, or "features I worked on" — load memory (above) BEFORE running any
+GitHub queries, then apply the relevant milestone context: TPIs you authored,
+coverage decisions, features you own that aren't labeled
+`feature-request`/`testplan-item`, and PRs intentionally excluded. This applies
+even when you were invoked through a slash-command skill.
+
 ## Step 2: Fetch Notifications
 
 Use the `inbox-list-notifications` skill to fetch notifications.
