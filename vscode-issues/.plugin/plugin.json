@@ -1,0 +1,10 @@
+{
+  "name": "vscode-issues",
+  "version": "1.0.0",
+  "description": "Search VS Code GitHub issues from chat — find existing issues that match a description, or find duplicates of an existing issue.",
+  "license": "MIT",
+  "categories": ["workflow"],
+  "status": "stable",
+  "maintainers": ["Yoyokrazy"],
+  "keywords": ["issues", "duplicates", "search", "triage", "github"]
+}

@@ -40,6 +40,7 @@ Install any plugin directly in VS Code:
 | Plugin | What it does |
 |---|---|
 | [github-inbox](github-inbox/) | Smart notification triage with sub-agents for review, investigation, and memory — groups by repo, applies rules, acts on your behalf |
+| [vscode-issues](vscode-issues/) | Check whether an issue already exists for something you describe, or find duplicates of an existing issue — searches microsoft/vscode by default |
 
 ### Guard — enforce standards automatically
 

@@ -142,6 +142,16 @@
       "keywords": ["github", "notifications", "inbox", "triage", "agents"]
     },
     {
+      "name": "vscode-issues",
+      "source": "./vscode-issues/",
+      "description": "Search VS Code GitHub issues from chat — find existing issues that match a description, or find duplicates of an existing issue.",
+      "version": "1.0.0",
+      "categories": ["workflow"],
+      "status": "stable",
+      "maintainers": ["Yoyokrazy"],
+      "keywords": ["issues", "duplicates", "search", "triage", "github"]
+    },
+    {
       "name": "build-health",
       "source": "./build-health/",
       "description": "Analyze VS Code rolling build health on Azure DevOps — download recent builds, identify failures, show break/fix transitions with error details and commit links.",
