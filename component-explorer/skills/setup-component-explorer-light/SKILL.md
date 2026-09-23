@@ -1,6 +1,6 @@
 ---
 name: setup-component-explorer-light
-description: 'Lightweight setup — install Component Explorer packages and add the Vite plugin, with MCP server for AI agent integration. USE FOR: "lightweight or minimal component explorer setup", "install the packages and add the Vite plugin", "component explorer without the CLI daemon", "MCP server for AI agent integration". DO NOT USE FOR: "full setup with VS Code tasks and launch config", "write a fixture for a component".'
+description: 'Minimal Component Explorer Vite setup: packages, Vite plugin, and optional MCP integration, without the CLI daemon, VS Code tasks, or launch config. USE FOR: "lightweight or minimal component explorer setup", "install the packages and add the Vite plugin", "component explorer without the CLI daemon". DO NOT USE FOR: complete or full setup that includes VS Code tasks or launch config, even if it also mentions MCP; fixture authoring.'
 ---
 
 # Skill: Setup Component Explorer (Light)
