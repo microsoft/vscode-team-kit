@@ -1,0 +1,27 @@
+paths:
+  skills:
+    - ban-ast/skills
+    - component-explorer/skills
+    - model-council/skills
+    - review-areas/skills
+  evals:
+    - ban-ast/skills
+    - component-explorer/skills
+    - model-council/skills
+    - review-areas/skills
+  results: vally-results/
+  evalFilenames:
+    - eval.yaml
+
+suites:
+  full:
+    description: All skill capability and trigger evaluations
+    evals:
+      - ban-ast/skills/**/evals/eval.yaml
+      - component-explorer/skills/**/evals/eval.yaml
+      - model-council/skills/**/evals/eval.yaml
+      - review-areas/skills/**/evals/eval.yaml
+  pr:
+    description: Skill trigger checks for pull requests
+    filter:
+      category: trigger

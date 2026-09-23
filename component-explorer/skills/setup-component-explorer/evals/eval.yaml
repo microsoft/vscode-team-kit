@@ -1,30 +1,233 @@
 name: setup-component-explorer-eval
-description: |
+description: |-
   Evaluation suite for the setup-component-explorer skill.
   Tests that the skill correctly guides setting up the
   Component Explorer in a Vite-based project.
-skill: setup-component-explorer
-version: "1.0"
-
-config:
-  trials_per_task: 1
-  timeout_seconds: 300
-  parallel: false
+version: "2.0"
+type: capability
+agent_environment:
+  skills:
+    - ..
+defaults:
+  runs: 1
+  timeout: 300s
   executor: copilot-sdk
   model: claude-sonnet-4.6
+scoring:
+  threshold: 1
+stimuli:
+  - name: basic-setup-001
+    prompt: |-
+      Set up the component explorer in my Vite project
 
-graders:
-  - type: text
-    name: no_errors
-    config:
-      regex_not_match:
-        - "(?i)fatal error|crashed|exception occurred"
-
-  - type: code
-    name: has_output
-    config:
-      assertions:
-        - "len(output) > 10"
-
-tasks:
-  - "tasks/*.yaml"
+      Context:
+      - Framework: vite
+      - Language: typescript
+    tags:
+      category: capability
+      scenario:
+        - basic
+        - happy-path
+    graders:
+      - type: completed
+      - type: output-not-matches
+        config:
+          pattern: "(?i)fatal error|crashed|exception occurred"
+      - type: skill-invocation
+        config:
+          required:
+            - setup-component-explorer
+      - type: output-matches
+        config:
+          pattern: "[\\s\\S]{11,}"
+      - type: output-contains
+        config:
+          substring: component-explorer
+      - type: output-contains
+        config:
+          substring: npm install
+      - type: tool-call-count
+        config:
+          max: 15
+  - name: trigger-01
+    prompt: Set up the component explorer in my project
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Direct setup request
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - setup-component-explorer
+  - name: trigger-02
+    prompt: Add component explorer to this Vite app
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Explicit integration request with Vite context
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - setup-component-explorer
+  - name: trigger-03
+    prompt: I want to integrate visual testing with component explorer
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: medium
+      rationale: Visual testing setup request — but description says 'set up and integrate', not 'visual testing'
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - setup-component-explorer
+  - name: trigger-04
+    prompt: Install @vscode/component-explorer packages
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: medium
+      rationale: Package install is implied by setup but not explicit in description
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - setup-component-explorer
+  - name: trigger-05
+    prompt: Configure the component explorer Vite plugin
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: medium
+      rationale: Vite plugin config is implied by setup but not explicit in description
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - setup-component-explorer
+  - name: trigger-06
+    prompt: How do I add component explorer to my project?
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Question about setup process
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - setup-component-explorer
+  - name: ignore-01
+    prompt: Write a React component for a login form
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Component creation, not explorer setup
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - setup-component-explorer
+  - name: ignore-02
+    prompt: Set up Jest for unit testing
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Different testing framework
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - setup-component-explorer
+  - name: ignore-03
+    prompt: Deploy my app to production
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Deployment, not setup
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - setup-component-explorer
+  - name: ignore-04
+    prompt: Review my pull request
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Code review, not setup
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - setup-component-explorer
+  - name: ignore-05
+    prompt: Fix the CSS styling on this page
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: CSS fix, not explorer setup
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - setup-component-explorer
+  - name: ignore-06
+    prompt: What does this function do?
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Code explanation, unrelated
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - setup-component-explorer
+  - name: ignore-07
+    prompt: Set up the full component explorer with MCP server and VS Code tasks
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Full setup should use setup-component-explorer-full variant
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - setup-component-explorer
+  - name: ignore-08
+    prompt: I want a minimal component explorer integration
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: medium
+      rationale: Minimal setup should use setup-component-explorer-light variant
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - setup-component-explorer

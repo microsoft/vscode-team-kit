@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.0 (2026-09-22)
+
+- Migrated the `manage-bans` evaluation suite from Waza to Vally with inline capability and trigger stimuli
+
 ## 1.1.0 (2026-04-14)
 
 - Added eval infrastructure with trigger tests and task definitions for the `manage-bans` skill

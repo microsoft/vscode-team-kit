@@ -1,14 +1,13 @@
 {
   "name": "component-explorer",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Skills for setting up and using the VS Code Component Explorer — fixture-based visual testing with MCP-powered screenshot comparison.",
   "license": "MIT",
   "categories": ["testing"],
   "status": "stable",
   "maintainers": ["hediet", "digitarald"],
   "evals": {
-    "skills": ["setup-component-explorer", "setup-component-explorer-full", "setup-component-explorer-light", "use-component-explorer"],
-    "trigger_tests": true
+    "skills": ["setup-component-explorer", "setup-component-explorer-full", "setup-component-explorer-light", "use-component-explorer"]
   },
   "keywords": ["component-explorer", "fixtures", "screenshots", "visual-testing", "mcp"]
 }

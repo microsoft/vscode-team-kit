@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.0 (2026-09-22)
+
+- Migrated all component explorer evaluation suites from Waza to Vally with inline capability and trigger stimuli
+
 ## 1.2.0 (2026-04-14)
 
 - Added waza eval infrastructure for all component-explorer skills

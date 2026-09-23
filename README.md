@@ -81,6 +81,8 @@ Every plugin here runs in our daily workflow. A few patterns that emerged:
 
 We'd love contributions. Each plugin is self-contained in its own directory with a `.plugin/plugin.json`, skills, and optionally hooks or scripts — look at any existing plugin for the pattern.
 
+Skill evaluations use [Vally](https://microsoft.github.io/vally/) and require Node.js 22.12 or newer. Run `npm run eval:lint` for static validation. Run `npm run eval:pr` with `COPILOT_GITHUB_TOKEN` set to execute the trigger suite used by pull requests, or `npm run eval` for the full suite.
+
 A few guidelines:
 - **New plugin?** Open an issue first to discuss scope. We keep the collection focused, so a quick conversation helps.
 - **Improving an existing plugin?** PRs welcome — bug fixes, better docs, new eval cases.

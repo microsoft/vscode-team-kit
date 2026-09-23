@@ -1,30 +1,181 @@
 name: setup-component-explorer-light-eval
-description: |
+description: |-
   Evaluation suite for the setup-component-explorer-light skill.
   Tests the lightweight setup — install packages and add the
   Vite plugin only.
-skill: setup-component-explorer-light
-version: "1.0"
-
-config:
-  trials_per_task: 1
-  timeout_seconds: 300
-  parallel: false
+version: "2.0"
+type: capability
+agent_environment:
+  skills:
+    - ..
+defaults:
+  runs: 1
+  timeout: 300s
   executor: copilot-sdk
   model: claude-sonnet-4.6
+scoring:
+  threshold: 1
+stimuli:
+  - name: light-setup-001
+    prompt: |-
+      Add a minimal component explorer setup to my Vite project
 
-graders:
-  - type: text
-    name: no_errors
-    config:
-      regex_not_match:
-        - "(?i)fatal error|crashed|exception occurred"
-
-  - type: code
-    name: has_output
-    config:
-      assertions:
-        - "len(output) > 10"
-
-tasks:
-  - "tasks/*.yaml"
+      Context:
+      - Framework: vite
+      - Language: typescript
+    tags:
+      category: capability
+      scenario:
+        - basic
+        - happy-path
+    graders:
+      - type: completed
+      - type: output-not-matches
+        config:
+          pattern: "(?i)fatal error|crashed|exception occurred"
+      - type: skill-invocation
+        config:
+          required:
+            - setup-component-explorer-light
+      - type: output-matches
+        config:
+          pattern: "[\\s\\S]{11,}"
+      - type: output-contains
+        config:
+          substring: component-explorer
+      - type: output-contains
+        config:
+          substring: vite
+      - type: tool-call-count
+        config:
+          max: 10
+  - name: trigger-01
+    prompt: Quickly add component explorer to my project
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: medium
+      rationale: Quick/minimal setup implies light variant
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - setup-component-explorer-light
+  - name: trigger-02
+    prompt: Just install the component explorer Vite plugin
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Minimal plugin-only setup
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - setup-component-explorer-light
+  - name: trigger-03
+    prompt: Add lightweight component explorer setup
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Explicit lightweight request
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - setup-component-explorer-light
+  - name: trigger-04
+    prompt: Set up component explorer without the CLI
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Without CLI implies light variant
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - setup-component-explorer-light
+  - name: trigger-05
+    prompt: I want a minimal component explorer integration
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Minimal setup matches light variant
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - setup-component-explorer-light
+  - name: ignore-01
+    prompt: Set up the full component explorer with MCP and VS Code tasks
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Full setup should use full variant
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - setup-component-explorer-light
+  - name: ignore-02
+    prompt: Write a fixture for my component
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Fixture writing is use-component-explorer skill
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - setup-component-explorer-light
+  - name: ignore-03
+    prompt: Fix this TypeScript error
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Error fixing, not setup
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - setup-component-explorer-light
+  - name: ignore-04
+    prompt: Review my code changes
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Code review, not setup
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - setup-component-explorer-light
+  - name: ignore-05
+    prompt: Set up ESLint and Prettier
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Different tooling setup
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - setup-component-explorer-light

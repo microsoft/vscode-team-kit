@@ -2,14 +2,21 @@
   "name": "@vscode/team-kit",
   "version": "1.0.0",
   "private": true,
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "dependencies": {
     "tree-sitter": "^0.21.1",
     "tree-sitter-typescript": "^0.23.2"
   },
   "scripts": {
+    "eval": "vally eval --suite full --require-pass",
+    "eval:lint": "vally lint ban-ast/skills --eval-spec ban-ast/skills --strict && vally lint component-explorer/skills --eval-spec component-explorer/skills --strict && vally lint model-council/skills --eval-spec model-council/skills --strict && vally lint review-areas/skills --eval-spec review-areas/skills --strict",
+    "eval:pr": "vally eval --suite pr --require-pass",
     "test": "node --test"
   },
   "devDependencies": {
+    "@microsoft/vally-cli": "0.16.0",
     "@types/node": "^25.5.0"
   }
 }

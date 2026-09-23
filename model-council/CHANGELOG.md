@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.1 (2026-09-22)
+
+- Migrated the council review and planning evaluation suites from Waza to Vally with inline capability and trigger stimuli
+
 ## 2.0.0 (2026-05-09)
 
 - **Breaking:** Removed custom agent files (Councillor-GPT, Councillor-Opus, Councillor-Gemini) in favor of spawning subagents with the `model` parameter directly
