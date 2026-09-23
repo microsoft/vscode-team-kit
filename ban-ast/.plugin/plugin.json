@@ -1,6 +1,6 @@
 {
   "name": "ban-ast",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Ban code patterns using Tree Sitter AST queries. Rejects edits that introduce banned patterns unless justified.",
   "license": "MIT",
   "categories": ["code-quality"],

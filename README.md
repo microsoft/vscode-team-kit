@@ -81,7 +81,7 @@ Every plugin here runs in our daily workflow. A few patterns that emerged:
 
 The repository uses [Vally](https://microsoft.github.io/vally/) to evaluate the eight skills declared under `evals` in [marketplace.json](marketplace.json). Node.js 22.12 or newer is required. Install dependencies with `npm ci`, then run `npm run eval:lint` to validate the specs without model credentials.
 
-Set `COPILOT_GITHUB_TOKEN` to run live evaluations. `npm run eval:pr` runs the trigger suite used by pull requests; `npm run eval` runs the full suite, including capability cases. Live results are written to `vally-results/`. The PR workflow requires passing results and posts a report to the PR.
+Set `COPILOT_GITHUB_TOKEN` to run live evaluations. All eight eval specs use `gpt-6-sol` by default. `npm run eval:pr` runs the trigger suite used by pull requests; `npm run eval` runs the full suite, including capability cases. Live results are written to `vally-results/`. The PR workflow requires passing results and posts a report to the PR.
 
 ## Contributing
 

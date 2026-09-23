@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.1 (2026-09-22)
+
+- Run all component explorer Vally evaluations with GPT-6 Sol
+
 ## 1.3.0 (2026-09-22)
 
 - Migrated all component explorer evaluation suites from Waza to Vally with inline capability and trigger stimuli

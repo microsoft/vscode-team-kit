@@ -12,7 +12,7 @@ defaults:
   runs: 1
   timeout: 300s
   executor: copilot-sdk
-  model: claude-sonnet-4.6
+  model: gpt-6-sol
 scoring:
   threshold: 1
 stimuli:

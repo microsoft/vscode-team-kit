@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.1 (2026-09-22)
+
+- Run the `manage-bans` Vally evaluations with GPT-6 Sol
+
 ## 1.2.0 (2026-09-22)
 
 - Migrated the `manage-bans` evaluation suite from Waza to Vally with inline capability and trigger stimuli

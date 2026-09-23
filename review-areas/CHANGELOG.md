@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.3 — 2026-09-22
+
+- Run the `review-areas` Vally evaluations with GPT-6 Sol
+
 ## 1.2.2 — 2026-09-22
 
 - Migrated the `review-areas` evaluation suite from Waza to Vally with inline capability and trigger stimuli
