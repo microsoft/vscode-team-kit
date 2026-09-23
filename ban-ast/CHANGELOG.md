@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.2 (2026-09-22)
+
+- Run the `manage-bans` Vally evaluations with GPT-6 Luna
+
 ## 1.2.1 (2026-09-22)
 
 - Run the `manage-bans` Vally evaluations with GPT-6 Sol

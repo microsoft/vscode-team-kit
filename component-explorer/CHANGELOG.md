@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.2 (2026-09-22)
+
+- Run component explorer Vally evaluations with GPT-6 Luna; keep setup-variant routing checks as quality signals
+
 ## 1.3.1 (2026-09-22)
 
 - Run all component explorer Vally evaluations with GPT-6 Sol

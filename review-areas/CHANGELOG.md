@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.4 — 2026-09-22
+
+- Run `review-areas` Vally evaluations with GPT-6 Luna and supply a diff for the security review case
+
 ## 1.2.3 — 2026-09-22
 
 - Run the `review-areas` Vally evaluations with GPT-6 Sol

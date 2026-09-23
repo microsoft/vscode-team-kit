@@ -12,7 +12,7 @@ defaults:
   runs: 1
   timeout: 300s
   executor: copilot-sdk
-  model: gpt-6-sol
+  model: gpt-6-luna
 scoring:
   threshold: 1
 stimuli:

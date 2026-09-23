@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.4 (2026-09-22)
+
+- Run council Vally evaluations with GPT-6 Luna and allow council-review for generic review requests
+
 ## 2.0.3 (2026-09-22)
 
 - Run the council review and planning Vally evaluations with GPT-6 Sol

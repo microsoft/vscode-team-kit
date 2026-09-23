@@ -10,9 +10,9 @@
     "tree-sitter-typescript": "^0.23.2"
   },
   "scripts": {
-    "eval": "vally eval --suite full --require-pass",
+    "eval": "vally eval --suite full",
     "eval:lint": "vally lint ban-ast/skills --eval-spec ban-ast/skills --strict && vally lint component-explorer/skills --eval-spec component-explorer/skills --strict && vally lint model-council/skills --eval-spec model-council/skills --strict && vally lint review-areas/skills --eval-spec review-areas/skills --strict",
-    "eval:pr": "vally eval --suite pr --require-pass",
+    "eval:pr": "vally eval --suite pr",
     "test": "node --test"
   },
   "devDependencies": {

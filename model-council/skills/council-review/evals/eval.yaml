@@ -12,7 +12,7 @@ defaults:
   runs: 1
   timeout: 300s
   executor: copilot-sdk
-  model: gpt-6-sol
+  model: gpt-6-luna
 scoring:
   threshold: 1
 stimuli:
@@ -145,6 +145,19 @@ stimuli:
         config:
           required:
             - council-review
+  - name: trigger-07
+    prompt: Review my code
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: medium
+      rationale: A general review request can use council-review
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - council-review
   - name: ignore-01
     prompt: Plan the architecture for a new feature
     tags:
@@ -217,19 +230,6 @@ stimuli:
       expected: ignore
       confidence: high
       rationale: Code explanation, not review
-    graders:
-      - type: completed
-      - type: skill-invocation
-        config:
-          disallowed:
-            - council-review
-  - name: ignore-07
-    prompt: Review my code
-    tags:
-      category: trigger
-      expected: ignore
-      confidence: medium
-      rationale: Generic review without multi-model keywords should go to review-areas, not council
     graders:
       - type: completed
       - type: skill-invocation

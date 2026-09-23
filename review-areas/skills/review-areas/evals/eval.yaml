@@ -12,7 +12,7 @@ defaults:
   runs: 1
   timeout: 300s
   executor: copilot-sdk
-  model: gpt-6-sol
+  model: gpt-6-luna
 scoring:
   threshold: 1
 stimuli:
@@ -175,12 +175,19 @@ stimuli:
           required:
             - review-areas
   - name: trigger-09
-    prompt: Review this diff for security vulnerabilities
+    prompt: |-
+      Review this diff for correctness, security vulnerabilities, and missing tests:
+
+      --- a/src/users.ts
+      +++ b/src/users.ts
+      @@ -1 +1 @@
+      -const user = await db.findById(req.params.id);
+      +const user = await db.query("SELECT * FROM users WHERE id = " + req.params.id);
     tags:
       category: trigger
       expected: invoke
-      confidence: medium
-      rationale: Security is a specific review area — references a diff that may not exist in eval sandbox
+      confidence: high
+      rationale: Provides a concrete diff for an area-based review
     graders:
       - type: completed
       - type: skill-invocation
