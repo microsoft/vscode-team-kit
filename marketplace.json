@@ -50,13 +50,12 @@
       "name": "ban-ast",
       "source": "./ban-ast/",
       "description": "Ban code patterns using Tree Sitter AST queries. Rejects edits that introduce banned patterns unless justified.",
-      "version": "1.1.1",
+      "version": "1.2.0",
       "categories": ["code-quality"],
       "status": "stable",
       "maintainers": ["connor4312", "digitarald"],
       "evals": {
-        "skills": ["manage-bans"],
-        "trigger_tests": true
+        "skills": ["manage-bans"]
       },
       "keywords": ["ast", "tree-sitter", "linting", "ban", "hooks"]
     },
@@ -64,13 +63,12 @@
       "name": "component-explorer",
       "source": "./component-explorer/",
       "description": "Skills for setting up and using the VS Code Component Explorer — fixture-based visual testing with MCP-powered screenshot comparison.",
-      "version": "1.2.1",
+      "version": "1.3.0",
       "categories": ["testing"],
       "status": "stable",
       "maintainers": ["hediet", "digitarald"],
       "evals": {
-        "skills": ["setup-component-explorer", "setup-component-explorer-full", "setup-component-explorer-light", "use-component-explorer"],
-        "trigger_tests": true
+        "skills": ["setup-component-explorer", "setup-component-explorer-full", "setup-component-explorer-light", "use-component-explorer"]
       },
       "keywords": ["component-explorer", "fixtures", "screenshots", "visual-testing", "mcp"]
     },
@@ -78,13 +76,12 @@
       "name": "model-council",
       "source": "./model-council/",
       "description": "Multi-model council for code review and planning — model-pinned subagents independently review or plan, then findings are synthesized by consensus.",
-      "version": "2.0.1",
+      "version": "2.0.2",
       "categories": ["review"],
       "status": "stable",
       "maintainers": ["digitarald"],
       "evals": {
-        "skills": ["council-review", "council-plan"],
-        "trigger_tests": true
+        "skills": ["council-review", "council-plan"]
       },
       "keywords": ["review", "code-review", "planning", "agents", "multi-model", "quality"]
     },
@@ -92,13 +89,12 @@
       "name": "review-areas",
       "source": "./review-areas/",
       "description": "Area-focused code review that fans out to parallel subagents — each examining a different review area (correctness, tests, security, performance, product).",
-      "version": "1.2.1",
+      "version": "1.2.2",
       "categories": ["review"],
       "status": "stable",
       "maintainers": ["digitarald"],
       "evals": {
-        "skills": ["review-areas"],
-        "trigger_tests": true
+        "skills": ["review-areas"]
       },
       "keywords": ["review", "code-review", "subagents", "quality"]
     },

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.0 (2026-09-22)
+
+- Migrated the `manage-bans` evaluation suite from Waza to Vally with inline capability and trigger stimuli
+
 ## 1.1.1 (2026-08-12)
 
 - Migrated the `manage-bans` evaluation suite to Waza 0.38.5 schema 1.2 with deterministic spec coverage and enforced trigger-accuracy measurement

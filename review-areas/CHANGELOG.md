@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.2 — 2026-09-22
+
+- Migrated the `review-areas` evaluation suite from Waza to Vally with inline capability and trigger stimuli
+
 ## 1.2.1 — 2026-08-12
 
 - Migrated the `review-areas` evaluation suite to Waza 0.38.5 schema 1.2 with deterministic spec coverage and enforced trigger-accuracy measurement

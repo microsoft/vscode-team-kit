@@ -1,43 +1,204 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/microsoft/waza/v0.38.5/schemas/eval.schema.json
-schemaVersion: "1.2"
 name: setup-component-explorer-full-eval
-description: |
+description: |-
   Evaluation suite for the setup-component-explorer-full skill.
   Tests the full setup including CLI, MCP server, VS Code tasks
   and launch configuration.
-skill: setup-component-explorer-full
-version: "1.0"
-
-config:
-  trials_per_task: 1
-  timeout_seconds: 300
-  parallel: false
+version: "2.0"
+type: capability
+agent_environment:
+  skills:
+    - ..
+defaults:
+  runs: 1
+  timeout: 300s
   executor: copilot-sdk
   model: claude-sonnet-4.6
-  skill_directories:
-    - ".."
-    - "../.."
-  required_skills:
-    - setup-component-explorer-full
+scoring:
+  threshold: 1
+stimuli:
+  - name: full-setup-001
+    prompt: |-
+      Set up the complete component explorer with MCP server and VS Code tasks
 
-metrics:
-  - name: trigger_accuracy
-    weight: 1.0
-    threshold: 0.9
-    description: Correctly distinguish full Component Explorer setup from lightweight setup and usage.
+      Context:
+      - Framework: vite
+      - Language: typescript
+    tags:
+      category: capability
+      scenario:
+        - basic
+        - happy-path
+    graders:
+      - type: completed
+      - type: output-not-matches
+        config:
+          pattern: "(?i)fatal error|crashed|exception occurred"
+      - type: skill-invocation
+        config:
+          required:
+            - setup-component-explorer-full
+      - type: output-matches
+        config:
+          pattern: "[\\s\\S]{11,}"
+      - type: output-contains
+        config:
+          substring: component-explorer
+      - type: output-contains
+        config:
+          substring: mcp
+      - type: tool-call-count
+        config:
+          max: 20
+  - name: full-should-not-trigger-001
+    prompt: |-
+      Just add the Vite plugin for a minimal component explorer setup, and write a fixture for my Button component.
 
-graders:
-  - type: text
-    name: no_errors
-    config:
-      regex_not_match:
-        - "(?i)fatal error|crashed|exception occurred"
-
-  - type: code
-    name: has_output
-    config:
-      assertions:
-        - "len(output) > 10"
-
-tasks:
-  - "tasks/*.yaml"
+      Context:
+      - Framework: vite
+      - Language: typescript
+    tags:
+      category: capability
+      scenario:
+        - negative
+    graders:
+      - type: completed
+      - type: output-not-matches
+        config:
+          pattern: "(?i)fatal error|crashed|exception occurred"
+      - type: skill-invocation
+        config:
+          disallowed:
+            - setup-component-explorer-full
+      - type: tool-call-count
+        config:
+          max: 5
+  - name: trigger-01
+    prompt: Set up the full component explorer with MCP server and VS Code tasks
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Explicit full setup request
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - setup-component-explorer-full
+  - name: trigger-02
+    prompt: I need the complete component explorer integration with CLI and launch config
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Complete setup with all features
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - setup-component-explorer-full
+  - name: trigger-03
+    prompt: Configure component explorer with MCP server for AI agent integration
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: medium
+      rationale: MCP server is in description but 'AI agent integration' is not
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - setup-component-explorer-full
+  - name: trigger-04
+    prompt: Add component explorer with VS Code tasks and launch configuration
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: VS Code tasks and launch config are in description
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - setup-component-explorer-full
+  - name: trigger-05
+    prompt: Set up component explorer CLI daemon
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: medium
+      rationale: CLI is in description but 'daemon' phrasing may not match
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - setup-component-explorer-full
+  - name: ignore-01
+    prompt: Just add the Vite plugin for component explorer
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: medium
+      rationale: Minimal setup should use light variant
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - setup-component-explorer-full
+  - name: ignore-02
+    prompt: Write a fixture for my Button component
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Fixture writing is use-component-explorer skill
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - setup-component-explorer-full
+  - name: ignore-03
+    prompt: Run my unit tests
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Unrelated test execution
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - setup-component-explorer-full
+  - name: ignore-04
+    prompt: Review my pull request
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Code review, not setup
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - setup-component-explorer-full
+  - name: ignore-05
+    prompt: Deploy my application
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Deployment, completely unrelated
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - setup-component-explorer-full

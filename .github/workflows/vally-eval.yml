@@ -1,0 +1,93 @@
+name: Vally Skill Evaluation
+
+on:
+  workflow_dispatch:
+    inputs:
+      verbose:
+        description: 'Enable verbose output'
+        required: false
+        type: boolean
+        default: true
+      full:
+        description: 'Run full eval suite (not just trigger tests)'
+        required: false
+        type: boolean
+        default: true
+  pull_request:
+    branches: [main]
+    paths:
+      - '**/skills/**'
+      - '**/evals/**'
+      - '.vally.yaml'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/vally-eval.yml'
+
+concurrency:
+  group: vally-eval-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  evaluate:
+    name: Run Skill Evaluations
+    runs-on: ubuntu-latest
+    env:
+      VALLY_TELEMETRY_OPTOUT: '1'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate skills and eval specs
+        run: npm run eval:lint
+
+      - name: Run evaluations
+        id: eval
+        run: |
+          ARGS=(eval --require-pass --output-dir vally-results)
+          if [ "${{ inputs.verbose }}" = "true" ]; then
+            ARGS+=(--verbose)
+          fi
+          # PR runs use trigger checks. Manual dispatch runs the full suite by default.
+          if [ "${{ github.event_name }}" = "pull_request" ] || [ "${{ inputs.full }}" = "false" ]; then
+            ARGS+=(--suite pr)
+          else
+            ARGS+=(--suite full)
+          fi
+          npx vally "${ARGS[@]}"
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_TOKEN }}
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request' && always()
+        run: |
+          if [ ! -d vally-results ]; then
+            exit 0
+          fi
+          COMMENT_FILE="$(find vally-results -type f -name eval-results.md -print -quit)"
+          if [ -n "$COMMENT_FILE" ] && [ -s "$COMMENT_FILE" ]; then
+            gh pr comment "${{ github.event.pull_request.number }}" --body-file "$COMMENT_FILE"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vally-evaluation-results
+          path: vally-results/
+          retention-days: 30
+          if-no-files-found: warn

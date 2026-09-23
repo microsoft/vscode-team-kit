@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.0 (2026-09-22)
+
+- Migrated all component explorer evaluation suites from Waza to Vally with inline capability and trigger stimuli
+
 ## 1.2.1 (2026-08-12)
 
 - Migrated all Component Explorer evaluation suites to Waza 0.38.5 schema 1.2 with deterministic spec coverage and enforced trigger-accuracy measurement

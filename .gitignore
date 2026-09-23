@@ -146,7 +146,5 @@ vite.config.ts.timestamp-*
 # macOS
 .DS_Store
 
-# Waza
-.waza-cache/
-.waza-results/
-results/
+# Vally
+vally-results/
