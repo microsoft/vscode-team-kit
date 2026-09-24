@@ -263,6 +263,7 @@ stimuli:
     prompt: Council review my changes
     tags:
       category: trigger
+      focus: routing
       expected: ignore
       confidence: high
       rationale: Explicit council keyword should go to council-review
@@ -276,6 +277,7 @@ stimuli:
     prompt: Have multiple models review this PR
     tags:
       category: trigger
+      focus: routing
       expected: ignore
       confidence: high
       rationale: Multi-model is council-review territory

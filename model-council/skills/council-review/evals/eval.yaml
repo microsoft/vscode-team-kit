@@ -214,6 +214,7 @@ stimuli:
     prompt: Plan with council
     tags:
       category: trigger
+      focus: routing
       expected: ignore
       confidence: high
       rationale: Planning, not review — should trigger council-plan
