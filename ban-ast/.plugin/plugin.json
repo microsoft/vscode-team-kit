@@ -1,14 +1,13 @@
 {
   "name": "ban-ast",
-  "version": "1.1.1",
+  "version": "1.2.2",
   "description": "Ban code patterns using Tree Sitter AST queries. Rejects edits that introduce banned patterns unless justified.",
   "license": "MIT",
   "categories": ["code-quality"],
   "status": "stable",
   "maintainers": ["connor4312", "digitarald"],
   "evals": {
-    "skills": ["manage-bans"],
-    "trigger_tests": true
+    "skills": ["manage-bans"]
   },
   "keywords": ["ast", "tree-sitter", "linting", "ban", "hooks"]
 }

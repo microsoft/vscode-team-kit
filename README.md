@@ -79,33 +79,9 @@ Every plugin here runs in our daily workflow. A few patterns that emerged:
 
 ## Evaluations
 
-The repository uses [Waza](https://github.com/microsoft/waza) 0.38.5 to evaluate the eight skills declared under `evals` in [marketplace.json](marketplace.json): `manage-bans`, the four component-explorer skills, the two model-council skills, and `review-areas`.
+The repository uses [Vally](https://microsoft.github.io/vally/) to evaluate the eight skills declared under `evals` in [marketplace.json](marketplace.json). Node.js 22.12 or newer is required. Install dependencies with `npm ci`, then run `npm run eval:lint` to validate the specs without model credentials.
 
-Install the pinned binary locally:
-
-```bash
-scripts/install-waza.sh
-export PATH="${HOME}/.local/bin:${PATH}"
-```
-
-The installer supports macOS and Linux on amd64 and arm64, verifies the release asset's SHA-256 digest, and rejects an unexpected version.
-
-Run the deterministic checks used as the pull-request merge gate:
-
-```bash
-scripts/validate-waza.sh
-```
-
-This requires no model credentials. The coverage gate is intentionally scoped to the four opted-in plugins and their eight declared skills; it does not enforce repository-wide eval coverage or pull additional plugins into scope. Within that scope, it verifies exactly those eight skills have complete eval coverage and that every suite covers its skill contract under deterministic `waza spec verify`.
-
-To run all normal tasks and trigger tests against the live Copilot SDK:
-
-```bash
-export COPILOT_SDK_TOKEN="<Copilot SDK token>"
-scripts/run-waza-evals.sh
-```
-
-Live results are written per skill under `.waza-results/live/`, including JSON outcomes, transcripts, and GitHub-comment reports. These model-backed evaluations are published by CI for diagnosis but do not block merges; deterministic coverage and spec validation do.
+Set `COPILOT_GITHUB_TOKEN` to run live evaluations. All eight eval specs use `gpt-6-luna` by default. `npm run eval:pr` runs the trigger suite used by pull requests; `npm run eval` runs the full suite, including capability cases. Live results are written to `vally-results/`. CI posts live scores to the PR without blocking on grader failures, so failing cases remain visible for skill improvements. Spec validation and execution errors still fail CI. Promote consistently passing cases to a gated smoke suite when their behavior is stable.
 
 ## Contributing
 

@@ -1,43 +1,266 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/microsoft/waza/v0.38.5/schemas/eval.schema.json
-schemaVersion: "1.2"
 name: use-component-explorer-eval
-description: |
+description: |-
   Evaluation suite for the use-component-explorer skill.
   Tests that the skill correctly guides writing fixtures,
   fixture groups, and variants for visual testing.
-skill: use-component-explorer
-version: "1.0"
-
-config:
-  trials_per_task: 1
-  timeout_seconds: 300
-  parallel: false
+version: "2.0"
+type: capability
+agent_environment:
+  skills:
+    - ..
+defaults:
+  runs: 1
+  timeout: 300s
   executor: copilot-sdk
-  model: claude-sonnet-4.6
-  skill_directories:
-    - ".."
-    - "../.."
-  required_skills:
-    - use-component-explorer
+  model: gpt-6-luna
+scoring:
+  threshold: 1
+stimuli:
+  - name: create-fixture-001
+    prompt: |-
+      Create a fixture for my Button component
 
-metrics:
-  - name: trigger_accuracy
-    weight: 1.0
-    threshold: 0.9
-    description: Correctly trigger for Component Explorer fixture and visual-testing work.
+      Context:
+      - Language: typescript
+      - Framework: react
+    tags:
+      category: capability
+      scenario:
+        - basic
+        - happy-path
+    graders:
+      - type: completed
+      - type: output-not-matches
+        config:
+          pattern: "(?i)fatal error|crashed|exception occurred"
+      - type: skill-invocation
+        config:
+          required:
+            - use-component-explorer
+      - type: output-matches
+        config:
+          pattern: "[\\s\\S]{11,}"
+      - type: output-contains
+        config:
+          substring: fixture
+      - type: tool-call-count
+        config:
+          max: 10
+  - name: use-should-not-trigger-001
+    prompt: |-
+      Install and set up the component explorer in this repo, then write a unit test with the Jest test runner.
 
-graders:
-  - type: text
-    name: no_errors
-    config:
-      regex_not_match:
-        - "(?i)fatal error|crashed|exception occurred"
-
-  - type: code
-    name: has_output
-    config:
-      assertions:
-        - "len(output) > 10"
-
-tasks:
-  - "tasks/*.yaml"
+      Context:
+      - Framework: vite
+      - Language: typescript
+    tags:
+      category: capability
+      scenario:
+        - negative
+    graders:
+      - type: completed
+      - type: output-not-matches
+        config:
+          pattern: "(?i)fatal error|crashed|exception occurred"
+      - type: skill-invocation
+        config:
+          disallowed:
+            - use-component-explorer
+      - type: tool-call-count
+        config:
+          max: 5
+  - name: trigger-01
+    prompt: Create a fixture for my Button component
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Direct fixture creation request
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - use-component-explorer
+  - name: trigger-02
+    prompt: Write a component explorer fixture for the sidebar
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Explicit fixture writing request
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - use-component-explorer
+  - name: trigger-03
+    prompt: Add visual test fixtures for this UI component
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Visual testing with fixtures
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - use-component-explorer
+  - name: trigger-04
+    prompt: How do I write a fixture group for related components?
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Fixture group usage question
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - use-component-explorer
+  - name: trigger-05
+    prompt: Create fixture variants for light and dark themes
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Fixture variants are a core feature
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - use-component-explorer
+  - name: trigger-06
+    prompt: I'm adding a new UI element, help me create the fixture
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: medium
+      rationale: UI change triggers fixture creation
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - use-component-explorer
+  - name: trigger-07
+    prompt: Add a screenshot test for this component
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: medium
+      rationale: Screenshots are in description but 'screenshot test' requires inferring the fixture connection
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - use-component-explorer
+  - name: trigger-08
+    prompt: Update the fixture for the dialog component
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Modifying existing fixtures
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - use-component-explorer
+  - name: trigger-09
+    prompt: Fix the layout of this page
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: medium
+      rationale: Fixing layout is changing UI — description says 'read when adding/changing UI'
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - use-component-explorer
+  - name: ignore-01
+    prompt: Set up component explorer in my project
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Setup is a different skill (setup-component-explorer)
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - use-component-explorer
+  - name: ignore-02
+    prompt: Install the component explorer packages
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Installation is setup, not usage
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - use-component-explorer
+  - name: ignore-03
+    prompt: Write a unit test with Jest
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Unit testing, not fixture writing
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - use-component-explorer
+  - name: ignore-04
+    prompt: Fix the database connection error
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Backend issue, not UI fixtures
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - use-component-explorer
+  - name: ignore-05
+    prompt: Deploy my application to production
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Deployment, completely unrelated
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - use-component-explorer
+  - name: ignore-06
+    prompt: Create a new REST API endpoint
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Backend work, not UI fixtures
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - use-component-explorer

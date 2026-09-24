@@ -1,44 +1,280 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/microsoft/waza/v0.38.5/schemas/eval.schema.json
-schemaVersion: "1.2"
 name: council-plan-eval
-description: |
+description: |-
   Evaluation suite for the council-plan skill.
   Tests that the skill correctly triggers for multi-model
   planning and architecture decision requests.
-skill: council-plan
-version: "1.0"
-
-config:
-  trials_per_task: 1
-  timeout_seconds: 300
-  parallel: false
+version: "2.0"
+type: capability
+agent_environment:
+  skills:
+    - ..
+defaults:
+  runs: 1
+  timeout: 300s
   executor: copilot-sdk
-  model: claude-sonnet-4.6
-  skill_directories:
-    - ".."
-    - "../.."
-    - "../../../../review-areas/skills"
-  required_skills:
-    - council-plan
+  model: gpt-6-luna
+scoring:
+  threshold: 1
+stimuli:
+  - name: council-plan-001
+    prompt: |-
+      Plan with council how to add authentication to the app
 
-metrics:
-  - name: trigger_accuracy
-    weight: 1.0
-    threshold: 0.9
-    description: Correctly trigger council planning for explicitly multi-model planning requests.
+      Context:
+      - Project type: web-app
+    tags:
+      category: capability
+      scenario:
+        - basic
+        - happy-path
+    graders:
+      - type: completed
+      - type: output-not-matches
+        config:
+          pattern: "(?i)fatal error|crashed|exception occurred"
+      - type: skill-invocation
+        config:
+          required:
+            - council-plan
+      - type: output-matches
+        config:
+          pattern: "[\\s\\S]{11,}"
+      - type: output-contains
+        config:
+          substring: plan
+      - type: output-matches
+        config:
+          pattern: "[Cc][Oo][Uu][Nn][Cc][Ii][Ll]|[Mm][Oo][Dd][Ee][Ll]|[Pp][Ee][Rr][Ss][Pp][Ee][Cc][Tt][Ii][Vv][Ee]"
+      - type: tool-call-count
+        config:
+          max: 20
+  - name: council-plan-should-not-trigger-001
+    prompt: |-
+      Review the diff in this pull request and answer one quick factual question: which file declares the router?
 
-graders:
-  - type: text
-    name: no_errors
-    config:
-      regex_not_match:
-        - "(?i)fatal error|crashed|exception occurred"
-
-  - type: code
-    name: has_output
-    config:
-      assertions:
-        - "len(output) > 10"
-
-tasks:
-  - "tasks/*.yaml"
+      Context:
+      - Project type: web-app
+    tags:
+      category: capability
+      scenario:
+        - negative
+    graders:
+      - type: completed
+      - type: output-not-matches
+        config:
+          pattern: "(?i)fatal error|crashed|exception occurred"
+      - type: skill-invocation
+        config:
+          disallowed:
+            - council-plan
+      - type: tool-call-count
+        config:
+          max: 5
+  - name: trigger-01
+    prompt: Plan with council
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Exact trigger phrase from skill description
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - council-plan
+  - name: trigger-02
+    prompt: Multi-model plan for adding authentication
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Multi-model plan is an explicit trigger
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - council-plan
+  - name: trigger-03
+    prompt: Get different perspectives on our approach to caching
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Multiple perspectives matches council planning
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - council-plan
+  - name: trigger-04
+    prompt: Council plan for the database migration
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Direct skill name invocation
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - council-plan
+  - name: trigger-05
+    prompt: Debate approaches for implementing the search feature
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Debate approaches is an explicit trigger
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - council-plan
+  - name: trigger-06
+    prompt: Compare strategies for the API redesign
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Compare strategies is listed in skill description
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - council-plan
+  - name: trigger-07
+    prompt: Cross-plan the microservices architecture
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Cross-plan is an explicit trigger
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - council-plan
+  - name: trigger-08
+    prompt: I want multiple models to propose plans for this refactor
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Explicitly requesting multi-model planning
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - council-plan
+  - name: ignore-01
+    prompt: Review my code changes
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Code review should trigger council-review, not plan
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - council-plan
+  - name: ignore-02
+    prompt: Write unit tests for this module
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Test writing, not planning
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - council-plan
+  - name: ignore-03
+    prompt: Fix the bug in the login flow
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Bug fixing, not planning
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - council-plan
+  - name: ignore-04
+    prompt: Deploy to production
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Deployment, completely unrelated
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - council-plan
+  - name: ignore-05
+    prompt: Explain what this function does
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Code explanation, not planning
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - council-plan
+  - name: ignore-06
+    prompt: Create a new component
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Code creation, not planning
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - council-plan
+  - name: ignore-07
+    prompt: Plan this feature
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: medium
+      rationale: Single-model planning, not council
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - council-plan
+  - name: ignore-08
+    prompt: Review my PR with multiple models
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Review, not planning — should trigger council-review
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - council-plan

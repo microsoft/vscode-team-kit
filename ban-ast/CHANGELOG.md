@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.2.2 (2026-09-22)
+
+- Run the `manage-bans` Vally evaluations with GPT-6 Luna
+
+## 1.2.1 (2026-09-22)
+
+- Run the `manage-bans` Vally evaluations with GPT-6 Sol
+
+## 1.2.0 (2026-09-22)
+
+- Migrated the `manage-bans` evaluation suite from Waza to Vally with inline capability and trigger stimuli
+
 ## 1.1.1 (2026-08-12)
 
 - Migrated the `manage-bans` evaluation suite to Waza 0.38.5 schema 1.2 with deterministic spec coverage and enforced trigger-accuracy measurement

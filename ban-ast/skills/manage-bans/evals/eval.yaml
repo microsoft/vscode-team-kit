@@ -1,42 +1,280 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/microsoft/waza/v0.38.5/schemas/eval.schema.json
-schemaVersion: "1.2"
 name: manage-bans-eval
-description: |
+description: |-
   Evaluation suite for the manage-bans skill.
   Tests that the skill correctly helps users create and manage
   banned AST patterns using Tree Sitter queries.
-skill: manage-bans
-version: "1.0"
-
-config:
-  trials_per_task: 1
-  timeout_seconds: 300
-  parallel: false
+version: "2.0"
+type: capability
+agent_environment:
+  skills:
+    - ..
+defaults:
+  runs: 1
+  timeout: 300s
   executor: copilot-sdk
-  model: claude-sonnet-4.6
-  skill_directories:
-    - ".."
-  required_skills:
-    - manage-bans
+  model: gpt-6-luna
+scoring:
+  threshold: 1
+stimuli:
+  - name: create-ban-rule-001
+    prompt: |-
+      Ban console.log calls in this project
 
-metrics:
-  - name: trigger_accuracy
-    weight: 1.0
-    threshold: 0.9
-    description: Correctly trigger manage-bans for ban-rule requests and avoid unrelated requests.
+      Context:
+      - Language: typescript
+    tags:
+      category: capability
+      scenario:
+        - basic
+        - happy-path
+    graders:
+      - type: completed
+      - type: output-not-matches
+        config:
+          pattern: "(?i)fatal error|crashed|exception occurred"
+      - type: skill-invocation
+        config:
+          required:
+            - manage-bans
+      - type: output-matches
+        config:
+          pattern: "[\\s\\S]{11,}"
+      - type: output-contains
+        config:
+          substring: ban
+      - type: tool-call-count
+        config:
+          max: 10
+  - name: should-not-trigger-001
+    prompt: |-
+      Explain how this sorting algorithm works
 
-graders:
-  - type: text
-    name: no_errors
-    config:
-      regex_not_match:
-        - "(?i)fatal error|crashed|exception occurred"
-
-  - type: code
-    name: has_output
-    config:
-      assertions:
-        - "len(output) > 10"
-
-tasks:
-  - "tasks/*.yaml"
+      Context:
+      - Language: python
+    tags:
+      category: capability
+      scenario:
+        - negative
+    graders:
+      - type: completed
+      - type: output-not-matches
+        config:
+          pattern: "(?i)fatal error|crashed|exception occurred"
+      - type: skill-invocation
+        config:
+          disallowed:
+            - manage-bans
+      - type: output-matches
+        config:
+          pattern: "[\\s\\S]{11,}"
+      - type: tool-call-count
+        config:
+          max: 5
+  - name: trigger-01
+    prompt: Ban console.log in the project
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Direct request to ban a code pattern
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - manage-bans
+  - name: trigger-02
+    prompt: Create an AST rule to prevent eval()
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Explicit AST rule creation request
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - manage-bans
+  - name: trigger-03
+    prompt: Add a tree-sitter lint rule to forbid any types
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Tree-sitter rule creation matches skill domain
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - manage-bans
+  - name: trigger-04
+    prompt: I want to prevent developers from using document.write
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Banning a specific code pattern
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - manage-bans
+  - name: trigger-05
+    prompt: Set up a banned pattern for raw SQL queries
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: medium
+      rationale: Creating a ban rule for a code construct
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - manage-bans
+  - name: trigger-06
+    prompt: How do I add a justification override for a ban rule?
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: medium
+      rationale: Justification overrides are documented in skill body but not prominent in description
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - manage-bans
+  - name: trigger-07
+    prompt: Create a BANNED_AST.md file
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Direct reference to ban file format
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - manage-bans
+  - name: trigger-08
+    prompt: Add a global ban rule to my home directory
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Setting up global bans in ~/.BANNED_AST.md
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - manage-bans
+  - name: ignore-01
+    prompt: Write unit tests for my module
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Test writing is a different task
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - manage-bans
+  - name: ignore-02
+    prompt: Fix the bug in my authentication code
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Bug fixing, not banning patterns
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - manage-bans
+  - name: ignore-03
+    prompt: Refactor this function to be more readable
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Refactoring, not banning patterns
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - manage-bans
+  - name: ignore-04
+    prompt: Set up ESLint for my project
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: medium
+      rationale: ESLint setup is a different linting tool
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - manage-bans
+  - name: ignore-05
+    prompt: Review my pull request
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Code review, not pattern banning
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - manage-bans
+  - name: ignore-06
+    prompt: Deploy my app to Azure
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Completely unrelated deployment task
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - manage-bans
+  - name: ignore-07
+    prompt: What does this function do?
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Code explanation, not banning
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - manage-bans
+  - name: ignore-08
+    prompt: Create a new React component
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Code creation, not pattern banning
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - manage-bans

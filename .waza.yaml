@@ -1,7 +1,0 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/microsoft/waza/v0.38.5/schemas/config.schema.json
-
-defaults:
-  engine: copilot-sdk
-  model: claude-sonnet-4.6
-  timeout: 300
-  verbose: false

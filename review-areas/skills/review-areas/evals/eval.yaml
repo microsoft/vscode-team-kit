@@ -1,43 +1,287 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/microsoft/waza/v0.38.5/schemas/eval.schema.json
-schemaVersion: "1.2"
 name: review-areas-eval
-description: |
+description: |-
   Evaluation suite for the review-areas skill.
   Tests that the skill correctly triggers for area-focused
   code review with parallel subagent perspectives.
-skill: review-areas
-version: "1.0"
-
-config:
-  trials_per_task: 1
-  timeout_seconds: 300
-  parallel: false
+version: "2.0"
+type: capability
+agent_environment:
+  skills:
+    - ..
+defaults:
+  runs: 1
+  timeout: 300s
   executor: copilot-sdk
-  model: claude-sonnet-4.6
-  skill_directories:
-    - ".."
-    - "../../../../model-council/skills"
-  required_skills:
-    - review-areas
+  model: gpt-6-luna
+scoring:
+  threshold: 1
+stimuli:
+  - name: review-areas-001
+    prompt: |-
+      Review my pull request for correctness and security
 
-metrics:
-  - name: trigger_accuracy
-    weight: 1.0
-    threshold: 0.9
-    description: Correctly trigger area-focused parallel review and avoid unrelated work.
+      Context:
+      - Project type: web-app
+    tags:
+      category: capability
+      scenario:
+        - basic
+        - happy-path
+    graders:
+      - type: completed
+      - type: output-not-matches
+        config:
+          pattern: "(?i)fatal error|crashed|exception occurred"
+      - type: skill-invocation
+        config:
+          required:
+            - review-areas
+      - type: output-matches
+        config:
+          pattern: "[\\s\\S]{11,}"
+      - type: output-contains
+        config:
+          substring: review
+      - type: output-matches
+        config:
+          pattern: "[Cc][Oo][Rr][Rr][Ee][Cc][Tt][Nn][Ee][Ss][Ss]|[Ss][Ee][Cc][Uu][Rr][Ii][Tt][Yy]|[Aa][Rr][Ee][Aa]"
+      - type: tool-call-count
+        config:
+          max: 20
+  - name: review-areas-should-not-trigger-001
+    prompt: |-
+      Plan a new implementation for the cache layer, and explain how the existing code works while you are at it.
 
-graders:
-  - type: text
-    name: no_errors
-    config:
-      regex_not_match:
-        - "(?i)fatal error|crashed|exception occurred"
+      Context:
+      - Project type: web-app
+    tags:
+      category: capability
+      scenario:
+        - negative
+    graders:
+      - type: completed
+      - type: output-not-matches
+        config:
+          pattern: "(?i)fatal error|crashed|exception occurred"
+      - type: skill-invocation
+        config:
+          disallowed:
+            - review-areas
+      - type: tool-call-count
+        config:
+          max: 5
+  - name: trigger-01
+    prompt: Review my code for correctness and security
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Mentions specific review areas (correctness, security)
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - review-areas
+  - name: trigger-02
+    prompt: Do a security and correctness review
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Abstract area-specific request, no workspace state needed
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - review-areas
+  - name: trigger-03
+    prompt: Find bugs, security issues, and test gaps in this code
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Maps to correctness + security + tests areas
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - review-areas
+  - name: trigger-04
+    prompt: Give me feedback across different review areas
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Directly references review areas concept
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - review-areas
+  - name: trigger-05
+    prompt: Do a code quality check on this PR
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Quality check maps to review areas
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - review-areas
+  - name: trigger-06
+    prompt: Review my code
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: medium
+      rationale: Generic review without multi-model keywords — review-areas is the default single-model review
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - review-areas
+  - name: trigger-07
+    prompt: Check my changes for performance issues
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: medium
+      rationale: Performance is one of the review areas — references workspace changes that may not exist
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - review-areas
+  - name: trigger-08
+    prompt: Are there any bugs or missing tests in my recent changes?
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: medium
+      rationale: Bug hunt + test gaps maps to correctness and tests areas
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - review-areas
+  - name: trigger-09
+    prompt: |-
+      Review this diff for correctness, security vulnerabilities, and missing tests:
 
-  - type: code
-    name: has_output
-    config:
-      assertions:
-        - "len(output) > 10"
-
-tasks:
-  - "tasks/*.yaml"
+      --- a/src/users.ts
+      +++ b/src/users.ts
+      @@ -1 +1 @@
+      -const user = await db.findById(req.params.id);
+      +const user = await db.query("SELECT * FROM users WHERE id = " + req.params.id);
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Provides a concrete diff for an area-based review
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - review-areas
+  - name: ignore-01
+    prompt: Plan the architecture for a new feature
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Architecture planning, not review
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - review-areas
+  - name: ignore-02
+    prompt: Write unit tests for this module
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Test writing is a different task
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - review-areas
+  - name: ignore-03
+    prompt: Deploy my application to production
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Deployment, completely unrelated
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - review-areas
+  - name: ignore-04
+    prompt: Explain what this function does
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Code explanation, not review
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - review-areas
+  - name: ignore-05
+    prompt: Create a new React component
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Code creation, not review
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - review-areas
+  - name: ignore-06
+    prompt: Council review my changes
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Explicit council keyword should go to council-review
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - review-areas
+  - name: ignore-07
+    prompt: Have multiple models review this PR
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Multi-model is council-review territory
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - review-areas

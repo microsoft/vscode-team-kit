@@ -1,44 +1,251 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/microsoft/waza/v0.38.5/schemas/eval.schema.json
-schemaVersion: "1.2"
 name: council-review-eval
-description: |
+description: |-
   Evaluation suite for the council-review skill.
   Tests that the skill correctly triggers for multi-model
   code review and consensus-based review requests.
-skill: council-review
-version: "1.0"
-
-config:
-  trials_per_task: 1
-  timeout_seconds: 300
-  parallel: false
+version: "2.0"
+type: capability
+agent_environment:
+  skills:
+    - ..
+defaults:
+  runs: 1
+  timeout: 300s
   executor: copilot-sdk
-  model: claude-sonnet-4.6
-  skill_directories:
-    - ".."
-    - "../.."
-    - "../../../../review-areas/skills"
-  required_skills:
-    - council-review
+  model: gpt-6-luna
+scoring:
+  threshold: 1
+stimuli:
+  - name: council-review-001
+    prompt: |-
+      Council review my recent changes
 
-metrics:
-  - name: trigger_accuracy
-    weight: 1.0
-    threshold: 0.9
-    description: Correctly trigger council review for explicitly multi-model review requests.
+      Context:
+      - Project type: web-app
+    tags:
+      category: capability
+      scenario:
+        - basic
+        - happy-path
+    graders:
+      - type: completed
+      - type: output-not-matches
+        config:
+          pattern: "(?i)fatal error|crashed|exception occurred"
+      - type: skill-invocation
+        config:
+          required:
+            - council-review
+      - type: output-matches
+        config:
+          pattern: "[\\s\\S]{11,}"
+      - type: output-contains
+        config:
+          substring: review
+      - type: tool-call-count
+        config:
+          max: 20
+  - name: council-review-should-not-trigger-001
+    prompt: |-
+      Plan a new implementation for a caching layer and write the code for it without a review.
 
-graders:
-  - type: text
-    name: no_errors
-    config:
-      regex_not_match:
-        - "(?i)fatal error|crashed|exception occurred"
-
-  - type: code
-    name: has_output
-    config:
-      assertions:
-        - "len(output) > 10"
-
-tasks:
-  - "tasks/*.yaml"
+      Context:
+      - Project type: web-app
+    tags:
+      category: capability
+      scenario:
+        - negative
+    graders:
+      - type: completed
+      - type: output-not-matches
+        config:
+          pattern: "(?i)fatal error|crashed|exception occurred"
+      - type: skill-invocation
+        config:
+          disallowed:
+            - council-review
+      - type: tool-call-count
+        config:
+          max: 5
+  - name: trigger-01
+    prompt: Council review my recent changes
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Direct council keyword
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - council-review
+  - name: trigger-02
+    prompt: Multi-model review of this PR
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Multi-model is the core differentiator
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - council-review
+  - name: trigger-03
+    prompt: Cross-review the diff
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Cross-review is an explicit trigger
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - council-review
+  - name: trigger-04
+    prompt: Have multiple models inspect these changes
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Multiple models is the core use case
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - council-review
+  - name: trigger-05
+    prompt: Debate the review findings from different models
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Debate/discuss findings is an explicit trigger
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - council-review
+  - name: trigger-06
+    prompt: I want independent reviews from different models
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: high
+      rationale: Independent multi-model reviews
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - council-review
+  - name: trigger-07
+    prompt: Review my code
+    tags:
+      category: trigger
+      expected: invoke
+      confidence: medium
+      rationale: A general review request can use council-review
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required:
+            - council-review
+  - name: ignore-01
+    prompt: Plan the architecture for a new feature
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Planning should trigger council-plan, not review
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - council-review
+  - name: ignore-02
+    prompt: Write a new component
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Code creation, not review
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - council-review
+  - name: ignore-03
+    prompt: Fix this compilation error
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Error fixing, not review
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - council-review
+  - name: ignore-04
+    prompt: Deploy to staging
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Deployment, completely unrelated
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - council-review
+  - name: ignore-05
+    prompt: Plan with council
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Planning, not review — should trigger council-plan
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - council-review
+  - name: ignore-06
+    prompt: Explain this code
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Code explanation, not review
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - council-review
+  - name: ignore-08
+    prompt: Compare strategies for implementing auth
+    tags:
+      category: trigger
+      expected: ignore
+      confidence: high
+      rationale: Strategy comparison is planning, not review
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed:
+            - council-review

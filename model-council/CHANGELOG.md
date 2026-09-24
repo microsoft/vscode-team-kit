@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.0.4 (2026-09-22)
+
+- Run council Vally evaluations with GPT-6 Luna and allow council-review for generic review requests
+
+## 2.0.3 (2026-09-22)
+
+- Run the council review and planning Vally evaluations with GPT-6 Sol
+
+## 2.0.2 (2026-09-22)
+
+- Migrated the council review and planning evaluation suites from Waza to Vally with inline capability and trigger stimuli
+
 ## 2.0.1 (2026-08-12)
 
 - Migrated the council review and planning evaluation suites to Waza 0.38.5 schema 1.2 with deterministic spec coverage and enforced trigger-accuracy measurement
