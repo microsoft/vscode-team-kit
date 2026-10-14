@@ -139,16 +139,6 @@
       "keywords": ["build", "ci", "pipeline", "azure-devops", "build-champ", "rolling-build"]
     },
     {
-      "name": "rubber-duck",
-      "source": "./rubber-duck/",
-      "description": "Constructive devil's advocate that critically reviews proposals, designs, implementations, or tests — categorizes feedback as Blocking, Non-Blocking, or Suggestion.",
-      "version": "1.0.0",
-      "categories": ["review"],
-      "status": "stable",
-      "maintainers": ["digitarald"],
-      "keywords": ["review", "critic", "rubber-duck", "feedback", "quality"]
-    },
-    {
       "name": "debug",
       "source": "./debug/",
       "description": "Evidence-driven debugging with competing hypotheses, temporary probes, and local structured runtime logs.",
