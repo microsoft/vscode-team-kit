@@ -33,7 +33,6 @@ Install any plugin directly in VS Code:
 |---|---|
 | [monitor-pr](monitor-pr/) | Launches background terminals that watch CI and Copilot's code review, then notifies the agent when either finishes — no polling, no tab-switching |
 | [handy-commands](handy-commands/) | Slash commands for the things you do every day: `/commit-and-pr`, `/pr-comments`, `/fix-issue` |
-| [goal](goal/) | `/goal` slash command that gives the agent a durable objective with a verifiable stopping condition — keeps iterating checkpoint-by-checkpoint across turns until done |
 
 ### Triage — stay on top of GitHub
 
@@ -53,12 +52,6 @@ Install any plugin directly in VS Code:
 |---|---|
 | [build-health](build-health/) | Analyzes VS Code's rolling build pipeline on Azure DevOps — finds failures, shows break/fix transitions, links to commits |
 | [component-explorer](component-explorer/) | Sets up fixture-based visual testing with MCP-powered screenshot comparison for UI components |
-
-### Research — investigate and synthesize
-
-| Plugin | What it does |
-|---|---|
-| [research](research/) | Decomposes a research query into parallel subagents, iteratively searches web and code sources, then synthesizes a citation-rich report with confidence levels |
 
 ### Debug — inspect runtime behavior with the right tool
 
