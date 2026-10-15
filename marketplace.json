@@ -160,6 +160,16 @@
         "source": "github",
         "repo": "roblourens/dap-cli"
       }
+    },
+    {
+      "name": "pr-studio",
+      "source": "./pr-studio/",
+      "description": "Explainer videos and slide decks of pull requests, in one white Microsoft look, made in chat by the model you pick. Self-contained.",
+      "version": "0.1.0",
+      "categories": ["workflow"],
+      "status": "experimental",
+      "maintainers": ["federicobrancasi"],
+      "keywords": ["video", "slides", "presentation", "explainer", "pull-request", "pr-studio"]
     }
   ]
 }
