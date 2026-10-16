@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.0 — 2026-10-16
+
+- Short by default: a video or a deck answers six questions (what changes, why, how it works, what it looks like or does, what could break and how it is tested, the status and where to start reading) in as little as covers them. There is no minimum; a video is at most 90 seconds with the end card, a deck at most 12 slides. The size tiers now only set the storyboard's starting beats; `prs check` fails past the cap instead of below a window, and `prs publish` won't deliver a video past it.
+- The voice tells why and how; numbers, names and lists go on screen. The title and status beats are one sentence each (`prs check` warns otherwise): the title card brings in the author, the size and the state within that sentence, and the status checklist brings its places to start reading forward a third of the way in, so they can be read before the end card.
+- Before and after footage plays side by side in one beat, in step, instead of one after the other.
+- The voice is 10% faster (`voice.pace`, 1.1 by default): Kokoro speaks at that speed, MAI-Voice-2 takes are sped up without changing pitch (its SSML rate is only partly honoured), and the estimates follow. `"pace": 1` in `~/.cache/pr-studio/config.json` restores the old pace.
+- Decks have no end slide: the status slide carries the PR's QR code and where to start reading.
+- Both reviewers check coverage (each of the six answers, a risk in its own words rather than only "it has tests", and screen-only answers readable at playing speed) and brevity (a sentence, beat or slide that answers none of them, or reads out what the screen shows, is a must-fix).
+- The reviewer is another agent whenever the host can start one, and a verdict with must-fixes is never the last.
+- Captures come from a build of the app (for VS Code, an Insiders build by commit), never component fixtures or the user's checkout; nothing is written to the user's repository, and the capture script deletes its temp profile, with its copy of the sign-in, in a `finally`.
+- Measured on three PRs against 0.2.0: videos 55.7 → 37.2 s, 81.9 → 51.1 s and 70.9 → 37.9 s; decks 6 → 5 and 8 → 7 slides. A viewer given only the delivered video found all six answers in each new video (the risk explicit in the one made with the final rules, implied in the other two); each old one missed what could break.
+
 ## 0.2.0 — 2026-10-16
 
 - Live UI: when a pull request changes something visible, both skills run the app with the change in a throwaway profile and drive it with Playwright (it comes with the engine). Videos record the interaction and lay it into its beat's frames between `prs render` and `prs publish`, so the mp4, the WebM and the contact sheet all show it; decks save a screenshot of each state into `assets/`.

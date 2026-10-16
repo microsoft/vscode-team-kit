@@ -2014,7 +2014,7 @@ export const track = defineTreatment({
 	},
 });
 
-==> catalog/status.js  text 8252
+==> catalog/status.js  text 8403
 // need: status. Scope, tests and what is still open; where a reviewer should start reading.
 import { defineTreatment } from '../engine/scene.js';
 import { C, TONE } from '../theme/tokens.js';
@@ -2054,7 +2054,7 @@ export const checklist = defineTreatment({
 	params: {
 		eyebrow: 'label', title: 'label',
 		items: '[{ icon, tone, title, sub, at }]  (2-5)',
-		read: '{ label, refs: [{ code: code(file, { anchor }), title, what, at }] }  (optional, 1-3; without at, the refs light up in the last 40% of the beat)',
+		read: '{ label, refs: [{ code: code(file, { anchor }), title, what, at }] }  (optional, 1-3; without at, the refs light up from a third of the way into the beat)',
 	},
 	demo: () => ({
 		eyebrow: label('Scope and status'), title: label('What to know before reviewing'),
@@ -2078,12 +2078,13 @@ export const checklist = defineTreatment({
 			const line = k < items.length - 1 ? el('div', 'st-abs', root, { left: 96 + 90, top: 248 + k * rowH + rowH - 7, width: width - 90, height: 1.5, background: C.line, transformOrigin: '0 50%' }) : null;
 			return { row, line };
 		});
-		const itemAt = spread(ctx, items, { lead: 0.3, tail: hasRead ? ctx.beat.duration * 0.45 : 1.5 });
+		const itemAt = spread(ctx, items, { lead: 0.3, tail: hasRead ? ctx.beat.duration * 0.6 : 1.5 });
 		let read = null;
 		if (hasRead) {
 			const box = tile(root, 'neutral', { left: 1080, top: 248, width: 744, height: 452, padding: '32px 36px' });
 			const refs = readRefs(box, p.read, ctx, { width: 744 - 72 });
-			const refAt = spread(ctx, refs, { lead: ctx.beat.duration * 0.6, tail: 1 });
+			// Where to start reading is often said only on screen, in a short closing beat: it comes forward early and stays.
+			const refAt = spread(ctx, refs, { lead: ctx.beat.duration * 0.33, tail: ctx.beat.duration * 0.25 });
 			read = { box, refs, refAt };
 		}
 		return { h: wrapH, rows, itemAt, read };
@@ -2166,9 +2167,9 @@ export const board = defineTreatment({
 });
 
 
-==> catalog/title.js  text 10107
+==> catalog/title.js  text 10646
 // The fixed first beat. Frame 0 is the thumbnail: the title is composed from the start; the
-// "What changes" card slides in when the narration reaches the numbers.
+// "What changes" card slides in at the stats cue, or early in the beat when the narration doesn't say the numbers.
 import { defineTreatment } from '../engine/scene.js';
 import { C } from '../theme/tokens.js';
 import { card, el, fit, microsoftLogo, pill, txt } from '../theme/primitives.js';
@@ -2280,16 +2281,19 @@ export const frame = defineTreatment({
 		cardEl.style.height = `${Math.min(730, y + 30)}px`;
 		cardEl.style.top = `${Math.max(150, 170 + (730 - Math.min(730, y + 30)) / 2)}px`;
 		const at = p.at ?? {};
-		const stats = ctx.at(at.stats ?? (ctx.has('stats') ? 'stats' : undefined), 5);
+		// A one-sentence title beat is short: the author, the numbers and the state come in sooner, so all are up before it ends.
+		const scale = Math.min(1, ctx.beat.duration / 11);
+		const quick = Math.max(0.3, Math.min(1, scale * 2));
+		const stats = ctx.at(at.stats ?? (ctx.has('stats') ? 'stats' : undefined), 5 * scale);
 		const stateRef = at.state ?? (ctx.has('state') ? 'state' : undefined);
 		const times = {
-			author: ctx.at(at.author ?? (ctx.has('author') ? 'author' : undefined), 2.4),
+			author: ctx.at(at.author ?? (ctx.has('author') ? 'author' : undefined), 2.4 * scale),
 			stats,
 			// Without a time of their own, the state pills come after the numbers have been said, not before.
-			state: stateRef !== undefined ? ctx.at(stateRef) : Math.max(ctx.at(undefined, 8), stats + 1.5),
+			state: stateRef !== undefined ? ctx.at(stateRef) : Math.max(ctx.at(undefined, 8 * scale), stats + 1.5 * scale),
 		};
 		return {
-			logo, eyebrow, title, sub, by, p1, p2, cardEl, addN, delN, meta, bars, times,
+			logo, eyebrow, title, sub, by, p1, p2, cardEl, addN, delN, meta, bars, times, quick,
 			totals: { additions: F.additions, deletions: F.deletions },
 			layout() {
 				// Headline: at most two lines; the stack below follows it and stays inside the frame.
@@ -2315,22 +2319,24 @@ export const frame = defineTreatment({
 		};
 	},
 	render(i, t) {
-		i.title.style.transform = `translateY(${lerp(6, 0, decel(prog(t, 0, 2.2)))}px)`;
-		enter(i.by, t, i.times.author);
-		enter(i.cardEl, t, i.times.stats - 0.45, { dx: 28, dy: 0, dur: 0.6 });
-		const tot = decel(prog(t, i.times.stats - 0.15, i.times.stats + 0.25));
+		// In a short title beat everything moves quicker, so it is all in place before the beat ends.
+		const k = i.quick;
+		i.title.style.transform = `translateY(${lerp(6, 0, decel(prog(t, 0, 2.2 * k)))}px)`;
+		enter(i.by, t, i.times.author, { dur: 0.6 * k });
+		enter(i.cardEl, t, i.times.stats - 0.45 * k, { dx: 28, dy: 0, dur: 0.6 * k });
+		const tot = decel(prog(t, i.times.stats - 0.15 * k, i.times.stats + 0.25 * k));
 		i.addN.style.opacity = i.delN.style.opacity = String(tot);
-		i.meta.style.opacity = String(decel(prog(t, i.times.stats + 0.6, i.times.stats + 1.0)));
-		i.addN.textContent = `+${fmt(count(t, i.times.stats - 0.1, 0.9, i.totals.additions))}`;
-		i.delN.textContent = `\u2212${fmt(count(t, i.times.stats - 0.1, 0.9, i.totals.deletions))}`;
+		i.meta.style.opacity = String(decel(prog(t, i.times.stats + 0.6 * k, i.times.stats + 1.0 * k)));
+		i.addN.textContent = `+${fmt(count(t, i.times.stats - 0.1 * k, 0.9 * k, i.totals.additions))}`;
+		i.delN.textContent = `\u2212${fmt(count(t, i.times.stats - 0.1 * k, 0.9 * k, i.totals.deletions))}`;
 		for (const b of i.bars) {
-			const q = decel(prog(t, i.times.stats + 0.4 + b.k * 0.05, i.times.stats + 1.2 + b.k * 0.05));
+			const q = decel(prog(t, i.times.stats + (0.4 + b.k * 0.05) * k, i.times.stats + (1.2 + b.k * 0.05) * k));
 			b.g.style.width = `${b.ga * q}px`;
 			b.r.style.width = `${b.rd * q}px`;
 		}
-		enter(i.p1, t, i.times.state, { dy: 8 });
+		enter(i.p1, t, i.times.state, { dy: 8, dur: 0.6 * k });
 		if (i.p2) {
-			enter(i.p2, t, i.times.state + 0.15, { dy: 8 });
+			enter(i.p2, t, i.times.state + 0.15 * k, { dy: 8, dur: 0.6 * k });
 		}
 	},
 });
@@ -2730,10 +2736,10 @@ export function writeCatalogDoc(list, { sheet = null } = {}) {
 	fs.writeFileSync(sheet ? path.join(path.dirname(sheet), 'catalog.md') : path.join(OUT, '..', 'catalog.md'), lines.join('\n'));
 }
 
-==> cli/lib/check.mjs  text 3962
-// prs check: is the storyboard ready for the voice? Length window, needs, cues, placeholders, evidence, pronunciation.
+==> cli/lib/check.mjs  text 4461
+// prs check: is the storyboard ready for the voice? Length cap, needs, cues, placeholders, evidence, pronunciation.
 import path from 'node:path';
-import { readJson, videoDir } from './common.mjs';
+import { CAP, readJson, videoDir, voicePace } from './common.mjs';
 import { displayTokens, estimateTimeline, findPhrase, cueSpec } from './timeline.mjs';
 import { checkEvidence } from './evidence.mjs';
 import { NEEDS } from '../../engine/scene.js';
@@ -2778,6 +2784,16 @@ export async function checkStory(slug) {
 			}
 		}
 		const pron = Object.keys(sb.pronounce ?? {});
+		if (b.need === 'title' || b.need === 'status') {
+			const sentences = tokens.filter(t => /[.!?]["')\u201d]*$/.test(t)).length;
+			if (sentences > 1) {
+				warnings.push(`beat ${b.id}: ${sentences} sentences; the ${b.need} beat says one, the screen carries the rest`);
+			}
+		}
+		const shown = b.need === 'title' ? [...b.say.matchAll(/\{\{facts\.(number|additions|deletions|changedFiles|commitCount|authorName|authorLogin)\b/g)].map(m => m[1]) : [];
+		if (shown.length) {
+			warnings.push(`beat ${b.id}: the title card shows ${[...new Set(shown)].join(', ')}: say what the PR does instead`);
+		}
 		const odd = [...new Set(tokens.map(t => t.replace(/^[^\w]+|[^\w]+$/g, '')).filter(t => SPEAKABLE_HINT.test(t) && !pron.some(p => p.split(/\s+/).includes(t))))];
 		if (odd.length) {
 			warnings.push(`beat ${b.id}: check how these are spoken (add to "pronounce" if needed): ${odd.join(', ')}`);
@@ -2805,18 +2821,15 @@ export async function checkStory(slug) {
 	}
 	let seconds = null;
 	if (!errors.length) {
-		// Where the last word should end, as prs voice measures it (not the file's length, which adds a tail).
-		const estimate = estimateTimeline(sb, facts);
+		// Where the last word should end, as prs voice measures it (not the file's length, which adds the end card).
+		const estimate = estimateTimeline(sb, facts, { pace: voicePace() });
 		seconds = estimate.beats.at(-1)?.end ?? estimate.total;
-		const [lo, hi] = sb.length?.seconds ?? pr.tier?.seconds ?? [40, 100];
 		const words = sb.beats.reduce((a, b) => a + displayTokens(b.say, facts).length, 0);
-		const msg = `the last word should end at about ${Math.round(seconds)} s (${words} words) for a ${lo}-${hi} s target (an estimate: prs voice measures it)`;
-		if (seconds > hi + 12 || seconds < lo - 10) {
-			errors.push(`${msg}: ${seconds > hi ? 'cut' : 'add'} narration`);
-		} else if (seconds > hi || seconds < lo) {
-			warnings.push(`${msg}: ${seconds > hi ? 'probably too long, trim a little' : 'probably too short, add a little'}`);
+		const msg = `the last word should end at about ${Math.round(seconds)} s (${words} words; an estimate: prs voice measures it)`;
+		if (seconds > CAP.seconds) {
+			errors.push(`${msg}, past the ${CAP.seconds} s cap (${CAP.fileSeconds} s with the end card): cut what answers none of the six questions, and what the screen already shows`);
 		} else {
-			console.log(`length: ${msg}`);
+			console.log(`length: ${msg}, within the ${CAP.seconds} s cap`);
 		}
 	}
 	for (const w of warnings) {
@@ -3078,7 +3091,7 @@ export async function resolveCode(slug, facts, diffFiles, ref) {
 	};
 }
 
-==> cli/lib/common.mjs  text 7810
+==> cli/lib/common.mjs  text 8759
 // Paths, config and small shared helpers for the prs CLI.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -3095,9 +3108,16 @@ export const STATE = process.env.PRS_HOME ? path.resolve(process.env.PRS_HOME) :
 export const IN_REPO = !process.env.PRS_HOME && fs.existsSync(path.join(ROOT, 'gallery'));
 export const CONFIG_FILE = IN_REPO && fs.existsSync(path.join(ROOT, 'pr-studio.config.json')) ? path.join(ROOT, 'pr-studio.config.json') : path.join(STATE, 'config.json');
 
+/** The most a video or a deck may take. There is no minimum: as short as covering the six answers allows. The last
+ * word ends by 86 s, so the file, with the end card's 4 s, stays within 90 s; at the default pace that is about 190
+ * words. */
+export const CAP = { seconds: 86, fileSeconds: 90, words: 190, slides: 12 };
+
 export const DEFAULT_CONFIG = {
 	voice: {
 		provider: 'auto',
+		// How much faster than its own pace the synthesized voice speaks (1 is the voice's pace; recordings keep theirs).
+		pace: 1.1,
 		kokoro: { voice: 'am_michael', speed: 1.0 },
 		mai: { voice: 'en-US-Grant:MAI-Voice-2', region: 'eastus2', azResource: null, azResourceGroup: null, azSubscription: null },
 	},
@@ -3122,6 +3142,19 @@ export function loadConfig() {
 		config.deliver = path.resolve(ROOT, process.env.PRS_DELIVER);
 	}
 	return config;
+}
+
+/** voice.pace from the settings: how much faster than its own pace the synthesized voice speaks (a recording, or
+ * silent captions, keep their own). */
+export function voicePace(config = loadConfig()) {
+	if (['recording', 'silent'].includes(config.voice?.provider)) {
+		return 1;
+	}
+	const pace = Number(config.voice?.pace ?? 1);
+	if (!(pace >= 0.5 && pace <= 2)) {
+		throw new Error(`voice.pace in ${CONFIG_FILE} must be between 0.5 and 2 (it is ${config.voice?.pace})`);
+	}
+	return pace;
 }
 
 export function videoDir(slug) {
@@ -3327,7 +3360,7 @@ export async function concepts(slug) {
 	}
 }
 
-==> cli/lib/deck.mjs  text 22630
+==> cli/lib/deck.mjs  text 22324
 // prs deck: slide decks in the studio look. A deck is a folder decks/<slug>/ with deck.mjs (the slides, as plain data),
 // and optionally designs/ (layouts of its own) and assets/ (pictures). deck/build.mjs turns it into a 16:9 PDF, one PNG
 // per page, a contact sheet, speaker notes and a checks report, in decks/<slug>/out/, and delivers the PDF, the contact
@@ -3336,7 +3369,7 @@ export async function concepts(slug) {
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { ROOT, loadConfig, parsePrRef, readJson, videoDir } from './common.mjs';
+import { CAP, ROOT, loadConfig, parsePrRef, readJson, videoDir } from './common.mjs';
 
 const SAMPLES = path.join(ROOT, 'deck', 'samples');
 
@@ -3461,9 +3494,9 @@ export function statusNodes(facts, now = new Date()) {
 	return nodes;
 }
 
-/** The deck.mjs a deck about a pull request starts from: the title card, the status and the end slide from the PR's
- * real data, and TODOs for the slides that explain it. */
-export function prDeckSource(facts, tier) {
+/** The deck.mjs a deck about a pull request starts from: the title card and the status from the PR's real data, and a
+ * TODO for the slides that explain it. No end slide: the status carries the link and its QR code. */
+export function prDeckSource(facts) {
 	const pr = `${facts.repo}#${facts.number}`;
 	const url = facts.url;
 	const state = { MERGED: { text: 'Merged', tone: 'green', icon: 'merge' }, CLOSED: { text: 'Closed', tone: 'red', icon: 'dismiss' } }[facts.state]
@@ -3476,8 +3509,6 @@ export function prDeckSource(facts, tier) {
 	const byFile = areas.length < 2 && files.length > 1;
 	const rows = (byFile ? files.map(f => ({ name: f.path.split('/').pop(), additions: f.additions, deletions: f.deletions })) : areas)
 		.map(a => `\t\t\t\t\t{ title: ${q(a.name)}, value: ${a.additions + a.deletions}, note: ${q(`+${a.additions} \u2212${a.deletions}`)} },`).join('\n');
-	const slides = tier?.slides ?? [7, 8];
-	const middle = `${Math.max(1, slides[0] - 3)}-${Math.max(1, slides[1] - 3)}`;
 	const nodes = statusNodes(facts).map(n => `\t\t\t\t${literal(n)},`).join('\n');
 	const login = facts.authorLogin.replace(/\[bot\]$/, '');
 	// The name on the author's profile when there is one ("Ben Villalobos", BV), else the login.
@@ -3489,7 +3520,7 @@ export function prDeckSource(facts, tier) {
 // A deck about ${pr}, for people who won't read the pull request.
 // The facts: videos/${parsePrRef(pr).slug}/ in the engine's folder: brief.md (read all of it), pr.diff (search it) and
 // the changed files at the head commit (build/src/). The build checks every code line, \`inline code\` and file path on
-// the slides against them. The title card, the status and the end slide come from the PR's data: keep their facts.
+// the slides against them. The title card and the status come from the PR's data: keep their facts.
 export default {
 	title: ${q(facts.title)},
 	ref: ${q(`${pr}  \u00b7  ${month}`)},
@@ -3510,22 +3541,17 @@ ${rows}
 			},
 			notes: 'TODO: what to say while this slide is up.',
 		},
-		// TODO: the ${middle} slides that explain it (the brief's length: ${slides[0]}-${slides[1]} slides in all, these three included),
-		// in the order of "A deck about a pull request" in guide.md:
-		// the problem made concrete, the idea in one sentence, how it works (one or two diagrams), what it changes,
-		// what is risky or still open. One idea per slide, a different picture on each.
+		// TODO: the slides that explain it, as few as answer the six questions of guide.md (at most ${CAP.slides} slides in all,
+		// these two included), in the order of "A deck about a pull request" there: what it looks like or does (before and
+		// after), how it works, what could break. One idea per slide, a different picture on each; the details go in the notes.
 		{
-			id: 'status', layout: 'journey', eyebrow: 'Status', title: 'TODO: where it stands, in a few words',
+			id: 'status', layout: 'journey', eyebrow: 'Status', title: 'TODO: where to start reading, or what is still open, in a few words',
 			nodes: [
 ${nodes}
 			],
 			link: { url: ${q(url)}, label: ${q(`PR #${facts.number}`)}, logo: 'github' },
 			sources: [${q(`${pr} | ${url}`)}],
-			notes: ${q(`${statusNotes(facts)} TODO: what is in scope, what follows separately, how it is tested, and what is still open.`)},
-		},
-		{
-			id: 'end', layout: 'end', title: 'TODO: the one thing to do or remember', url: ${q(url)}, meta: ${q(pr)},
-			notes: 'The QR code opens the pull request.',
+			notes: ${q(`${statusNotes(facts)} The QR code opens the pull request. TODO: what is in scope, what follows separately, how it is tested, what is still open, and where to start reading.`)},
 		},
 	],
 };
@@ -3554,14 +3580,13 @@ async function newPrDeck(input, slugArg, { force }) {
 		data = (await newVideo(input, undefined, { skeleton: false })).data;
 		console.log(`${ref.full}#${ref.number}: fetched into videos/${ref.slug}/ (brief.md, pr.diff, the changed files)`);
 	}
-	const { facts, tier } = data;
+	const { facts } = data;
 	fs.mkdirSync(path.join(deckDir(slug), 'assets'), { recursive: true });
 	fs.mkdirSync(path.join(deckDir(slug), 'designs'), { recursive: true });
-	fs.writeFileSync(file, prDeckSource(facts, tier));
+	fs.writeFileSync(file, prDeckSource(facts));
 	console.log(`decks/${slug}/deck.mjs: "${facts.title}"`);
-	console.log(`  from the PR: the title card (state, size by area), the status (${statusNodes(facts).map(n => n.title).join(' -> ')}), the end slide`);
-	const slides = tier?.slides ?? [7, 8];
-	console.log(`  to write: the TODOs, and the ${Math.max(1, slides[0] - 3)}-${Math.max(1, slides[1] - 3)} slides that explain it (${tier?.name ?? 'medium'} PR: ${slides[0]}-${slides[1]} slides in all; read videos/${ref.slug}/brief.md first)`);
+	console.log(`  from the PR: the title card (state, size by area), the status (${statusNodes(facts).map(n => n.title).join(' -> ')}) with the PR's QR code`);
+	console.log(`  to write: the TODOs, and the slides that explain it: as few as cover the six answers, at most ${CAP.slides} in all (read videos/${ref.slug}/brief.md first)`);
 	console.log(`  the folder: ${deckDir(slug)} (pictures in assets/, designs of its own in designs/)`);
 	console.log(`  build: prs deck build ${slug}`);
 }
@@ -3903,12 +3928,12 @@ export async function direct(slug, { seed, motion: forcedMotion, use, reason, fo
 	return direction;
 }
 
-==> cli/lib/doctor.mjs  text 7685
+==> cli/lib/doctor.mjs  text 7846
 // prs doctor: check and install what the pipeline needs. Safe to run again; it only adds what is missing.
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { CACHE, CONFIG_FILE, DEFAULT_CONFIG, ROOT, isOffline, loadConfig, sha256File, writeJson } from './common.mjs';
+import { CACHE, CONFIG_FILE, DEFAULT_CONFIG, ROOT, isOffline, loadConfig, sha256File, voicePace, writeJson } from './common.mjs';
 import { chromePath } from './browser.mjs';
 
 const KOKORO = {
@@ -4034,14 +4059,16 @@ export async function doctor({ samples = false, deck = false } = {}) {
 		ok(`wrote ${CONFIG_FILE} (your settings)`);
 	}
 	const mai = config.voice.mai;
+	const pace = deck ? 1 : voicePace(config);
+	const faster = pace === 1 ? '' : `; ${pace}\u00d7 its own pace (voice.pace)`;
 	if (deck) {
 		// Slides have no voice.
 	} else if (process.env.AZURE_SPEECH_KEY) {
-		ok(`voice: MAI-Voice-2 (${mai.voice}) via AZURE_SPEECH_KEY`);
+		ok(`voice: MAI-Voice-2 (${mai.voice}) via AZURE_SPEECH_KEY${faster}`);
 	} else if (mai.azResource) {
-		ok(`voice: MAI-Voice-2 via az lookup of ${mai.azResource}, Kokoro when that fails`);
+		ok(`voice: MAI-Voice-2 via az lookup of ${mai.azResource}, Kokoro when that fails${faster}`);
 	} else {
-		ok(`voice: Kokoro ${config.voice.kokoro.voice} (offline). For MAI-Voice-2, set AZURE_SPEECH_KEY or voice.mai.azResource in ${CONFIG_FILE}`);
+		ok(`voice: Kokoro ${config.voice.kokoro.voice} (offline)${faster}. For MAI-Voice-2, set AZURE_SPEECH_KEY or voice.mai.azResource in ${CONFIG_FILE}`);
 	}
 	console.log(problems ? `${problems} problem${problems > 1 ? 's' : ''} to fix` : deck ? 'ready for slides' : 'ready');
 	return !problems;
@@ -4220,11 +4247,11 @@ try {
 	process.exitCode = 1;
 }
 
-==> cli/lib/fetch.mjs  text 22989
+==> cli/lib/fetch.mjs  text 22971
 // prs new: fetch a pull request (any repo) into videos/<slug>/: pr.json, pr.diff, brief.md and a storyboard skeleton.
 import fs from 'node:fs';
 import path from 'node:path';
-import { isOffline, parsePrRef, readJson, videoDir, writeJson } from './common.mjs';
+import { CAP, isOffline, parsePrRef, readJson, videoDir, writeJson } from './common.mjs';
 import { cacheChangedFiles, parseDiff } from './code.mjs';
 import { api, graphql, paginate, prDiff } from './github.mjs';
 
@@ -4344,12 +4371,9 @@ export function lengthTier(facts, body = '') {
 		tier++;
 		reasons.push(`touches security, protocols or compatibility (it says "${sensitive[0]}")`);
 	}
-	return [
-		// About 2 words per second with the pauses: measured on MAI-Voice-2 (1.9-2.05) and Kokoro (1.93) narrations.
-		{ name: 'small', seconds: [40, 55], words: [80, 110], beats: 4, slides: [5, 6], reasons },
-		{ name: 'medium', seconds: [60, 80], words: [120, 160], beats: 5, slides: [7, 8], reasons },
-		{ name: 'large', seconds: [85, 100], words: [170, 200], beats: 6, slides: [9, 10], reasons },
-	][tier];
+	// How many ideas the PR likely holds, for the skeleton's beats: a starting point, not a length. The length is a cap
+	// (CAP): as short as covering the six answers allows.
+	return { name: ['small', 'medium', 'large'][tier], beats: [4, 5, 6][tier], reasons };
 }
 
 /** Review state the way GitHub summarizes it, from the reviews themselves (GraphQL gives it directly when we have a token). */
@@ -4516,10 +4540,11 @@ export function writeBrief(dir, data) {
 	lines.push(`- ${f.url}`, '');
 	lines.push('## Length', '');
 	lines.push(`**${tier.name}** (${tier.reasons.join(', ')}).`, '');
-	lines.push(`- A video: **${tier.seconds[0]}\u2013${tier.seconds[1]} s** of narration, about ${tier.words[0]}\u2013${tier.words[1]} words, in **${tier.beats} beats**: the title beat, ${tier.beats - 2} explanation beats, and a closing status beat.`);
-	lines.push(`- A deck: **${tier.slides?.[0] ?? 7}\u2013${tier.slides?.[1] ?? 8} slides** in all, the title, status and end slides included.`);
+	lines.push('As short as covering the six answers allows (what changes, why, how it works, what it looks like or does, what could break and how it is tested, the status and where to start reading). No minimum.', '');
+	lines.push(`- A video: at most **${CAP.fileSeconds} s** with the end card (the last word by ${CAP.seconds} s, about ${CAP.words} words at most). The skeleton has ${tier.beats} beats: the title and status beats say one sentence each; merge or drop the beats that add no answer.`);
+	lines.push(`- A deck: at most **${CAP.slides} slides**, the title and status included; no end slide.`);
 	if (tier.reasons.some(r => r.startsWith('touches security'))) {
-		lines.push('- One size up for that word. If the PR changes no behaviour there (a refactor, or the word is about its tests), the next smaller size is fine: say so in your summary.');
+		lines.push('- One size up for that word, so one beat more. If the PR changes no behaviour there (a refactor, or the word is about its tests), drop that beat: say so in your summary.');
 	}
 	lines.push('');
 	lines.push('## What the author says (PR body, verbatim)', '');
@@ -4631,12 +4656,11 @@ export async function newVideo(input, second, { force = false, skeleton = true }
 		const middle = Array.from({ length: data.tier.beats - 2 }, (_, i) => ({ id: `beat${i + 2}`, need: 'TODO', say: 'TODO', cues: {}, claims: [] }));
 		writeJson(sb, {
 			pr: { repo: ref.full, number: ref.number, headSha: data.facts.headSha },
-			length: { seconds: data.tier.seconds, words: data.tier.words },
 			pronounce: {},
 			beats: [
-				{ id: 'title', need: 'title', say: `Pull request {{facts.number}}, by ${data.facts.authorName ? '{{facts.authorName}}' : '{{facts.authorLogin}}'}: TODO what it does. {{facts.additions}} lines added across {{facts.changedFiles}} files.`, cues: { author: 'by', stats: '{{facts.additions}}' }, claims: [] },
+				{ id: 'title', need: 'title', say: 'TODO: what the PR does, in one sentence (the title card shows its number, author, size and state: leave those out)', cues: {}, claims: [] },
 				...middle,
-				{ id: 'status', need: 'status', say: 'TODO', cues: {}, claims: [] },
+				{ id: 'status', need: 'status', say: 'TODO: what matters most before review or merge, in one sentence (the screen lists the rest and where to start reading)', cues: {}, claims: [] },
 			],
 		});
 	}
@@ -5213,14 +5237,14 @@ export async function lint(slug, { every = 0 } = {}) {
 	return total === 0;
 }
 
-==> cli/lib/prepare.mjs  text 10168
+==> cli/lib/prepare.mjs  text 10202
 // prs prepare: storyboard + timeline (real or provisional) + PR facts + scenes.js -> build/project.json + build/bundle.js
 // Every text and code reference in scenes.js is verified against the PR here, before anything renders.
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import * as esbuild from 'esbuild';
-import { ROOT, buildDir, readJson, sha256, sha256File, storyboardVoiceHash, videoDir, writeJson } from './common.mjs';
+import { ROOT, buildDir, readJson, sha256, sha256File, storyboardVoiceHash, videoDir, voicePace, writeJson } from './common.mjs';
 import { estimateTimeline } from './timeline.mjs';
 import { parseDiff, resolveCode, fileAtHead } from './code.mjs';
 import { checkEvidence, stripMarkdown } from './evidence.mjs';
@@ -5289,7 +5313,7 @@ export async function prepare(slug, { quiet = false } = {}) {
 	const storyboard = readJson(path.join(vdir, 'storyboard.json'));
 	const facts = pr.facts;
 	const real = fs.existsSync(path.join(bdir, 'timeline.json'));
-	const timeline = real ? readJson(path.join(bdir, 'timeline.json')) : estimateTimeline(storyboard, facts);
+	const timeline = real ? readJson(path.join(bdir, 'timeline.json')) : estimateTimeline(storyboard, facts, { pace: voicePace() });
 	if (real) {
 		const voiced = readJson(path.join(bdir, 'voice.json'));
 		if (voiced.storyboard !== storyboardVoiceHash(storyboard)) {
@@ -5434,13 +5458,13 @@ export async function bundle(slug, { entry = null } = {}) {
 	fs.writeFileSync(path.join(bdir, 'index.html'), '<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" href="bundle.css"></head>\n<body><div id="app"></div><script src="bundle.js"></script></body></html>\n');
 }
 
-==> cli/lib/publish.mjs  text 6971
+==> cli/lib/publish.mjs  text 7319
 // prs publish: encode, subtitles, sync gate, deliver to ~/Downloads/pr-videos/<slug>/ (the mp4, and a WebM copy that VS
 // Code's chat can play), record in the history (and, in the repository, in the gallery).
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { IN_REPO, ROOT, buildDir, loadConfig, readJson, sha256File, venvPython, videoDir, voiceEnv, writeJson } from './common.mjs';
+import { CAP, IN_REPO, ROOT, buildDir, loadConfig, readJson, sha256File, venvPython, videoDir, voiceEnv, writeJson } from './common.mjs';
 import { encode, encodeWebm } from './encode.mjs';
 import { addToHistory } from './history.mjs';
 import { launch } from './browser.mjs';
@@ -5491,6 +5515,10 @@ export async function encodeChecked(slug, { skipSync = false } = {}) {
 
 export async function publish(slug, { skipSync = false } = {}) {
 	const vdir = videoDir(slug), bdir = buildDir(slug);
+	const planned = readJson(path.join(bdir, 'project.json'));
+	if (planned.video.total > CAP.fileSeconds) {
+		throw new Error(`The video runs ${planned.video.total.toFixed(1)} s, past the ${CAP.fileSeconds} s cap: cut the narration (its last word ends by ${CAP.seconds} s), then prs voice, prs render and prs publish again. Not delivered.`);
+	}
 	const { project, out, srt, voiceInfo } = await encodeChecked(slug, { skipSync });
 	// Deliver.
 	const dest = path.join(loadConfig().deliver, slug);
@@ -5984,7 +6012,7 @@ export async function stills(slug, { at = null, beat = null, ends = false, scale
 	}
 }
 
-==> cli/lib/timeline.mjs  text 3846
+==> cli/lib/timeline.mjs  text 3985
 // Narration text helpers shared by prs check, the provisional timeline and prepare.
 // They mirror voice/voice.py so cues resolve the same way before and after the real voice exists.
 import { getPath, formatFact } from '../../engine/text.js';
@@ -6045,8 +6073,9 @@ export function cueSpec(value, facts) {
 /**
  * A provisional timeline from word lengths, so visuals can be built before the voice exists.
  * Same shape as build/timeline.json; replaced by the real one once `prs voice` finishes.
+ * `pace` speeds up the words and their pauses as voice.pace does the takes; the gaps between beats stay.
  */
-export function estimateTimeline(storyboard, facts, { leadIn = 0.6, gap = 0.35, tail = 2.5 } = {}) {
+export function estimateTimeline(storyboard, facts, { leadIn = 0.6, gap = 0.35, tail = 2.5, pace = 1 } = {}) {
 	let t = leadIn;
 	const beats = storyboard.beats.map((beat, k) => {
 		if (k) {
@@ -6056,14 +6085,14 @@ export function estimateTimeline(storyboard, facts, { leadIn = 0.6, gap = 0.35, 
 		const start = t;
 		const words = tokens.map((display, i) => {
 			const core = normalizeToken(display);
-			const dur = 0.13 + 0.052 * Math.max(2, core.length) + (/\d/.test(core) ? 0.12 * core.length : 0);
+			const dur = (0.13 + 0.052 * Math.max(2, core.length) + (/\d/.test(core) ? 0.12 * core.length : 0)) / pace;
 			const a = t;
 			t += dur;
 			const b = t;
 			if (/[.!?;:]["')\u201d]*$/.test(display)) {
-				t += 0.32;
+				t += 0.32 / pace;
 			} else if (/,["')\u201d]*$/.test(display)) {
-				t += 0.16;
+				t += 0.16 / pace;
 			}
 			return { i, display, spoken: display, a: +a.toFixed(3), b: +b.toFixed(3) };
 		});
@@ -6083,12 +6112,12 @@ export function estimateSeconds(storyboard, facts) {
 	return estimateTimeline(storyboard, facts).total;
 }
 
-==> cli/lib/voice.mjs  text 4013
+==> cli/lib/voice.mjs  text 3934
 // prs voice: narration audio + word timing for the storyboard (runs voice/voice.py in the pr-studio venv).
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
-import { ROOT, buildDir, findFfmpeg, isOffline, loadConfig, readJson, storyboardVoiceHash, venvPython, videoDir, voiceEnv, writeJson } from './common.mjs';
+import { CAP, ROOT, buildDir, findFfmpeg, isOffline, loadConfig, readJson, storyboardVoiceHash, venvPython, videoDir, voiceEnv, writeJson } from './common.mjs';
 import { estimateTimeline, resolvePlaceholders } from './timeline.mjs';
 
 function writeScript(slug, storyboard, facts) {
@@ -6139,27 +6168,26 @@ export async function voice(slug, { provider, force = false, redo } = {}) {
 	});
 	const timeline = readJson(path.join(bdir, 'timeline.json'));
 	writeJson(path.join(bdir, 'voice.json'), { provider: timeline.voice.provider, voice: timeline.voice.name, storyboard: storyboardVoiceHash(storyboard), at: new Date().toISOString() });
-	// The narration's length is where its last word ends: what the tier's window counts (the file adds the end card).
+	// The narration's length is where its last word ends: what the cap counts (the file adds the end card).
 	const seconds = Math.max(0, ...timeline.beats.flatMap(b => b.words.map(w => w.b)));
-	const [lo, hi] = storyboard.length?.seconds ?? [40, 100];
-	const note = seconds < lo ? `: shorter than the ${lo}-${hi} s target, add a few words` : seconds > hi ? `: longer than the ${lo}-${hi} s target, trim the narration` : `, inside the ${lo}-${hi} s target`;
+	const note = seconds > CAP.seconds ? `: past the ${CAP.seconds} s cap (${CAP.fileSeconds} s with the end card), cut the narration and voice it again` : `, within the ${CAP.seconds} s cap`;
 	console.log(`narration ready: the last word ends at ${seconds.toFixed(1)} s${note}`);
 	return timeline;
 }
 
-==> cli/prs.mjs  text 9906
+==> cli/prs.mjs  text 9917
 #!/usr/bin/env node
 // prs: make an explainer video for a pull request. Run `prs help` (or node cli/prs.mjs help).
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { guardOffline, resolveSlug, timed } from './lib/common.mjs';
+import { CAP, guardOffline, resolveSlug, timed } from './lib/common.mjs';
 
 const HELP = `prs: pull request explainer videos
 
   prs doctor [--deck]                check and install what the pipeline needs (browser; for videos also voice, ffmpeg)
   prs new <PR URL | owner/repo#n>    fetch the PR and the files it changes into videos/<slug>/ (brief.md, storyboard skeleton)
-  prs check [slug]                   check the storyboard: length window, cues, placeholders, evidence anchors
+  prs check [slug]                   check the storyboard: the length cap, cues, placeholders, evidence anchors
   prs file <slug> <path> [--base]    print any file of the repository at the PR's head commit (--base: before the PR)
   prs voice [slug] [--provider p] [--redo beat,...]  narration + word timing; --redo voices those beats again (a fresh take)
   prs direct [slug] [--fresh]        pick the diagram treatments and motion for each beat (a re-run keeps the picks); scaffold scenes.js
@@ -6177,7 +6205,7 @@ const HELP = `prs: pull request explainer videos
   prs smoke [--provider p]           make a short demo video end to end with timings (checks this machine)
 
 Slides (the presentation skill):
-  prs deck new --pr <PR> [slug]         start a deck about a PR: fetches it, fills the title card, status and end slide
+  prs deck new --pr <PR> [slug]         start a deck about a PR: fetches it, fills the title card and the status (with its QR code)
   prs deck new <slug> [--title "..."]   start a deck on any topic in decks/<slug>/ (deck.mjs: the slides as plain data)
   prs deck build [slug] [--no-deliver]  PDF, one PNG per page, contact sheet, notes, checks; deliver to ~/Downloads/pr-decks/
   prs deck grid <slug> <assets/x.png> [--vs <assets/y.png>]
@@ -6244,7 +6272,7 @@ async function main() {
 			const { newVideo } = await import('./lib/fetch.mjs');
 			const { ref, data, code, reused } = await timed(null, 'new', () => newVideo(args._[0], args._[1], { force: !!args.force }));
 			console.log(`videos/${ref.slug}: ${data.facts.title}${reused ? ' (downloaded before this run: offline)' : ''}`);
-			console.log(`  +${data.facts.additions} \u2212${data.facts.deletions} in ${data.facts.changedFiles} files \u00b7 head ${data.facts.headSha9} \u00b7 ${data.tier.name}: ${data.tier.seconds[0]}-${data.tier.seconds[1]} s, ${data.tier.beats} beats`);
+			console.log(`  +${data.facts.additions} \u2212${data.facts.deletions} in ${data.facts.changedFiles} files \u00b7 head ${data.facts.headSha9} \u00b7 ${data.tier.name}: ${data.tier.beats} beats to start from, at most ${CAP.fileSeconds} s`);
 			if (code) {
 				console.log(`  code: ${code.saved} of the ${data.facts.files.length} changed files saved at the head commit${code.failed.length ? ` (not downloaded: ${code.failed.map(f => f.path).join(', ')})` : ''}`);
 			}
@@ -16663,7 +16691,7 @@ tokenizers==0.23.2
 tqdm==4.70.1
 typing_extensions==4.16.0
 
-==> voice/voice.py  text 49913
+==> voice/voice.py  text 51036
 """Narration for a PR video: synthesize each beat, align every word, snap to the real pauses, mix.
 
   python voice/voice.py synth --video videos/<slug> [--provider auto|mai|kokoro|recording] [--force]
@@ -16745,7 +16773,7 @@ def write_json(path: Path, data: Any) -> None:
 
 
 def load_config() -> dict[str, Any]:
-	config = {'voice': {'provider': 'auto', 'kokoro': {'voice': 'am_michael', 'speed': 1.0}, 'mai': {'voice': 'en-US-Grant:MAI-Voice-2', 'region': 'eastus2'}}}
+	config = {'voice': {'provider': 'auto', 'pace': 1.1, 'kokoro': {'voice': 'am_michael', 'speed': 1.0}, 'mai': {'voice': 'en-US-Grant:MAI-Voice-2', 'region': 'eastus2'}}}
 	home = os.environ.get('PRS_HOME')
 	path = (Path(home) if home else Path.home() / '.cache' / 'pr-studio') / 'config.json'
 	if path.exists():
@@ -16756,6 +16784,17 @@ def load_config() -> dict[str, Any]:
 			else:
 				config['voice'][key] = value
 	return config
+
+
+def take_rate(provider: str, config: dict[str, Any]) -> float:
+	"""How fast a take plays against the voice's own pace: Kokoro speaks at its speed times voice.pace, a MAI take is
+	retimed by voice.pace, a recording keeps its pace."""
+	if provider not in ('kokoro', 'mai'):
+		return 1.0
+	pace = float(config['voice'].get('pace', 1.0))
+	if not 0.5 <= pace <= 2.0:
+		raise RuntimeError(f'voice.pace must be between 0.5 and 2 (it is {pace:g})')
+	return pace * float(config['voice'].get('kokoro', {}).get('speed', 1.0)) if provider == 'kokoro' else pace
 
 @dataclass
 class DisplayToken:
@@ -17379,6 +17418,17 @@ def synthesize_kokoro(jobs: list[tuple[str, Path]], voice: str, speed: float, wo
 		list(pool.map(one, jobs))
 
 
+def retime_wav(ffmpeg: str, path: Path, tempo: float) -> None:
+	"""Plays a take `tempo` times as fast at the same pitch. MAI-Voice-2 honours an SSML prosody rate only in part
+	(1.1 gave 1.05)."""
+	temp = path.with_name(f'{path.stem}.tempo.wav')
+	try:
+		run_ffmpeg(ffmpeg, ['-v', 'error', '-y', '-i', str(path), '-filter:a', f'atempo={tempo:g}', '-ac', '1', '-ar', str(SAMPLE_RATE), '-c:a', 'pcm_s16le', '-bitexact', '-map_metadata', '-1', str(temp)])
+		temp.replace(path)
+	finally:
+		temp.unlink(missing_ok=True)
+
+
 def convert_recording(ffmpeg: str, source: Path, out: Path) -> None:
 	out.parent.mkdir(parents=True, exist_ok=True)
 	run_ffmpeg(ffmpeg, ['-v', 'error', '-y', '-i', str(source), '-ac', '1', '-ar', str(SAMPLE_RATE), '-c:a', 'pcm_s16le', str(out)])
@@ -17668,8 +17718,8 @@ def synth(video: Path, provider_arg: str | None, force: bool, workers: int, redo
 	kok = config['voice'].get('kokoro', {})
 	voice_name = {'mai': mai.get('voice', 'en-US-Grant:MAI-Voice-2'), 'kokoro': kok.get('voice', 'am_michael'), 'recording': 'recording'}[provider]
 	log(f'voice: {provider} ({voice_name})')
-	speed = float(kok.get('speed', 1.0))
-	voice_key = f'{voice_name}@{speed:g}' if provider == 'kokoro' and speed != 1.0 else voice_name
+	rate = take_rate(provider, config)
+	voice_key = f'{voice_name}@{rate:g}' if rate != 1.0 else voice_name
 	t0 = time.time()
 	stale: list[PreparedBeat] = []
 	for beat in beats:
@@ -17682,10 +17732,12 @@ def synth(video: Path, provider_arg: str | None, force: bool, workers: int, redo
 		raise RuntimeError(f'--redo: no beat {", ".join(unknown)} (beats: {", ".join(b.id for b in beats)})')
 	model = None
 	if provider == 'kokoro' and stale:
-		synthesize_kokoro([(b.spoken_text, audio_dir / f'{b.id}.wav') for b in stale], voice_name, speed, workers)
+		synthesize_kokoro([(b.spoken_text, audio_dir / f'{b.id}.wav') for b in stale], voice_name, rate, workers)
 	elif provider == 'mai' and stale:
 		def one(b: PreparedBeat) -> None:
 			synthesize_azure_speech(b.spoken_text, voice_name, mai.get('region', 'eastus2'), key, audio_dir / f'{b.id}.wav')
+			if rate != 1.0:
+				retime_wav(ffmpeg, audio_dir / f'{b.id}.wav', rate)
 		with cf.ThreadPoolExecutor(3) as pool:
 			list(pool.map(one, stale))
 	elif provider == 'recording':

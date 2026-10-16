@@ -8,17 +8,17 @@ Explainer videos and slide decks of pull requests, in one white Microsoft look, 
 
 | Skill | Description |
 |---|---|
-| [generate-video](skills/generate-video/) | `/pr-studio:generate-video <PR>`: a 40–100 second narrated, captioned video of a pull request — what changes, why, how it works, the risk and the status, with real footage of the app when the change is visible — reviewed before it's delivered |
-| [generate-presentation](skills/generate-presentation/) | `/pr-studio:generate-presentation <PR>`: a 16:9 PDF deck about a pull request — one idea per slide, drawn as diagrams, with screenshots of the real app when the change is visible, and speaker notes — reviewed before it's delivered |
+| [generate-video](skills/generate-video/) | `/pr-studio:generate-video <PR>`: the shortest narrated, captioned video that fully explains a pull request, at most 90 seconds — what changes, why, how it works, what it looks like or does, the risk and the status, with real footage of the app (before and after side by side) when the change is visible — reviewed before it's delivered |
+| [generate-presentation](skills/generate-presentation/) | `/pr-studio:generate-presentation <PR>`: a 16:9 PDF deck about a pull request, in as few slides as it takes (at most 12) — one idea per slide, drawn as diagrams, with screenshots of the real app when the change is visible, and speaker notes — reviewed before it's delivered |
 
 ## How It Works
 
 1. **Get the engine** — `scripts/setup.mjs` unpacks `scripts/engine.pack` (the engine) into `~/.cache/pr-studio/engine/<hash>/`, installs its packages there and prints the folder. It runs once per engine version; later runs return at once. Work in progress (`videos/<slug>/`, `decks/<slug>/`) lives in that copy; the three newest copies are kept, and any copy used in the last day, so a newer plugin never removes another session's work; delivered files in `~/Downloads/` are never touched.
 2. **Fetch the PR** — the description, commits, diff and the changed files at the head commit.
-3. **Live UI** — when the PR changes something visible, the agent runs the app with the change in a throwaway profile and drives it with Playwright (it comes with the engine): a recording laid into the video's frames before publishing, a screenshot of each state for the deck. When the PR changes how something behaves, it records the same steps in a build without the change too, so the before plays first.
-4. **Video** — the agent writes the narration with evidence for every claim, the engine voices and times it, the agent fills a diagram per beat from a catalog of 24 (all on one picture, `catalog.png`), then the engine checks every frame (layout, provenance of every word, captions) and renders. Every string on screen is verified against the PR.
-5. **Deck** — `prs deck new --pr` starts the deck from the PR's real data (title card, status, end slide with a QR code); the agent writes the slides that explain it, picking a layout for each from 57 (all on one picture, `samples.png`); `prs deck build` checks words per slide, overflow, sources, and every code line and path against the PR.
-6. **Review** — a reviewer subagent (`reviewer.md` in each skill) checks accuracy against the diff, clarity and craft (and the footage or screenshots of the app), and must sign off.
+3. **Live UI** — when the PR changes something visible, the agent runs the app with the change in a throwaway profile and drives it with Playwright (it comes with the engine): a recording laid into the video's frames before publishing, a screenshot of each state for the deck. When the PR changes how something behaves, it records the same steps in a build without the change too, and the two play side by side.
+4. **Video** — the agent writes the narration with evidence for every claim: six answers (what changes, why, how it works, what it looks like or does, what could break and how it is tested, the status and where to start reading) and nothing else, in at most 90 seconds, numbers and names on screen rather than in the voice. The engine voices and times it, the agent fills a diagram per beat from a catalog of 24 (all on one picture, `catalog.png`), then the engine checks every frame (layout, provenance of every word, captions) and renders. Every string on screen is verified against the PR.
+5. **Deck** — `prs deck new --pr` starts the deck from the PR's real data (title card, and the status with the PR's QR code); the agent writes as few slides as give the same six answers (at most 12), picking a layout for each from 57 (all on one picture, `samples.png`); `prs deck build` checks words per slide, overflow, sources, and every code line and path against the PR.
+6. **Review** — a reviewer subagent (`reviewer.md` in each skill) checks accuracy against the diff, that all six answers are there and nothing else (a cut test on every sentence and slide), craft, and the footage or screenshots of the app, and must sign off.
 7. **Deliver** — videos land in `~/Downloads/pr-videos/<slug>/`, decks in `~/Downloads/pr-decks/<slug>/`; the mp4 or PDF and a contact sheet are recorded as chat artifacts.
 
 ## Plugin Structure
@@ -45,7 +45,7 @@ pr-studio/
 
 ## Settings
 
-`~/.cache/pr-studio/config.json` (written by `prs doctor`): the voice (`voice.provider`, `voice.mai` for MAI-Voice-2 through your Azure resource, else the offline Kokoro voice) and where videos are delivered. `PRS_HOME` moves the whole folder. The history of published videos lives there too, so each new video looks different from the last ones.
+`~/.cache/pr-studio/config.json` (written by `prs doctor`): the voice (`voice.provider`, `voice.mai` for MAI-Voice-2 through your Azure resource, else the offline Kokoro voice; `voice.pace`, how much faster than its own pace it speaks, 1.1 by default, 1 for its own) and where videos are delivered. `PRS_HOME` moves the whole folder. The history of published videos lives there too, so each new video looks different from the last ones.
 
 ## Developing the engine
 

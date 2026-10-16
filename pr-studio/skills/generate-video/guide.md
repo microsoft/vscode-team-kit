@@ -6,27 +6,36 @@ timed to its words), and the sign-off.
 ## Writing the story
 
 The viewer is someone who won't read the PR: an engineering manager, a reviewer deciding where to start, a
-teammate catching up. After 40-100 seconds they should know what changes, why, how it works, what could break,
-the status, and where to start reading. Technical words are fine; jargon without a picture is not.
+teammate catching up. Technical words are fine; jargon without a picture is not.
 
-### Length
+### Length: six answers, as short as they allow
 
-`brief.md` gives the tier. It comes from the size outside tests, the number of areas, and whether the PR touches
-security, protocols or compatibility. The narration runs at about 2 words per second, pauses included (both voices).
+A video answers six questions, in the voice or on screen, and nothing else earns its seconds:
 
-| Tier | Narration | Words | Beats |
-| --- | --- | --- | --- |
-| small | 40-55 s | 80-110 | 4: title, 2 explanation beats, status |
-| medium | 60-80 s | 120-160 | 5: title, 3 explanation beats, status |
-| large | 85-100 s | 170-200 | 6-7: title, 4-5 explanation beats, status |
+1. What changes.
+2. Why: the problem or the gap.
+3. How it works.
+4. What it looks like or does (live footage, when a user can see it).
+5. What could break, and how it is tested: the case the change could get wrong (an edge its guard or its tests cover, a
+   caveat in the PR), said as a risk, then the tests. "It has tests" alone doesn't answer it.
+6. The status, and where to start reading.
 
-`prs check <slug>` estimates the length; `prs voice <slug>` reports the real one. The seconds are the rule; the words
-are a guide to get there. The window is for the narration: the end card adds about 4 seconds to the file, and that
-doesn't count against the tier.
+Make it as short as these allow: there is no minimum, and at most 90 seconds with the end card (the last word by 86 s).
+`prs check <slug>` estimates the length and fails past that; `prs voice <slug>` measures it. The voice speaks a little
+faster than its natural pace (`voice.pace`, 1.1 by default, in `~/.cache/pr-studio/config.json`).
+
+- **Fewer beats.** One beat can hold two answers: a before and after shows what the change does and why it was needed.
+  The skeleton's beats (the brief's size) are a start: merge or delete the ones that add no answer.
+- **The voice tells, the screen shows.** The voice says why and how, in plain sentences. Numbers, file names, test
+  names, lists and anything exact go on screen. Never read out what the picture shows. What only the screen says must
+  be readable once at playing speed, while it is up (about a second for each short line): keep such lists to a few
+  short items rather than slowing the video down.
+- **Each idea once.** No beat repeats another, no sentence restates its picture, no summary at the end.
+- **The cut test,** before `prs voice`: for each sentence, which answer is lost if it goes? None: cut it.
 
 ### Beats
 
-Each beat is one idea, said in 15-40 words, with one diagram. It has:
+Each beat is one idea, said in one to three sentences, with one diagram. It has:
 
 - `id`: a short word (`problem`, `fix`, `rule`).
 - `need`: what the beat has to show, which decides the kind of diagram:
@@ -41,8 +50,8 @@ Each beat is one idea, said in 15-40 words, with one diagram. It has:
   - `state`: a lifecycle
   - `ui`: something the user sees (with live footage of the app when the PR changes it: "Live footage" below)
   - `status`: scope, tests, what's open
-- `say`: the narration. Plain sentences. Numbers from the PR as placeholders: `{{facts.additions}}`,
-  `{{facts.changedFiles}}`, `{{facts.number}}`, and the size of a list: `{{facts.linkedIssues.length}}`.
+- `say`: the narration. Plain sentences. A number the voice must say (a measured speed-up) comes from the PR as a
+  placeholder: `{{facts.additions}}`, `{{facts.changedFiles}}`, and the size of a list: `{{facts.linkedIssues.length}}`.
 - `cues`: name -> a phrase from `say` where something should appear (`"step2": "Two"`), or
   `{ "phrase": "...", "nth": 1, "offset": -0.2 }`. Diagrams use these names as times.
 - `claims`: every factual statement, with evidence. `prs check <slug>` verifies each piece:
@@ -56,18 +65,14 @@ Each beat is one idea, said in 15-40 words, with one diagram. It has:
   claim too: give an anchor for each thing counted. Cite repository files or the PR itself, never pr-studio's own
   `brief.md` or `pr.json`.
 
-The first beat is the title (fixed design). Keep its narration to the PR number, the author, what it does in a few
-words, and the size:
-`"Pull request {{facts.number}}, by {{facts.authorName}}: <what it does>. {{facts.additions}} lines added across {{facts.changedFiles}} files."`.
-`authorName` is the name on the author's GitHub profile (the brief shows it next to the login); when there is none,
-use `{{facts.authorLogin}}` with a `pronounce` entry, or "by its author". Add the state ("Still open for review.") if it
-matters. Cue names `author`, `stats` and `state` drive the title.
+The first beat is the title (fixed design). Its card shows the PR number, the title, the author, the size and the
+state, so the voice doesn't: say what the PR does, in one sentence of plain words ("Pasting a link into a Markdown file now offers to turn it
+into a titled link."). The card brings in the author, the numbers and the state while it is spoken.
 
-The last beat is the status: what is in scope, what follows separately, how it is tested, what is still open, and
-1-3 places to start reading. `status.checklist` shows the places as code (`code(file, { anchor })`); with
-`status.board`, make them a "Start reading" column of `ident()` names with their `path()`. In a small video the
-narration can't say all of that: say the one that matters most (what is still open, usually), and let the screen show
-the rest.
+The last beat is the status, in one sentence: what matters most before review or merge (what is still open, or what
+proves it works). The screen carries the rest: what is in scope, what follows separately, how it is tested, and 1-3
+places to start reading. `status.checklist` shows the places as code (`code(file, { anchor })`); with `status.board`,
+make them a "Start reading" column of `ident()` names with their `path()`.
 
 ### The narration and the picture
 
@@ -77,27 +82,28 @@ That's why `prs direct` runs before the voice: write each beat's `say` for the p
 
 ### Arcs that work
 
-Pick the arc that fits the PR, then the needs follow:
+Pick the arc that fits the PR, then the needs follow (the title before, the status after):
 
-- **Bug fix**: the symptom (concept/ui) -> the cause (code/flow/state) -> the fix (code/compare) -> how it's proven
-  (status).
-- **Feature**: the gap (concept) -> what it adds (ui/flow) -> how it works (exchange/architecture/code) -> limits
-  and status.
-- **Protocol or security change**: the gap (concept) -> the mechanism (exchange) -> the safety rule (rules) -> how
-  far it reaches (architecture) -> status.
-- **Refactor**: the old shape (architecture) -> the new shape (compare) -> why it's safe (rules/status).
-- **Performance**: the cost (numbers) -> where it came from (flow/code) -> the change (compare) -> the
-  measurement, quoted from the PR (numbers).
-- **Build, infra, tests**: what runs where (flow/architecture) -> what changes (compare) -> impact (numbers/status).
+- **Bug fix**: the symptom and the fix side by side (compare or ui, with footage when it shows) -> the cause and how
+  the fix removes it (code/flow/state).
+- **Feature**: the gap and what it adds (concept or ui, with footage when it shows) -> how it works
+  (exchange/architecture/code).
+- **Protocol or security change**: the gap (concept) -> the mechanism (exchange) -> the safety rule (rules); how far
+  it reaches goes on the status screen.
+- **Refactor**: the old shape and the new (compare/architecture) -> why it's safe (rules).
+- **Performance**: the cost and where it came from (numbers/flow) -> the change (compare/code); the measurement,
+  quoted from the PR, on screen.
+- **Build, infra, tests**: what runs where and what changes (flow/compare); the impact on the status screen.
 - **Several small fixes** (a polish PR that closes a list of issues): group them by where they show (one screen, one
   list), one beat a group with a treatment that holds a list (compare.split rows, concept.pillars), the most visible
-  group first; the status beat names the rest.
+  group first; the status screen names the rest.
 
 ### Style
 
 - Say what the code does, not what the author "wants". Use the PR's names for things, once, then plain words.
 - Short sentences that land on one picture each. Cue the words that change the picture.
-- Numbers only from the PR, through placeholders or quoted from the body (then the screen shows `quote()`).
+- Numbers only from the PR, on screen (`fact()`, or `quote()` from the body); the voice says one only when it is the
+  point, through a placeholder or quoted from the body.
 - Untested or claimed-only facts get "per the author" ("a manual run is still pending, per the author").
 - The old behaviour is often not in the diff (a default the PR changes, a component the PR calls): read it with
   `prs file <slug> <path>` (the file at the head commit) or `--base` (before the PR), and cite it. Behaviour drawn by a
@@ -147,7 +153,7 @@ What the voice gets wrong, and what to write instead:
 "account"): fix it in `pronounce`, or say the sentence another way. Sometimes the transcriber is the one wrong ("closed"
 for "close"): judge whether a listener would stumble. A take that came out slow or odd, or a warning of a low alignment score (the take skipped or slurred words):
 `prs voice <slug> --redo <beat>`. A retake can bring a new slip: if a word keeps coming out wrong, reword the sentence.
-The narration's length is where its last word ends; `prs voice` prints it against the tier. A caption shows at most 9 words: commas and full stops
+The narration's length is where its last word ends; `prs voice` prints it against the cap. A caption shows at most 9 words: commas and full stops
 break it, and a longer phrase is split evenly.
 
 ### Example beat
@@ -156,8 +162,8 @@ break it, and a longer phrase is split evenly.
 {
   "id": "negotiate",
   "need": "exchange",
-  "say": "So VS Code asks at runtime, using RFC 9728. One: request the index. Two: on a 401 or 403, read the marketplace's well-known metadata for its authorization server and scopes. Three: get a token scoped to that resource. Four: retry. If step one works, nothing else runs.",
-  "cues": { "rfc": "RFC 9728", "step1": "One", "step2": "Two", "step3": "Three", "step4": "Four", "skip": "If step one works" },
+  "say": "So VS Code asks at runtime, using RFC 9728. One: request the index. Two: on a 401 or 403, read the marketplace's metadata for its authorization server. Three: get a token for it. Four: retry.",
+  "cues": { "rfc": "RFC 9728", "step1": "One", "step2": "Two", "step3": "Three", "step4": "Four" },
   "claims": [
     { "text": "a 401 or 403 from the service index is treated as 'authentication required'",
       "evidence": [{ "file": "src/vs/workbench/services/extensionManagement/electron-browser/extensionGalleryManifestService.ts", "anchor": "statusCode === 401 || statusCode === 403" }] }
@@ -272,7 +278,7 @@ Icons: Fluent names, all listed by `prs catalog --icons` (`key`, `lock`, `server
 When the PR changes something a user sees or does (a view, a menu, a dialog, a click and what follows), the video shows
 it happening in the real app: the diagrams explain why and how, the footage shows it working. When the PR changes how
 something behaves (a fix, a different result for the same action), it shows the before too: the same steps in the app
-without the change, then with it. A new feature, with nothing to compare, shows the after only; so does a fix whose
+without the change, side by side with the app with it. A new feature, with nothing to compare, shows the after only; so does a fix whose
 before a recording can't reproduce (it takes real hardware, a physical key, a race): the after still shows what users
 now get. A demo that needs the app signed in (chat, anything AI) still gets its footage: step 3 says how. A change
 nobody can see (speed, memory, internals) gets no footage: a screen that looks the same proves nothing about it.
@@ -280,7 +286,7 @@ nobody can see (speed, memory, internals) gets no footage: a screen that looks t
 ### Record it
 
 1. **The steps.** The PR's "how to test", its screenshots and videos, and its tests give the steps and what should
-   happen. Pick one interaction of 8–20 seconds that shows the change: the actions and their result.
+   happen. Pick the shortest interaction that shows the change: its action and its result.
 2. **The apps.** The app with the change and, for a before and after, the app without it: the same kind of build, with
    the same profile, window and sample data, so only the change differs. Run them the repository's way, each with a
    throwaway profile in a temp folder. For VS Code, no checkout or build is needed: Insiders builds by commit,
@@ -298,7 +304,8 @@ nobody can see (speed, memory, internals) gets no footage: a screen that looks t
    `sqlite3 <signed-in profile>/User/globalStorage/state.vscdb ".backup <profile>/User/globalStorage/state.vscdb"`,
    from the user's profile of that build (Insiders: `~/Library/Application Support/Code - Insiders`; Code OSS:
    `~/.vscode-oss-dev`), and `"update.mode": "none"` in the profile's settings. A signed-in app can show the account's
-   name: keep it out of the frame. Delete the profile when the recording is done: it holds a copy of the sign-in.
+   name: keep it out of the frame. The script deletes its temp folder (profile and `HOME`) in a `finally`, so no run,
+   failed or not, leaves the copy of the sign-in behind.
 4. **Drive it with Playwright** (`<studio>/node_modules/playwright-core`: `_electron.launch` for an Electron app, a
    browser context for a web app, both with `recordVideo`): the same steps at the same pace in each app. Wait until each
    step can be done; after it, check that the result is on screen: the recording counts only if it is.
@@ -307,21 +314,22 @@ nobody can see (speed, memory, internals) gets no footage: a screen that looks t
    travels to each target, rest on it a moment, click, and hold each result for a second or two. Keys are invisible
    too: show a shortcut's keys in a badge (`⌃ Esc`) while it is pressed, and type text at a human pace.
 6. **Readable at 1080p.** A window of about 1280×720 with the app zoomed in (VS Code: `"window.zoomLevel": 1`), laid
-   into the frame at about its own size; crop to the part that matters when it's bigger.
+   into the frame at about its own size; crop to the part that matters when it's bigger. A before and after shares the
+   body, so crop both recordings to the same part, the one that changes, and keep it near its own size.
 7. Keep the scripts, the recordings and a screenshot of each state in `<studio>/videos/<slug>/footage/`. Downloaded
    builds can go once the video is delivered (about 300 MB each).
 
 ### Narrate it
 
 A footage beat tells what happens in the order it happens, with a cue on each action and each result ("click Skills
-again", "back on the list"). A before and after takes two beats, the before first ("before this PR, the click did
-nothing"), then the after ("now it brings you back"); add a beat when the tier leaves none for how it works (only the
-narration's seconds are checked). Write about as many seconds of words as the clip lasts: a clip can hold its last
-frame, but never lose an action. The beat's treatment draws its heading (eyebrow and title: what is shown); the footage
-covers the body. Give it a treatment with a simple body, for example
-`prs direct <slug> --use <beat>=concept.pillars --reason "live footage covers the body"` (several beats:
-`--use a=…,b=…`) with the steps as its items, and fill it from the PR as usual: it is checked like any beat, and it is
-what `prs stills` shows.
+again", "back on the list"). A before and after is one beat, the two recordings side by side and in step: the voice
+says the action once and then the difference ("press Save: the old build drops the selection, the new one keeps
+it"). One after the other only when timing is the point (how long something takes, what comes first). Write
+about as many seconds of words as the clip lasts: a clip can hold its last frame, but never lose an action. The beat's
+treatment draws its heading (eyebrow and title: what is shown); the footage covers the body. Give it a treatment with
+a simple body, for example `prs direct <slug> --use <beat>=concept.pillars --reason "live footage covers the body"`
+(several beats: `--use a=…,b=…`; `compare.split` for a before and after, with a row per difference) and fill it from
+the PR as usual: it is checked like any beat, and it is what `prs stills` shows.
 
 ### Put it into the video
 
@@ -336,6 +344,11 @@ After `prs render`, before `prs publish`:
   are timed to them).
 - Lay it over the body, below the heading and above y 940, on a white box that covers the whole body (nothing of the
   diagram shows around it): look at a frame of the beat first to see where its heading ends.
+- A before and after: both recordings in the box at once, in two columns (two rows when the part that changes is wide
+  and short), the same crop and scale, each under its label, "Before" and "After" (Aptos semibold, about 26 px:
+  `Aptos-SemiBold.ttf` in the `Contents/Resources/DFonts` folder of Microsoft Word or PowerPoint, else Segoe UI or
+  Inter; `#1b1b1f`, and `#0078d4` for After), with a thin `#e3e6eb` line round each. Start both at the same action, so
+  they move together.
 - The frames are hard links into the render cache: delete a frame before writing its replacement (or write a new file
   and `mv` it over), never write into it, or other frames and later renders change too.
 - Every `prs render` writes the frames again: keep the composition as a script in `footage/` and run it after each

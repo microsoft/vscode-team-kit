@@ -354,4 +354,4 @@ Picture 24 in [catalog.png](catalog.png).
 | `eyebrow` | label |
 | `title` | label |
 | `items` | [{ icon, tone, title, sub, at }]  (2-5) |
-| `read` | { label, refs: [{ code: code(file, { anchor }), title, what, at }] }  (optional, 1-3; without at, the refs light up in the last 40% of the beat) |
+| `read` | { label, refs: [{ code: code(file, { anchor }), title, what, at }] }  (optional, 1-3; without at, the refs light up from a third of the way into the beat) |

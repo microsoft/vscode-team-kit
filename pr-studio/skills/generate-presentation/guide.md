@@ -7,9 +7,11 @@ the deck's own. The fields of every layout are in [layouts.md](layouts.md); one 
 ## Writing the slides
 
 The deck is for someone who won't read the pull request: a teammate catching up, a reviewer deciding where to start,
-a manager. After it they should know what changes, why, how it works, what could break, the status, and where to start
-reading. Every slide is one idea, drawn as a picture more than written as text, and every fact on it can be traced to
-the PR. Look at [samples.png](samples.png) before writing.
+a manager. After it they should know six things: what changes, why, how it works, what it looks like or does, what
+could break (the case the change could get wrong: an edge its guard or tests cover, a caveat in the PR) and how it is
+tested, and the status and where to start reading. Every slide is one idea, drawn as a
+picture more than written as text, and every fact on it can be traced to the PR. Look at [samples.png](samples.png)
+before writing.
 
 ### The facts
 
@@ -32,13 +34,14 @@ intent and no marketing. The build checks every code line, `inline code` and fil
 
 ### Length
 
-The brief's Length section gives the number of slides, from the PR's size and risk: a small PR 5–6, a medium one 7–8, a
-large or risky one 9–10, the title, status and end slides included. About one minute a slide when presented.
+As few slides as give the six answers, at most 12, the title and status included; no end slide (the status carries
+the PR's QR code). One slide can give several; a slide that gives none of them goes, however good. Each answer is on a
+slide, where the audience sees it; the notes add the detail.
 
-A short deck can't have a slide for every step of the arc below; fold it. In 5–6 slides: the title, one slide for the
-problem and the change together (a before and after), one for how it works, the status (with what is open, tested or
-left for later on the slide or in its notes), and the end. The idea in one sentence fits the title's `sub`; a dark or
-blue page is optional below 7 slides.
+Most PRs need four or five: the title (its `sub` says the point in one sentence), a before and after (what it looks
+like or does, and why), how it works, what could break and how it is tested (on the how-it-works slide when it fits,
+the tests as a callout), and the status (where it stands and where to start reading). Add a slide only for an answer
+these can't hold: a risk that needs its own picture, a second mechanism, a list of fixes by screen.
 
 ### Pictures
 
@@ -79,8 +82,8 @@ is captured too: step 2 says how.
    `sqlite3 <signed-in profile>/User/globalStorage/state.vscdb ".backup <profile>/User/globalStorage/state.vscdb"`,
    from the user's profile of that build (Insiders: `~/Library/Application Support/Code - Insiders`; Code OSS:
    `~/.vscode-oss-dev`), and `"update.mode": "none"` and `"window.zoomLevel": 1` (big enough to read on a slide) in the
-   profile's settings. Keep the account's name out of the pictures, and delete the profile when you are done: it holds
-   a copy of the sign-in.
+   profile's settings. Keep the account's name out of the pictures. The script deletes its temp folder (profile and
+   `HOME`) in a `finally`, so no run, failed or not, leaves the copy of the sign-in behind.
 3. Drive it with Playwright (`<studio>/node_modules/playwright-core`: `_electron.launch` for an Electron app, a browser
    context for a web app) through the PR's steps: its "how to test", its tests, the same steps in each app. Before each
    screenshot, check that the state is on screen; a screenshot counts only if it is.
@@ -100,31 +103,34 @@ the notes that it is a sketch.
 1. **Title** (scaffolded): the PR's state, size by area or file, and author are filled in. Write the title as the point
    of the PR in at most 8 plain words, and the `sub` as one sentence: what changes, for whom. (`quote` is for a real
    quote, drawn in quotation marks.)
-2. **The problem, made concrete:** what was wrong or missing before this PR, shown, not told. The author's screenshot
-   (`image`), a `story` if the PR tells an incident, a `split` (before and after), a `ui` or `chat` mock of the old
-   behaviour, a `hero` number when the PR gives one.
-3. **The idea in one sentence:** a `statement` (on `bg: 'dark'` or `'blue'` for rhythm). Only in a deck of 9 or more
-   slides; in a shorter one the title's `sub` says it, and the dark or blue page goes to another big idea (a `hero`
-   number, `counters` for the tests).
+2. **What it looks like or does, and why:** what was wrong or missing before this PR next to what it does now, shown,
+   not told. A `split` of captures (before and after), the author's screenshot (`image`), a `story` if the PR tells an
+   incident, a `ui` or `chat` mock of the old behaviour, a `hero` number when the PR gives one.
+3. **The idea in one sentence:** a `statement` (on `bg: 'dark'` or `'blue'` for rhythm), only when the title's `sub`
+   can't say it.
 4. **How it works:** one or two diagrams of the mechanism, named with the PR's own words: `flow` (decisions),
    `pipeline` (stages), `sequence` (messages between parts), `journey` (one thing travelling), `spans` (what lives how
    long: state that outlives a step), `layers`, `lanes`, `files` (where the change lives), and one `code` slide with the
    lines that matter, from the diff.
-5. **What it changes:** for users (`howto` with the real keys and commands, `ui`), or for the code (`split` old/new
-   shape, `matrix` of cases). Numbers only from the PR, with `sources`.
+5. **What it changes,** when the before and after doesn't show it: for users (`howto` with the real keys and
+   commands, `ui`), or for the code (`split` old/new shape, `matrix` of cases). Numbers only from the PR, with
+   `sources`.
 6. **Risk, tests, what is open:** what the tests cover (`pillars` or `checklist`, with the test files), what is left
-   for later, what could break. From the PR body and the tests in the diff.
-7. **Status** (scaffolded): the real path from opened to merged. Write its title.
-8. **End** (scaffolded): its title is the one thing to do or remember ("Try it: Alt-click a session pill",
-   "Start reading at `_open`").
+   for later, what could break; a callout on the how-it-works slide when that is enough.
+7. **Status** (scaffolded): the real path from opened to merged, and the PR's QR code: the nodes show where it stands.
+   Write its title: where to start reading ("Start reading at `_open`"), or what is still open when that matters more
+   (then the reading path goes on another slide). Its notes say what is in scope, how it is tested and what is open.
 
 Pick the middle by the kind of PR:
 
-- **Bug fix:** the symptom (`ui`, `story`) → the cause (`flow`, `code`) → the fix (`split`, `code`) → how it is proven.
-- **Feature:** the gap → what it adds (`howto`, `ui`) → how it works (`sequence`, `layers`, `code`) → limits.
-- **Refactor:** the old shape → the new shape (`split`, `layers`, `files`) → why it is safe (the tests, no behaviour
+- **Bug fix:** the symptom and the fix side by side (`split` of captures, `ui`) → the cause and how the fix removes it
+  (`flow`, `code`), with how it is proven.
+- **Feature:** the gap and what it adds (`howto`, `ui`, captures) → how it works (`sequence`, `layers`, `code`), with
+  its limits.
+- **Refactor:** the old shape and the new (`split`, `layers`, `files`) → why it is safe (the tests, no behaviour
   change).
-- **Performance:** the cost (`hero`, `bars` from the PR's numbers) → where it came from → the change → the measurement.
+- **Performance:** the cost and where it came from (`hero`, `bars` from the PR's numbers) → the change, with the
+  measurement.
 - **UI polish:** one slide per visible change, before and after (the author's screenshots with pins, `split`, `ui`),
   grouped if there are many.
 

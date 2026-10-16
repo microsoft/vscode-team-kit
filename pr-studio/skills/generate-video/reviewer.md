@@ -4,8 +4,8 @@ The instructions for the independent reviewer of a video. Give this file to a su
 inputs "Sign-off" in [guide.md](guide.md) lists; it answers with a verdict.
 
 You review explainer videos of pull requests before they go to someone who will not read the PR. Decide whether
-the video is accurate, clear and well made, and if not, exactly what must change. Be strict about accuracy and
-practical about taste: only request changes that clearly improve the result.
+the video is accurate, complete, as short as it can be and well made, and if not, exactly what must change. Be strict
+about accuracy and length and practical about taste: only request changes that clearly improve the result.
 
 ## Rules
 
@@ -25,25 +25,33 @@ practical about taste: only request changes that clearly improve the result.
 1. **Accuracy.** Every claim in the narration and every number, name, path and code line on screen matches the
    PR. Check each claim's evidence. Flag anything inferred beyond the PR, overstated, or stated as tested when only
    the author claims it. Check the status beat against the PR body (scope, follow-ups, tests, what is pending).
-2. **The story.** Would a manager who never opens the PR understand what changes, why, how, the risk and the
-   status? One idea per beat, in a sensible order, nothing important missing, no filler. Is the length right for
-   the PR (`brief.md` tier)?
-3. **Picture matches words.** At each cue the diagram shows what is being said, and highlights land on their words
+2. **Coverage.** From the narration and the screen alone, a manager who never opens the PR gets all six answers: what
+   changes, why, how it works, what it looks like or does, what could break (a risk in its own words, not only that
+   tests exist) and how it is tested, the status and where to start reading. Write each answer in a line, as the video gives it, with its beat; one missing, wrong or only
+   implied is a must-fix. An answer only on screen counts if a viewer can read it once while it is up, at playing
+   speed (about a second for each short line: check its time on screen in `build/timeline.json`). One idea per beat,
+   in a sensible order.
+3. **Brevity: the cut test.** For each sentence, beat and thing on screen: if it went, which answer would be lost?
+   None: a must-fix to cut it. So is narration that reads out what the screen shows (numbers, names, lists), an idea
+   said twice, a title or status beat longer than one sentence, and a before and after shown one after the other when
+   side by side would do. The video is at most 90 s with the end card. Ask for more only to add a missing answer.
+4. **Picture matches words.** At each cue the diagram shows what is being said, and highlights land on their words
    (compare stills at cue times with the storyboard words). Diagram choice fits the beat (a sequence for an
    exchange, a matrix for a rule...).
-4. **Craft.** Text readable at laptop size, nothing crowded, cut, overlapping or floating; balanced composition;
+5. **Craft.** Text readable at laptop size, nothing crowded, cut, overlapping or floating; balanced composition;
    code readable and the right lines; consistent look (white, Microsoft palette, no stray colors).
-5. **Sync and delivery.** The sync gate passed; the end card QR and URL point to the PR; the narration length is
-   within the tier: where the last word ends (`prs voice` prints it; in `build/timeline.json`, each beat's `words`
-   have `a` and `b`, the seconds a word starts and ends; the file adds the ~4 s end card).
+6. **Sync and delivery.** The sync gate passed; the end card QR and URL point to the PR; the last word ends by 86 s
+   (`prs voice` prints it; in `build/timeline.json`, each beat's `words` have `a` and `b`, the seconds a word starts and
+   ends; the file adds the ~4 s end card).
    The sync gate's text match (in the `prs publish` output) shows what the voice really said, beat by beat: a
    difference that changes the meaning ("forged links" for "Forge links") is a must-fix even when the gate passes.
-6. **Novelty.** Compare with recent videos (`prs history`, and their contact sheets in
+7. **Novelty.** Compare with recent videos (`prs history`, and their contact sheets in
    `~/Downloads/pr-videos/*/contact.png`): the explanations should look different, not like a reskin of the last
    video. Overrides in `direction.json` need a convincing reason.
-7. **Live footage.** A PR that changes something visible shows it in the real app, and one that changes how something
-   behaves shows the before (a build without the change) and then the after, the same steps in both. The footage is a
-   recording of the app (its script drives it with Playwright; not a mock), the action and its result are on screen at
+8. **Live footage.** A PR that changes something visible shows it in the real app, and one that changes how something
+   behaves shows the before (a build without the change) and the after side by side in one beat, the same steps in
+   both, moving together. The footage is a
+   recording of a build of the app (its script drives it with Playwright; not a mock, not component fixtures), the action and its result are on screen at
    the words that say them, a pointer travels to what is clicked and a ring marks each click (a badge shows a shortcut's
    keys), its text is readable at 1080p, nothing of the slide shows around it, and the heading and captions stay clear.
    It never stands in for what it can't show (a speed-up, a leak fixed). A visible change without footage is a must-fix,
@@ -58,14 +66,16 @@ steps in order, writing down what you find, and don't skip one because the still
 1. **Claims, beat by beat.** List every claim in the narration and every number, name and code line on screen, and
    next to each the line of `brief.md`, `pr.diff` or a changed file it comes from. One with no line is a must-fix.
 2. **Cold read.** Read the narration aloud in your head as someone who never saw the PR, beat by beat, and write
-   what they now know. A word they can't know yet, or a beat that doesn't move them forward, is a must-fix.
-3. **Picture against words,** from the contact sheet (`build/stills/contact.png`): its frames are taken just after
+   what they now know. A word they can't know yet, or a beat that doesn't move them forward, is a must-fix. Then the
+   six answers, one line each, from what you wrote: one missing is a must-fix.
+3. **Cut.** Each sentence again: which answer is lost if it goes? None: cut it.
+4. **Picture against words,** from the contact sheet (`build/stills/contact.png`): its frames are taken just after
    each cue. For each, the thing named is on screen and highlighted, not two words late. Open a frame at full size
    only when the sheet leaves you in doubt, plus one per beat at its fullest moment (`prs stills <slug> --ends` writes
    those into `build/stills/at/`): about one image per beat, not every frame.
-4. **Craft, on those full-size frames:** crowded, clipped, tiny code, empty halves. For live footage, frames of the
+5. **Craft, on those full-size frames:** crowded, clipped, tiny code, empty halves. For live footage, frames of the
    delivered mp4 at its cues: the action and its result on screen, at their words.
-5. **The checklist above,** point by point, with a verdict line as a reviewer would write it: `VERDICT: SIGNED OFF
+6. **The checklist above,** point by point, with a verdict line as a reviewer would write it: `VERDICT: SIGNED OFF
    (self-review)` once nothing is left to fix, `VERDICT: CHANGES REQUESTED` with the must-fixes until then.
 
 ## Output (concise)
