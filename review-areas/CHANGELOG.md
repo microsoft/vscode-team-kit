@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.5 — 2026-09-22
+
+- Distinguish area-based reviews from explicit council or multiple-model requests, and tag the routing cases for focused evaluation
+
 ## 1.2.4 — 2026-09-22
 
 - Run `review-areas` Vally evaluations with GPT-6 Luna and supply a diff for the security review case

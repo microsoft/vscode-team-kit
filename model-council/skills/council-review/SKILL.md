@@ -1,6 +1,6 @@
 ---
 name: council-review
-description: 'Multi-model council review for diffs, pull requests, and risky changes — CRITICAL after non-trivial development. USE FOR: "review a diff or pull request", "bug hunt in recent edits", "multiple models inspect the same change independently", "cross-review or debate findings between models", "review after any non-trivial development phase". DO NOT USE FOR: "plan a new implementation", "write code without a review".'
+description: 'Multi-model council review for code, diffs, pull requests, and risky changes — CRITICAL after non-trivial development. USE FOR: "review my code", "review a diff or pull request", "bug hunt in recent edits", "multiple models inspect the same change independently", "cross-review or debate findings between models". DO NOT USE FOR: planning an implementation, even when the user says "plan with council"; writing code without a review.'
 ---
 
 # Skill: Review Council

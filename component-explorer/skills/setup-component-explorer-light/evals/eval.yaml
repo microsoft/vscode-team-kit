@@ -141,6 +141,7 @@ stimuli:
     prompt: Set up the full component explorer with MCP and VS Code tasks
     tags:
       category: trigger
+      focus: routing
       expected: ignore
       confidence: high
       rationale: Full setup should use full variant

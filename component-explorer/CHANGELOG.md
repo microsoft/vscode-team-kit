@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.3 (2026-09-22)
+
+- Clarify that light setup excludes full VS Code task and launch configuration, and tag the routing case for focused evaluation
+
 ## 1.3.2 (2026-09-22)
 
 - Run component explorer Vally evaluations with GPT-6 Luna; keep setup-variant routing checks as quality signals
