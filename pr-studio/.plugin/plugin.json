@@ -1,6 +1,6 @@
 {
   "name": "pr-studio",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Explainer videos and slide decks of pull requests, in one white Microsoft look, made in chat by the model you pick. Self-contained.",
   "license": "MIT",
   "categories": ["workflow"],

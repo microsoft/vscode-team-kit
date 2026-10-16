@@ -39,7 +39,7 @@ Each beat is one idea, said in 15-40 words, with one diagram. It has:
   - `code`: the lines themselves
   - `numbers`: sizes and measurements
   - `state`: a lifecycle
-  - `ui`: something the user sees
+  - `ui`: something the user sees (with live footage of the app when the PR changes it: "Live footage" below)
   - `status`: scope, tests, what's open
 - `say`: the narration. Plain sentences. Numbers from the PR as placeholders: `{{facts.additions}}`,
   `{{facts.changedFiles}}`, `{{facts.number}}`, and the size of a list: `{{facts.linkedIssues.length}}`.
@@ -267,6 +267,82 @@ shape. If none can, say so in your answer: which beat, and what it needed to sho
 Icons: Fluent names, all listed by `prs catalog --icons` (`key`, `lock`, `server`, `globe`, `laptop`, `building`,
 `shield`, `beaker`, `branch`, `bug`, `rocket`, `settings`, `extension`, `window`, `terminal`...).
 
+## Live footage
+
+When the PR changes something a user sees or does (a view, a menu, a dialog, a click and what follows), the video shows
+it happening in the real app: the diagrams explain why and how, the footage shows it working. When the PR changes how
+something behaves (a fix, a different result for the same action), it shows the before too: the same steps in the app
+without the change, then with it. A new feature, with nothing to compare, shows the after only; so does a fix whose
+before a recording can't reproduce (it takes real hardware, a physical key, a race): the after still shows what users
+now get. A demo that needs the app signed in (chat, anything AI) still gets its footage: step 3 says how. A change
+nobody can see (speed, memory, internals) gets no footage: a screen that looks the same proves nothing about it.
+
+### Record it
+
+1. **The steps.** The PR's "how to test", its screenshots and videos, and its tests give the steps and what should
+   happen. Pick one interaction of 8–20 seconds that shows the change: the actions and their result.
+2. **The apps.** The app with the change and, for a before and after, the app without it: the same kind of build, with
+   the same profile, window and sample data, so only the change differs. Run them the repository's way, each with a
+   throwaway profile in a temp folder. For VS Code, no checkout or build is needed: Insiders builds by commit,
+   `https://update.code.visualstudio.com/api/commits/insider/<platform>` lists them, newest first (`darwin-arm64`,
+   `darwin`, `linux-x64`), and `https://update.code.visualstudio.com/commit:<sha>/<platform>/insider` downloads one (a
+   zip of about 300 MB). `gh api repos/<owner>/<repo>/compare/<merge commit>...<build sha> --jq .status` says whether a
+   build has the change (`ahead` or `identical`: it has it; `behind` or `diverged`: it doesn't; the merge commit:
+   `gh pr view <url> --json mergeCommit`): the newest build without it is the before, the oldest with it the after. For
+   an open PR, build its base and its head.
+3. **Keep it to itself, signed in when needed.** When the app reads the user's home (VS Code lists their personal skills
+   and agents from it), give it its own `HOME` in the temp folder, with the user's keychain linked in (macOS:
+   `<home>/Library/Keychains` → `~/Library/Keychains`): without it, the app's first keychain access makes macOS ask the
+   user in a dialog. When the demo needs the app signed in (chat, anything AI), copy the signed-in state of the same
+   kind of app into the throwaway profile: its secrets decrypt with the key in the keychain. For VS Code:
+   `sqlite3 <signed-in profile>/User/globalStorage/state.vscdb ".backup <profile>/User/globalStorage/state.vscdb"`,
+   from the user's profile of that build (Insiders: `~/Library/Application Support/Code - Insiders`; Code OSS:
+   `~/.vscode-oss-dev`), and `"update.mode": "none"` in the profile's settings. A signed-in app can show the account's
+   name: keep it out of the frame. Delete the profile when the recording is done: it holds a copy of the sign-in.
+4. **Drive it with Playwright** (`<studio>/node_modules/playwright-core`: `_electron.launch` for an Electron app, a
+   browser context for a web app, both with `recordVideo`): the same steps at the same pace in each app. Wait until each
+   step can be done; after it, check that the result is on screen: the recording counts only if it is.
+5. **Show the hand.** The recording has no pointer: draw one in the page (an arrow or a dot above everything, following
+   the mouse) and a ring that grows on each click. Move the mouse in steps (`mouse.move(x, y, { steps: 25 })`) so it
+   travels to each target, rest on it a moment, click, and hold each result for a second or two. Keys are invisible
+   too: show a shortcut's keys in a badge (`⌃ Esc`) while it is pressed, and type text at a human pace.
+6. **Readable at 1080p.** A window of about 1280×720 with the app zoomed in (VS Code: `"window.zoomLevel": 1`), laid
+   into the frame at about its own size; crop to the part that matters when it's bigger.
+7. Keep the scripts, the recordings and a screenshot of each state in `<studio>/videos/<slug>/footage/`. Downloaded
+   builds can go once the video is delivered (about 300 MB each).
+
+### Narrate it
+
+A footage beat tells what happens in the order it happens, with a cue on each action and each result ("click Skills
+again", "back on the list"). A before and after takes two beats, the before first ("before this PR, the click did
+nothing"), then the after ("now it brings you back"); add a beat when the tier leaves none for how it works (only the
+narration's seconds are checked). Write about as many seconds of words as the clip lasts: a clip can hold its last
+frame, but never lose an action. The beat's treatment draws its heading (eyebrow and title: what is shown); the footage
+covers the body. Give it a treatment with a simple body, for example
+`prs direct <slug> --use <beat>=concept.pillars --reason "live footage covers the body"` (several beats:
+`--use a=…,b=…`) with the steps as its items, and fill it from the PR as usual: it is checked like any beat, and it is
+what `prs stills` shows.
+
+### Put it into the video
+
+After `prs render`, before `prs publish`:
+
+- `prs render` writes the frames to `build/frames/%05d.png`: 1920×1080, 30 a second, without captions. `prs publish`
+  draws the captions over the band from y 940 down and encodes the mp4, the WebM and the contact sheet from these
+  frames, so footage put into them reaches everything delivered.
+- The beat runs from its `start` to its `end` in `build/timeline.json` (frames: seconds × 30), with its `cues` in
+  seconds: line the footage up so each action lands on its words. Trim the recording, hold its last frame
+  (`tpad=stop_mode=clone`), speed up only the waiting; never change the number of frames (the narration and captions
+  are timed to them).
+- Lay it over the body, below the heading and above y 940, on a white box that covers the whole body (nothing of the
+  diagram shows around it): look at a frame of the beat first to see where its heading ends.
+- The frames are hard links into the render cache: delete a frame before writing its replacement (or write a new file
+  and `mv` it over), never write into it, or other frames and later renders change too.
+- Every `prs render` writes the frames again: keep the composition as a script in `footage/` and run it after each
+  render.
+- `prs stills` and `prs lint` draw the slide, not the footage. Look at the composed frames themselves, and after
+  `prs publish` at frames of the delivered mp4 (`ffmpeg -ss <seconds> -i <mp4> -frames:v 1 <png>`).
+
 ## Sign-off
 
 Nothing is delivered as final until the `pr-director` agent signs it off. It sees what the author no longer sees:
@@ -284,10 +360,11 @@ a number that doesn't match the diff, a highlight that lands two words late, a b
    - the PR URL, the slug, and `<studio>` (the engine's folder, from the setup script)
    - the paths: `<studio>/videos/<slug>/brief.md`, `pr.diff`, `storyboard.json`, `scenes.js`, `build/stills/`, and
      the mp4 in `~/Downloads/pr-videos/<slug>/`
+   - with live footage: the `footage/` folder and the beat it is in
    - from the second round on: the last verdict and what you changed
 4. Save the verdict to `<studio>/videos/<slug>/build/review.md` as it comes, before fixing (append each round; in a
-   self-review: what you found, then what you fixed, round by round). Fix every must-fix, render, publish, ask again.
-   Stop at `VERDICT: SIGNED OFF`.
+   self-review: what you found, then what you fixed, round by round). Fix every must-fix, render (and lay in the
+   footage again), publish, ask again. Stop at `VERDICT: SIGNED OFF`.
 
 If you can't start subagents, follow "Reviewing your own video" in [reviewer.md](reviewer.md), write it to the
 same `review.md`, and mark the video as self-reviewed (see "Deliver" in the skill).

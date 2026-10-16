@@ -1,12 +1,12 @@
 ---
 name: generate-video
-description: 'Make a short narrated explainer video of a GitHub pull request (40-100 seconds, captions, diagrams chosen for the PR) in one white Microsoft look. USE FOR: "/generate-video 12345", "make a video of this PR", "explain PR <url> in a video", "a video for my manager about this PR". DO NOT USE FOR: screen recordings, editing existing videos, slide decks (use generate-presentation).'
+description: 'Make a short narrated explainer video of a GitHub pull request (40-100 seconds, captions, diagrams chosen for the PR, and real footage of the app when the change is visible) in one white Microsoft look. USE FOR: "/generate-video 12345", "make a video of this PR", "explain PR <url> in a video", "a video for my manager about this PR". DO NOT USE FOR: a screen recording on its own (no PR to explain), editing existing videos, slide decks (use generate-presentation).'
 argument-hint: PR number or URL
 ---
 
 # Generate a PR video
 
-A 40–100 second video of one pull request, for someone who won't read it (often a manager): what changes, why, how it works, what is risky, the status, and where a reviewer should start. Narrated, captioned, with a diagram chosen for each idea, in one fixed white Microsoft look. Technical but plain.
+A 40–100 second video of one pull request, for someone who won't read it (often a manager): what changes, why, how it works, what is risky, the status, and where a reviewer should start. Narrated, captioned, with a diagram chosen for each idea and, when the PR changes something you can see, the real app doing it (driven with Playwright and recorded), in one fixed white Microsoft look. Technical but plain.
 
 The engine ships with this plugin. You write the story and fill the diagrams from the PR; the engine does the rest (fetching the PR, the voice, rendering, checks) and verifies every word on screen against the PR.
 
@@ -18,6 +18,7 @@ The engine ships with this plugin. You write the story and fill the diagrams fro
 - The voice: Kokoro, offline and free. MAI-Voice-2 instead when `AZURE_SPEECH_KEY` is set, or when `~/.cache/pr-studio/config.json` names an Azure Speech resource (`voice.mai.azResource`, its key looked up with `az`); `prs doctor` says which one is used.
 - Network access to github.com and PyPI. The first run installs npm packages, a browser, a voice model and Whisper into `~/.cache/` (about 700 MB in all).
 - Optional: `gh`, signed in. Its token is used for the GitHub API; without one, public PRs still work (60 requests an hour).
+- For a change you can see: a way to run the app with it. Playwright comes with the engine (`<studio>/node_modules/playwright-core`).
 
 ## Procedure
 
@@ -39,17 +40,18 @@ Its last line is `STUDIO=<folder>`; below, `<studio>` is that folder and `prs <c
 
 Before writing anything, read [guide.md](guide.md), and skim [catalog.md](catalog.md) with [catalog.png](catalog.png): the fields of every diagram treatment, and a picture of each, numbered as in catalog.md.
 
-### 3. Make the video (aim for 15–20 minutes)
+### 3. Make the video (aim for 15–20 minutes; about 30 with live footage)
 
 1. **Fetch.** `prs new <PR URL>` writes `<studio>/videos/<slug>/`: `brief.md` (read all of it, the review discussion too), `pr.diff` (read as the brief says: all of it outside the tests when the PR is small), `pr.json`, the changed files at the head commit, and a storyboard skeleton with the right number of beats. The slug is `<owner>-<repo>-<number>` (for example `microsoft-vscode-341604`): give it to every later command (`prs check <slug>`, `prs voice <slug>`…), since other videos may share the folder.
 2. **Story.** Write `storyboard.json`: one idea per beat, a `need` per beat, cues, and the claims with evidence ("Writing the story" in [guide.md](guide.md)). Run `prs check <slug>` until it says *ready for prs voice*.
-3. **Direction, before the voice.** `prs direct <slug>` picks a treatment for each beat and the motion for the video, writes `direction.json`, and scaffolds `scenes.js`. Read each pick in [catalog.md](catalog.md): its description says how the narration should go with it ("names the aspects in order", "turns on Now"); adjust the `say` of that beat to fit, and `prs check <slug>` again. Keep the picks: they are chosen to differ from recent videos, and running `prs direct` again keeps them. If one truly can't show its beat, re-pick it with `prs direct <slug> --use <beat>=<treatment> --reason "…"` (the reason is recorded and reviewed; the other beats keep their picks).
-4. **Voice, in the background, then the scenes.** Start `prs voice <slug>` (about a minute) and fill every TODO of `scenes.js` from the PR while it runs. The voice prints what a listener hears in each beat: a word "heard differently" is usually one the voice said wrong (fix it with `pronounce`, or say it another way, and voice again); a take that came out slow or odd can be redone alone with `prs voice <slug> --redo <beat>`.
-5. **Look.** `prs stills <slug>` renders key frames and `build/stills/contact.png`. Open the contact sheet and the frames that matter, and fix what you see. Stills work before the voice is done.
-6. **Check.** `prs lint <slug>` must report 0 problems (layout, text provenance, caption band, novelty, QR).
-7. **Render and publish.** `prs render <slug>` (seconds: frames are cached), then `prs publish <slug>`: encode, subtitles, the sync gate (audio against captions), and delivery to `~/Downloads/pr-videos/<slug>/` (replacing a video of the same PR delivered before; it says so).
+3. **Footage, when the change is visible.** If the PR changes something a user sees or does, run the app with the change, use Playwright to do what the PR is about (its "how to test", its tests), check that the result is on screen, and record it into `<studio>/videos/<slug>/footage/`. When the PR changes how something behaves, record the same steps in the app without the change too, so the video shows the before, then the after. The beats that narrate them show the real app, the pointer moving and clicking; the diagrams still explain why and how. A video of a visible change isn't done without its footage: the setup (two builds, a copy of the sign-in, a script that drives the chat) is part of the job, about ten minutes, never a reason to skip it. How: "Live footage" in [guide.md](guide.md).
+4. **Direction, before the voice.** `prs direct <slug>` picks a treatment for each beat and the motion for the video, writes `direction.json`, and scaffolds `scenes.js`. Read each pick in [catalog.md](catalog.md): its description says how the narration should go with it ("names the aspects in order", "turns on Now"); adjust the `say` of that beat to fit, and `prs check <slug>` again. Keep the picks: they are chosen to differ from recent videos, and running `prs direct` again keeps them. If one truly can't show its beat, re-pick it with `prs direct <slug> --use <beat>=<treatment> --reason "…"` (the reason is recorded and reviewed; the other beats keep their picks).
+5. **Voice, in the background, then the scenes.** Start `prs voice <slug>` (about a minute) and fill every TODO of `scenes.js` from the PR while it runs. The voice prints what a listener hears in each beat: a word "heard differently" is usually one the voice said wrong (fix it with `pronounce`, or say it another way, and voice again); a take that came out slow or odd can be redone alone with `prs voice <slug> --redo <beat>`.
+6. **Look.** `prs stills <slug>` renders key frames and `build/stills/contact.png`. Open the contact sheet and the frames that matter, and fix what you see. Stills work before the voice is done.
+7. **Check.** `prs lint <slug>` must report 0 problems (layout, text provenance, caption band, novelty, QR).
+8. **Render and publish.** `prs render <slug>` (seconds: frames are cached), put the footage into its beat's frames ("Live footage" in [guide.md](guide.md)), then `prs publish <slug>`: encode, subtitles, the sync gate (audio against captions), and delivery to `~/Downloads/pr-videos/<slug>/` (replacing a video of the same PR delivered before; it says so).
 
-Somebody is watching: post a one-line update after each stage (fetched, storyboard ready, direction picked, voice done, stills checked, published), and ask only when you are blocked.
+Somebody is watching: post a one-line update after each stage (fetched, storyboard ready, footage recorded, direction picked, voice done, stills checked, published), and ask only when you are blocked.
 
 ### 4. Get it reviewed
 
@@ -66,9 +68,10 @@ Follow "Sign-off" in [guide.md](guide.md) until the reviewer answers `VERDICT: S
 
 - **Accurate or absent.** Every statement in the narration and on screen must come from the PR: its body, commits, diff, tests or code at the head commit. Write the author's untested claims as "per the author". No guesses about intent, no marketing.
 - **Text provenance.** Screen text goes through `label()` (your words), `fact()` (numbers and names from `pr.json`), `quote()` (exact PR text), `ident()` (code names in the diff), `path()` and `code()`. `prs prepare` verifies every one against the PR; numbers in a `label()` get flagged.
+- **The app is real.** Footage shows the app running the PR's change, driven by Playwright: never an animation made to look like it. Run it in a throwaway profile with sample data, never in the user's own windows or files; copy their sign-in into it only when the demo needs it (chat, anything AI).
 - **One look.** White, Microsoft palette, Aptos. Don't add colors, fonts, backgrounds or new layouts inside a video. The first frame (title) and the end card are fixed.
 - **Different explanations.** Never open or copy another video's `scenes.js`. If the treatment picked for a beat can't show what it needs, try another one for the same need ("When the catalog doesn't fit" in [guide.md](guide.md)), and if none can, say so in your answer.
-- **Stay in the engine's folder.** Write only inside `<studio>`: don't change the user's files.
+- **Stay in the engine's folder.** Write only inside `<studio>` (and a temp folder for the app's throwaway profile): don't change the user's files.
 - **Look at what you make.** Open the stills and the contact sheet before saying something works.
 
 Optional: if the user asks for options, add `export const concepts = { beat, options: { a, b, c } }` to `scenes.js` and run `prs concepts`: it renders the beat three ways side by side.

@@ -56,7 +56,44 @@ A screenshot from the PR shows the change better than any drawing of it. When th
 5. Put the PR in `sources` ("CI screenshots on owner/repo#n" for the CI's), and say in the notes what the picture shows
    ("the author's screenshot of …").
 
-Draw a `ui` or `chat` mock only for behaviour the PR has no picture of, and say in the notes that it is a sketch.
+When the PR changes something a user sees or does, take pictures of the real app as well, even when the PR has its own,
+at the states that tell the story (before the action, the action, the result). When it changes how something behaves,
+take the same states in the app without the change too, so a `split` shows the same moment before and after (unless a
+recording can't reproduce the before: then the after alone). A state that needs the app signed in (chat, anything AI)
+is captured too: step 2 says how.
+
+1. Run the app with the change and, for a before and after, the app without it: the same kind of build, with the same
+   profile, window and sample data, each with a throwaway profile in a temp folder. For VS Code, no checkout or build is
+   needed: Insiders builds by commit, `https://update.code.visualstudio.com/api/commits/insider/<platform>` lists them,
+   newest first (`darwin-arm64`, `darwin`, `linux-x64`), and
+   `https://update.code.visualstudio.com/commit:<sha>/<platform>/insider`
+   downloads one (a zip of about 300 MB). `gh api repos/<owner>/<repo>/compare/<merge commit>...<build sha> --jq .status`
+   says whether a build has the change (`ahead` or `identical`: it has it; `behind` or `diverged`: it doesn't; the merge
+   commit: `gh pr view <url> --json mergeCommit`): the newest build without it is the before, the oldest with it the
+   after. For an open PR, build its base and its head.
+2. When the app reads the user's home (VS Code lists their personal skills and agents from it), give it its own `HOME`
+   in the temp folder, with the user's keychain linked in (macOS: `<home>/Library/Keychains` → `~/Library/Keychains`):
+   without it, the app's first keychain access makes macOS ask the user in a dialog. When a state needs the app signed
+   in (chat, anything AI), copy the signed-in state of the same kind of app into the throwaway profile: its secrets
+   decrypt with the key in the keychain. For VS Code:
+   `sqlite3 <signed-in profile>/User/globalStorage/state.vscdb ".backup <profile>/User/globalStorage/state.vscdb"`,
+   from the user's profile of that build (Insiders: `~/Library/Application Support/Code - Insiders`; Code OSS:
+   `~/.vscode-oss-dev`), and `"update.mode": "none"` and `"window.zoomLevel": 1` (big enough to read on a slide) in the
+   profile's settings. Keep the account's name out of the pictures, and delete the profile when you are done: it holds
+   a copy of the sign-in.
+3. Drive it with Playwright (`<studio>/node_modules/playwright-core`: `_electron.launch` for an Electron app, a browser
+   context for a web app) through the PR's steps: its "how to test", its tests, the same steps in each app. Before each
+   screenshot, check that the state is on screen; a screenshot counts only if it is.
+4. Save each state into `assets/` under a name that says what it shows (`before-skill-detail.png`,
+   `after-skills-list.png`), with the scripts next to them, and use them like the PR's own: crops, pins and rings from
+   `prs deck grid`, a `split` for before and after.
+5. Say in the notes that the picture is a capture of the app (which build: with or without the PR's change), and the
+   steps that led to it.
+
+A PDF doesn't move: show an interaction as its states, side by side or on consecutive slides.
+
+Draw a `ui` or `chat` mock only for behaviour that neither the PR's pictures nor the running app can show, and say in
+the notes that it is a sketch.
 
 ### A deck about a pull request
 

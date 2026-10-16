@@ -12,7 +12,8 @@ taste: only request changes that clearly improve the result.
 - Read-only. Never edit files. You may run `node <studio>/cli/prs.mjs deck build <slug> --no-deliver` to see the
   checks again.
 - Judge the deck from its pages: the contact sheet (`<studio>/decks/<slug>/out/contact.png`) and the page PNGs
-  (`out/slides/NNN.png`), opened at full size, plus `deck.mjs` (the content and the speaker notes).
+  (`out/slides/NNN.png`), opened at full size, plus `deck.mjs` (the content and the speaker notes) and `assets/` (the
+  pictures, and the script that captured the app).
 - Verify against the source, not the deck: `<studio>/videos/<slug>/brief.md` (description, commits, files, tests),
   `pr.diff`, and the changed files at the head commit (`<studio>/videos/<slug>/build/src/`).
 
@@ -27,8 +28,11 @@ taste: only request changes that clearly improve the result.
    the brief's Length section.
 3. **Picture matches the idea.** Each slide's layout fits what it explains (a flow for decisions, a sequence for
    messages, a split for before and after…). The diagram shows the concrete thing, in the PR's own terms, not generic
-   boxes. Titles say the point, not the topic. If the author attached screenshots of a visible change, the deck shows
-   them (cropped, with pins on what changed) rather than a mock of the same thing.
+   boxes. Titles say the point, not the topic. A visible change is shown in captures of the app running the PR's change,
+   taken by the script in `assets/` (the author's pictures may join them, never replace them), cropped, with pins on
+   what changed, rather than a mock of the same thing; a change in behavior shows the same state in a build without the
+   change next to it; each capture shows the state its slide says, and the notes say where every picture comes from. A
+   visible change without captures is a must-fix, whatever the reason given (builds, sign-in, a running chat request).
 4. **Craft.** Readable at laptop size; nothing crowded, cut, overlapping or floating; no slide mostly empty; a
    different picture on every slide; one or two dark or blue slides for rhythm in a deck of 7 slides or more; the look
    is consistent.
