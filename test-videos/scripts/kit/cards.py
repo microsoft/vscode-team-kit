@@ -1,50 +1,20 @@
-"""Adds a verdict slide at the start of a finished how-to video and, when there are likely bugs, "worth a look" slides
-at the end.
+"""Adds the verdict slide before a finished how-to video, and the recap and "worth a look" slides after it.
 
-    $PY cards.py <work dir>
+    $PY cards.py <work dir> [--preview]
 
-<work dir> holds the finished video (captions.json "name", out/<name>.mp4, .srt and timeline-out.json, as written by
-compose.py or concat.py) and cards.json:
-
-{
-	"verdict": {
-		"status": "verified",                            verified | issues (verified, some checks fail) | changed (verified with a
-		                                                    changed setup) | partial (some steps not run) | failed (couldn't verify)
-		"headline": "All 8 steps passed, each checked in the app.",
-		"build": "Insiders 1.143.0 · e9f10b90b5 · Oct 16",
-		"why": ["…"],                                      failed or changed: what went wrong and why, 1-3 short lines
-		"not_covered": "a screen reader; Windows",        optional: what the video leaves out
-		"image": {"from": "video", "t": 36.2, "crop": [x, y, w, h], "caption": "…"},
-		"say": "Verified: every step passes on the October 16 Insiders."
-	},
-	"watch_footer": "…",                                  optional: replaces the end slides' "Not part of this test's pass/fail" line
-	"watch_per_slide": 2,                                 optional: items per end slide (1-3; 3 for short items)
-	"recap": {                                            optional: one text slide after the video listing what it
-		"items": [{"flag": 1, "kind": "bug", "title": "…"}],      flagged (flags.py); "flag": N fills in its time in the final
-		                                                           video ("at": "0:30" sets it by hand);
-		"say": "…", "footer": "…"                                  use it instead of repeating flagged items in "watch",
-	},                                                           which then keeps only findings the video doesn't show
-	"watch": [                                             optional: likely bugs seen while testing, at most 2 per slide
-		{"tag": "LIKELY BUG", "title": "…", "detail": "…", "image": {"from": "shot", "path": "/abs/x.png", "crop": [x, y, w, h], "caption": "…"}, "say": "…"}
-	]
-}
-
-An image is a frame of the finished video ("from": "video", at "t" seconds, "crop" in its 1920x1330 pixels) or a
-screenshot ("from": "shot", "path", "crop" in its pixels). {"pair": [image, image], "direction": "row" | "column"}
-shows two (for example before and after), each with an optional "label" (top right; "label_at": "bottom" moves it);
-the caption goes on the pair. "marks":
-[[x, y, w, h], ...] draws dashed amber rectangles (in the same pixels as "crop"), for example where something was. Text can mark code with `backticks`. Each slide is voiced
-(voice.py) and stays up for its voice plus a pause, or long enough to read at 4.5 words a second, whichever is longer.
-
-Writes <work>/carded/out/<name>.mp4, .srt, .webm and timeline-out.json: the slides joined with the video. Check it
-with `$PY check.py <work>/carded`, then deliver that mp4.
+<work dir> holds the finished video (out/<name>.mp4, .srt and timeline-out.json, from compose.py, concat.py or, when it
+exists, flags.py's flagged/) and cards.json; its fields are in the skill's slides.md. --preview only draws the slides to
+carded/slides/preview-*.jpg. Each slide is voiced and stays up for its voice, or until it can be read at 4.5 words a
+second. Writes carded/out/<name>.mp4, .srt, .webm and timeline-out.json: check them with check.py <work>/carded.
 """
 import json
 import subprocess
 import sys
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+sys.dont_write_bytecode = True
+
+from PIL import Image, ImageDraw  # noqa: E402
 
 from slidekit import (AMBER, AMBER_TEXT, BG, BLUE, FFMPEG, FPS, FRAME, GRAY, GREEN, H, KIT, LINE, RED, SOFT, TEXT, W, cues_for,
 	draw_rich, find_title, font, layout, load_picture, pill, voice_take, words, write_srt)
@@ -163,10 +133,16 @@ def verdict_slide(v, folder):
 RECAP_TAGS = {'fail': RED, 'change': AMBER, 'bug': AMBER, 'check': AMBER}
 
 
+def has_flags():
+	"""Whether flags.json lists any flag (no file, or an empty list, is no flags)."""
+	file = WORK / 'flags.json'
+	return file.exists() and bool(json.loads(file.read_text()).get('flags'))
+
+
 def flag_times(verdict_seconds):
 	"""Each flag's start in the final video: the verdict slide, then the flagged video's "flagN" steps."""
 	timeline = FLAGGED / 'out/timeline-out.json'
-	if not timeline.exists():
+	if not has_flags() or not timeline.exists():
 		return {}
 	steps = json.loads(timeline.read_text())['steps']
 	return {int(name[4:]): verdict_seconds + start for start, name in steps if name.startswith('flag') and name[4:].isdigit()}
@@ -289,7 +265,7 @@ def build_part(folder, slide_id, image, say, text):
 
 def main_part():
 	"""The video to put the slides around: the flagged one (flags.py) when the item has flags."""
-	if not (WORK / 'flags.json').exists():
+	if not has_flags():
 		return WORK
 	flagged_mp4 = FLAGGED / 'out' / f'{NAME}.mp4'
 	if not flagged_mp4.exists() or flagged_mp4.stat().st_mtime < (WORK / 'flags.json').stat().st_mtime:
@@ -308,8 +284,9 @@ def main():
 		image, text = verdict_slide(cards['verdict'], slides)
 		save_small(image, slides / 'preview-verdict.jpg')
 		if cards.get('recap'):
+			# The verdict slide's length isn't known before it's voiced: estimate it from its words (render fills in exact times).
 			last = slides / 'verdict/out/timeline-out.json'
-			estimate = json.loads(last.read_text())['duration'] if last.exists() else 0.0
+			estimate = json.loads(last.read_text())['duration'] if last.exists() else max(len(text.split()) / READ_RATE + 0.15, MIN_SECONDS)
 			save_small(recap_slide(with_times(cards['recap'], estimate))[0], slides / 'preview-recap.jpg')
 		watch = cards.get('watch', [])
 		for n, start in enumerate(range(0, len(watch), PER_SLIDE), start=1):

@@ -25,34 +25,6 @@
 			"do": "From `README.md`: ⌘P, paste `http://127.0.0.1:8642/review.html?pr=342081#changes`, click the side button.",
 			"look": "With `workbench.browser.openLocalhostLinks` on, it opens in the integrated browser beside `README.md`.",
 			"zoom": false
-		},
-		"address": {
-			"label": "STEP 3 OF 4",
-			"do": "Click the browser’s address bar, then press End.",
-			"look": "The whole link, `?pr=342081#changes` included."
-		},
-		"reuse": {
-			"label": "ALSO IN THE PR",
-			"do": "From `README.md`: ⌘P, paste another localhost link, e.g. `…/review.html?pr=342081&page=2#files`, click the side button.",
-			"look": "A second tab in the browser’s group, no new group; `README.md` stays visible.",
-			"zoom": 1.5
-		},
-		"prefixes": {
-			"label": "STEP 4 OF 4",
-			"do": "⌘P, type `greet.ts:3`; replace it with `>`, then with `@`.",
-			"look": "`greet.ts`, commands, then the active editor's (`README.md`) symbols, as before; no Open Link row.",
-			"zoom": 1.5
-		},
-		"invalid": {
-			"label": "ALSO IN THE ISSUE",
-			"do": "⌘P, paste a malformed link (here with a space), press Enter.",
-			"look": "An Invalid Link row; nothing opens."
-		},
-		"missing": {
-			"label": "ALSO IN THE ISSUE",
-			"do": "Paste a link to a missing file; Enter, then Cancel.",
-			"look": "“…the file was not found.” (A native dialog on your machine.)",
-			"zoom": false
 		}
 	}
 }

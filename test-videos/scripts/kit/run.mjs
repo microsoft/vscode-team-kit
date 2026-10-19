@@ -7,7 +7,7 @@
 //                                               (what is on screen) and stop
 //   options: --build <path to the .app>         another build (default: the installed Insiders)
 //
-// <work dir>/scenario.mjs exports { signedIn, agents, settings, workspace, steps } (see the skill's guide.md). The app
+// <work dir>/scenario.mjs exports { signedIn, agents, settings, workspace, steps } (see the skill's scenario.md). The app
 // runs in a throwaway profile with its own HOME, the user's keychain linked in (so macOS never asks), and, with
 // signedIn, a copy of the user's Insiders sign-in. The temp folder holding all of it is deleted when the run ends,
 // whatever happens. playwright-core comes from the plugin's cache folder (scripts/setup.mjs installs it there).
@@ -29,6 +29,9 @@ const until = option('--until');
 const INSIDERS = '/Applications/Visual Studio Code - Insiders.app';
 const appPath = option('--build') ?? INSIDERS;
 const CACHE = process.env.TEST_VIDEOS_HOME ?? path.join(os.homedir(), '.cache/test-videos');
+// Runs live here, not in the system's temp folder: some hosts forbid it, and VS Code's own temp files (sockets,
+// agent host folders) go with the run. Keep it short: VS Code's IPC socket paths must stay under 104 characters.
+const TMP_ROOT = process.env.TEST_VIDEOS_TMP ?? path.join(CACHE, 't');
 
 function playwright() {
 	const candidates = [process.env.PLAYWRIGHT_CORE, path.join(CACHE, 'node_modules/playwright-core')].filter(Boolean);
@@ -54,6 +57,8 @@ function signedInProfile(app) {
 const DEFAULT_SETTINGS = {
 	'window.zoomLevel': 1,
 	'files.simpleDialog.enable': true,
+	// Native dialogs are invisible to the recording: draw them in the window (tell testers theirs are native).
+	'window.dialogStyle': 'custom',
 	'security.workspace.trust.enabled': false,
 	'workbench.startupEditor': 'none',
 	'workbench.tips.enabled': false,
@@ -61,6 +66,8 @@ const DEFAULT_SETTINGS = {
 	'update.mode': 'none',
 	'telemetry.telemetryLevel': 'off',
 };
+// Signed out, the Chat view in the secondary side bar only takes room.
+const SIGNED_OUT_SETTINGS = { 'workbench.secondarySideBar.defaultVisibility': 'hidden' };
 
 /**
  * At most `max` VS Code instances run at once, across every agent using the kit (more crash and drop frames on
@@ -109,11 +116,18 @@ async function main() {
 	const takes = fs.existsSync(takesFile) ? JSON.parse(fs.readFileSync(takesFile, 'utf8')) : {};
 	const runDir = path.join(work, 'run');
 	fs.mkdirSync(runDir, { recursive: true });
+	if (!probe) {
+		// A copy kept to fix a zoom belongs to the recording this one replaces.
+		fs.rmSync(path.join(runDir, 'timeline.recorded.json'), { force: true });
+	}
 
-	const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'test-video-run-'));
+	fs.mkdirSync(TMP_ROOT, { recursive: true });
+	const tmp = fs.mkdtempSync(path.join(TMP_ROOT, 'tv-'));
+	console.log(`run folder: ${tmp} (deleted at the end; its name marks this run's processes)`);
 	const home = path.join(tmp, 'home');
 	const data = path.join(tmp, 'user-data');
 	const videos = path.join(tmp, 'videos');
+	const appTmp = path.join(tmp, 's');
 	const paths = { tmp, home, data, workspace: undefined };
 	let app;
 	const cleanup = () => fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 5 });
@@ -156,11 +170,14 @@ async function main() {
 		// Its own HOME, with the user's keychain linked in.
 		fs.mkdirSync(path.join(home, 'Library'), { recursive: true });
 		fs.symlinkSync(path.join(os.homedir(), 'Library/Keychains'), path.join(home, 'Library/Keychains'));
-		// The settings, for the default profile and the Agents window's built-in profile.
-		const settings = { ...DEFAULT_SETTINGS, ...(scenario.settings ?? {}) };
+		// The settings, for the default profile and the Agents window's built-in profile; keybindings likewise.
+		const settings = { ...DEFAULT_SETTINGS, ...(scenario.signedIn ? {} : SIGNED_OUT_SETTINGS), ...(scenario.settings ?? {}) };
 		for (const dir of [path.join(data, 'User'), path.join(data, 'User/profiles/builtin/agents')]) {
 			fs.mkdirSync(dir, { recursive: true });
 			fs.writeFileSync(path.join(dir, 'settings.json'), JSON.stringify(settings, null, '\t'));
+			if (scenario.keybindings) {
+				fs.writeFileSync(path.join(dir, 'keybindings.json'), JSON.stringify(scenario.keybindings, null, '\t'));
+			}
 		}
 		fs.mkdirSync(path.join(data, 'User/globalStorage'), { recursive: true });
 		const state = path.join(data, 'User/globalStorage/state.vscdb');
@@ -169,24 +186,40 @@ async function main() {
 		} else {
 			execFileSync('sqlite3', [state, 'CREATE TABLE IF NOT EXISTS ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB); INSERT INTO ItemTable (key, value) VALUES (\'builtinChatExtensionEnablementMigration\', \'true\');']);
 		}
-		// A throwaway workspace: files, and a git repository unless `git: false`.
+		// A throwaway workspace: files, and a git repository unless `git: false`, with optional backdated commits
+		// (`commits: [{ message, files, daysAgo }]`, oldest first) after the initial one.
 		if (scenario.workspace) {
 			const ws = path.join(tmp, scenario.workspace.name ?? 'workspace');
-			for (const [file, text] of Object.entries(scenario.workspace.files ?? {})) {
-				fs.mkdirSync(path.dirname(path.join(ws, file)), { recursive: true });
-				fs.writeFileSync(path.join(ws, file), text);
-			}
+			const write = files => {
+				for (const [file, text] of Object.entries(files ?? {})) {
+					fs.mkdirSync(path.dirname(path.join(ws, file)), { recursive: true });
+					fs.writeFileSync(path.join(ws, file), text);
+				}
+			};
+			write(scenario.workspace.files);
 			fs.mkdirSync(ws, { recursive: true });
 			if (scenario.workspace.git !== false) {
+				const commits = scenario.workspace.commits ?? [];
+				const dated = days => {
+					const when = new Date(Date.now() - days * 86400000).toISOString();
+					return { ...process.env, GIT_AUTHOR_DATE: when, GIT_COMMITTER_DATE: when };
+				};
+				const commit = (message, days) => execFileSync('git', ['-c', 'user.email=tester@example.com', '-c', 'user.name=Tester', 'commit', '-qm', message, '--allow-empty'], { cwd: ws, env: dated(days) });
 				execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: ws });
 				execFileSync('git', ['add', '-A'], { cwd: ws });
-				execFileSync('git', ['-c', 'user.email=tester@example.com', '-c', 'user.name=Tester', 'commit', '-qm', 'Initial commit', '--allow-empty'], { cwd: ws });
+				commit('Initial commit', commits.length ? Math.max(...commits.map(c => c.daysAgo ?? 0)) + 1 : 0);
+				for (const c of commits) {
+					write(c.files);
+					execFileSync('git', ['add', '-A'], { cwd: ws });
+					commit(c.message, c.daysAgo ?? 0);
+				}
 			}
 			paths.workspace = ws;
 		}
 
 		// A clean environment: nothing that attaches the app to the caller's VS Code or Copilot.
-		const env = { ...process.env, HOME: home };
+		fs.mkdirSync(appTmp, { recursive: true });
+		const env = { ...process.env, HOME: home, TMPDIR: appTmp };
 		for (const key of Object.keys(env)) {
 			if (/^(VSCODE_|ELECTRON_RUN_AS_NODE|COPILOT_|GH_TOKEN|GITHUB_TOKEN)/.test(key)) {
 				delete env[key];
@@ -260,6 +293,26 @@ async function main() {
 			const ctx = {
 				page, app, h, work, paths, scenario, step: step.id, t0, take,
 				mark,
+				/**
+				 * Changes user settings mid-run, as a tester editing settings.json would (`undefined` removes one), in the
+				 * default profile and the Agents window's, then waits `ms` for VS Code to apply them. Check the effect in
+				 * the app before relying on it.
+				 */
+				async setSettings(values, ms = 1500) {
+					for (const dir of [path.join(data, 'User'), path.join(data, 'User/profiles/builtin/agents')]) {
+						const file = path.join(dir, 'settings.json');
+						const current = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
+						for (const [key, value] of Object.entries(values)) {
+							if (value === undefined) {
+								delete current[key];
+							} else {
+								current[key] = value;
+							}
+						}
+						fs.writeFileSync(file, JSON.stringify(current, null, '\t'));
+					}
+					await new Promise(r => setTimeout(r, ms));
+				},
 				/** Marks where the zoom looks: a locator or a box (page pixels). */
 				async look(target, extra = {}) {
 					const box = typeof target?.boundingBox === 'function' ? await h.box(target) : target;

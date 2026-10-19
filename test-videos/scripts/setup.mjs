@@ -3,10 +3,11 @@
 //
 //   node <plugin>/scripts/setup.mjs            check and install
 //   node <plugin>/scripts/setup.mjs --check    check only, install nothing
+//   node <plugin>/scripts/setup.mjs --selftest  then make a tiny video (about a minute) to prove every stage works here
 //
 // Installs: playwright-core (no browser: the kit drives the installed VS Code Insiders through Electron), a Python
 // environment from requirements.txt (the Kokoro voice, Whisper, a bundled ffmpeg, Pillow), the Kokoro model files and
-// the Whisper model. About 400 MB. The last lines print KIT=, PY=, WORK= and DELIVERY= for the skill to use.
+// the Whisper model. About 400 MB. The last lines print KIT=, PY=, FFMPEG=, WORK= and DELIVERY= for the skill to use.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -26,6 +27,7 @@ const KOKORO = {
 };
 const DEFAULT_CONFIG = { voice: { provider: 'auto', mai: { voice: 'en-US-Grant:MAI-Voice-2', region: 'eastus2' }, kokoro: { voice: 'am_michael', speed: 1.0 } } };
 const checkOnly = process.argv.includes('--check');
+const selftest = process.argv.includes('--selftest') && !checkOnly;
 
 let problems = 0;
 const ok = m => console.log(`  \u2713 ${m}`);
@@ -62,7 +64,7 @@ async function main() {
 	const product = path.join(INSIDERS, 'Contents/Resources/app/product.json');
 	if (fs.existsSync(product)) {
 		const p = JSON.parse(fs.readFileSync(product, 'utf8'));
-		ok(`VS Code Insiders ${p.version} (${p.commit.slice(0, 10)}, ${p.date?.slice(0, 10)})`);
+		ok(`VS Code Insiders ${p.version} (${p.commit.slice(0, 10)})`);
 	} else {
 		warn(`VS Code Insiders not found in /Applications: install it, or pass --build <app> to run.mjs`);
 	}
@@ -140,9 +142,14 @@ async function main() {
 				}
 			}
 			Object.keys(KOKORO).every(n => fs.existsSync(path.join(kdir, n))) ? ok('Kokoro voice model (Apache-2.0)') : fail('Kokoro voice model missing');
-			if (!checkOnly) {
+			// Whisper downloads its model on first load; once that has worked, later runs skip the (slow) load.
+			const whisperStamp = path.join(venv, '.test-videos-whisper');
+			if (!fs.existsSync(whisperStamp) && !checkOnly) {
 				const w = spawnSync(py, ['-c', 'from faster_whisper import WhisperModel; WhisperModel("small.en", compute_type="int8")'], { encoding: 'utf8', env: { ...process.env, HF_HUB_DISABLE_TELEMETRY: '1' } });
-				w.status === 0 ? ok('Whisper small.en (word timing and the listener check)') : fail(`Whisper model: ${w.stderr.trim().split('\n').at(-1)}`);
+				w.status === 0 ? fs.writeFileSync(whisperStamp, 'small.en') : fail(`Whisper model: ${w.stderr.trim().split('\n').at(-1)}`);
+			}
+			if (fs.existsSync(whisperStamp)) {
+				ok('Whisper small.en (word timing and the listener check)');
 			}
 		}
 	}
@@ -165,12 +172,41 @@ async function main() {
 		fs.mkdirSync(path.join(CACHE, 'work'), { recursive: true });
 		fs.mkdirSync(DELIVERY, { recursive: true });
 	}
+	if (selftest && !problems) {
+		runSelftest(py);
+	}
 	console.log(problems ? `${problems} problem(s): ${checkOnly ? 'run this again without --check to install what is missing, then fix the rest' : 'fix them and run this again'}.` : 'ready');
 	console.log(`KIT=${KIT}`);
 	console.log(`PY=${py}`);
+	console.log(`FFMPEG=${path.join(CACHE, 'bin', 'ffmpeg')}`);
 	console.log(`WORK=${path.join(CACHE, 'work')}`);
 	console.log(`DELIVERY=${DELIVERY}`);
 	process.exitCode = problems ? 1 : 0;
+}
+
+/** Makes the shipped self-test video in WORK/selftest: voice, record, compose and check, stopping at the first failure. */
+function runSelftest(py) {
+	const work = path.join(CACHE, 'work', 'selftest');
+	fs.rmSync(work, { recursive: true, force: true });
+	fs.cpSync(path.join(SCRIPTS, 'selftest'), work, { recursive: true });
+	const stages = [
+		['voice', py, [path.join(KIT, 'voice.py'), work]],
+		['record', process.execPath, [path.join(KIT, 'run.mjs'), work]],
+		['compose', py, [path.join(KIT, 'compose.py'), work]],
+		['check', py, [path.join(KIT, 'check.py'), work]],
+	];
+	console.log(`self-test in ${work}:`);
+	for (const [stage, cmd, args] of stages) {
+		const r = spawnSync(cmd, args, { encoding: 'utf8' });
+		const out = `${r.stdout}${r.stderr}`.trim().split('\n');
+		if (r.status !== 0) {
+			fail(`self-test, ${stage}: ${out.slice(-6).join(' | ')}`);
+			return;
+		}
+		const summary = out.filter(l => /PASS|FAIL|Outcome|narration|frames|length|bands/.test(l)).map(l => l.trim()).join('; ');
+		ok(`self-test, ${stage}: ${summary.slice(0, 260)}`);
+	}
+	ok(`self-test video: ${path.join(work, 'out/selftest-how-to-test.mp4')} (the contact sheet is out/contact-01.jpg)`);
 }
 
 main().catch(error => {

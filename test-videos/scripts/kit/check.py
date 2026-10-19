@@ -2,7 +2,8 @@
 
     $PY check.py <work dir>
 
-Prints the length, what a listener hears, how far each caption is from its spoken words (at most 0.3 s is good),
+Prints the length, what a listener hears, how far each caption is from its spoken words (at most 0.3 s is good; up to
+0.6 s is Whisper's timing after a pause and needs no action; only a CHECK does),
 and each band that's too fast to read (more than 4.5 words/s; aim for 4). Writes <work>/out/contact-01.jpg, ...: the band
 and the window at each step's start and at each "look" moment, six to a page.
 """
@@ -31,29 +32,35 @@ with tempfile.TemporaryDirectory() as tmp:
 	audio = Path(tmp) / 'audio.wav'
 	subprocess.run([ffmpeg, '-v', 'error', '-y', '-i', str(mp4), '-vn', '-ac', '1', '-ar', '16000', str(audio)], check=True)
 	words = v.transcribe_words(v.get_whisper_model(), audio, None)
-
-
-def secs(ts):
-	h, m, rest = ts.split(':')
-	s, ms = rest.split(',')
-	return int(h) * 3600 + int(m) * 60 + int(s) + int(ms) / 1000
+	# Where speech starts after a pause, from the audio itself: Whisper's word starts drift by up to half a second after
+	# a pause, so a caption is only called off when neither the words nor the audio agree with it.
+	log = subprocess.run([ffmpeg, '-v', 'info', '-i', str(audio), '-af', 'silencedetect=noise=-35dB:d=0.12', '-f', 'null', '-'], capture_output=True, text=True).stderr
+	onsets = [float(x) for x in re.findall(r'silence_end: ([\d.]+)', log)]
 
 
 def norm(text):
-	return re.sub(r"[^a-z0-9']", '', text.lower())
+	"""A word as compared: its letters and digits before any hyphen ("Right-click" is often heard as "Right", "-click")."""
+	return re.sub(r"[^a-z0-9']", '', re.split(r'[-\u2010-\u2014]', text.lower().lstrip('-/\u2010\u2011\u2012\u2013\u2014'))[0])
 
 
 worst = 0
 cues = srt.read_text().strip().split('\n\n')
 for cue in cues:
 	lines = cue.split('\n')
-	start = secs(lines[1].split('-->')[0].strip())
+	start = env.secs(lines[1].split('-->')[0].strip())
 	first = norm(lines[2].split()[0])
-	offset = min((abs(w.start - start) for w in words if norm(w.text) == first and abs(w.start - start) < 1.5), default=None)
+	by_words = min((abs(w.start - start) for w in words if first and norm(w.text) == first and abs(w.start - start) < 1.5), default=None)
+	by_audio = min((abs(o - start) for o in onsets if abs(o - start) < 0.8), default=None)
+	found = [x for x in (by_words, by_audio) if x is not None]
+	offset = min(found) if found else None
 	worst = max(worst, offset if offset is not None else 9)
 	if offset is None or offset > 0.3:
-		print(f'  caption at {start:.2f}s is {"not heard" if offset is None else f"{offset:.2f}s off"}: {lines[2]}')
-print(f'length {duration:.1f}s; {len(cues)} captions, worst offset {worst:.2f}s ({"good" if worst <= 0.3 else "CHECK"})')
+		action = '' if offset is not None and offset <= 0.6 else '  <- CHECK'
+		print(f'  caption at {start:.2f}s is {"not heard" if offset is None else f"{offset:.2f}s off"}{action}: {lines[2]}')
+# Whisper's word starts drift up to about 0.6 s after a short pause that the audio check can miss: that's no reason to
+# re-voice or re-record. Only a CHECK (more than 0.6 s, or a caption not heard) needs action.
+verdict = 'good' if worst <= 0.3 else 'ok: up to 0.6 s is Whisper timing after a pause, no action needed' if worst <= 0.6 else 'CHECK'
+print(f'length {duration:.1f}s; {len(cues)} captions, worst offset {worst:.2f}s ({verdict})')
 print('heard:', ' '.join(w.text for w in words))
 
 out_timeline = json.loads((work / 'out/timeline-out.json').read_text())
@@ -77,7 +84,7 @@ for (part, step), shown in shown_total.items():
 	count = word_count[(part, step)]
 	if count / max(shown, 0.1) > 4.5:
 		too_fast.append(f'{step} has {count} words in {shown:.1f}s ({count / max(shown, 0.1):.1f}/s; {int(4 * shown)} words fit)')
-print('bands: all readable (at most 4.5 words/s)' if not too_fast else 'bands TOO FAST, trim the words (hold longer only if trimming can\'t): ' + '; '.join(too_fast))
+print('bands: all readable (at most 4.5 words/s)' if not too_fast else 'CHECK bands too fast: trim the words (hold longer only if trimming can\'t): ' + '; '.join(too_fast))
 
 # The contact sheet: each step's start (+1 s), each "look" moment (+0.4 s) and each cut (+0.6 s), in video time.
 # Small JPEG pages (small.py): every image an agent opens stays in the session's history.

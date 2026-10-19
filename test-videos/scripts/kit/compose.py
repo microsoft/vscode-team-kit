@@ -1,57 +1,37 @@
-"""Composes a how-to-test video from a run of run.mjs.
-
-Above the recorded window (none of its pixels hidden), a band shows the step, what to do (DO), what to look for
-(LOOK FOR, or another tag such as USER SETTINGS), and, unless the step turns it off, the spot the pointer is looking
-at zoomed in. Each step's narration starts when the step starts; the captions come from the narration's word timings.
+"""Composes a how-to-test video from a run of run.mjs: above the recorded window, a band with the step, DO, LOOK FOR
+and a zoom on what the step looks at; the narration starts with each step, and the captions follow its word timings.
+Stretches wrapped in ctx.cut() are left out, with a badge where each one was.
 
     $PY compose.py <work dir>
 
-Reads <work>/captions.json, voice/takes.json, voice/<step>.wav, run/timeline.json and run/recording.webm.
-Writes <work>/out/<name>.mp4, .webm and .srt (name: captions.json "name", default <work folder name>-how-to-test), and
-out/timeline-out.json (step, zoom and cut times in the video, for check.py). Stretches the scenario wrapped in
-ctx.cut() are left out, with a badge showing the cut's label where each one was.
-
-captions.json: {
-	"name": "tpi-341821-how-to-test",
-	"title": "How to test TPI #<n> · <title> · Insiders from <date> or newer",
-	"steps": { "<step id>": { "label": "STEP 1 OF 3", "do": "...", "look": "...", "tag2": "LOOK FOR",
-	                          "zoom": 2 (or 1.5, or false: no zoom; the text takes the whole band), "dy": 12 } }
-}
-In "do" and "look", `backticks` mark code (settings, file names); ⌘ ⇧ ⌥ ⌃ are drawn with the system font.
+Reads captions.json (its fields are in the skill's scenario.md), voice/takes.json and voice/<step>.wav, and
+run/timeline.json and run/recording.webm. Writes out/<name>.mp4, .webm and .srt, out/timeline-out.json (for check.py),
+and out/looks.json: each ctx.look with its time and its box in the video's 1920x1330 pixels, for a flag's "box".
 """
 import json
-import shutil
 import subprocess
 import sys
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+sys.dont_write_bytecode = True
 
-import env
+from PIL import Image, ImageDraw, ImageFont  # noqa: E402
+
+from slidekit import BG, BLUE, CODE_BG, CODE_FG, FFMPEG, GRAY, LINE, MONO, SOFT, TEXT, draw_text, font, srt_time, text_width  # noqa: E402
 
 WORK = Path(sys.argv[1]).resolve()
 OUT = WORK / 'out'
-FFMPEG = env.ffmpeg()
 W, H, BAND, FPS = 1920, 1080, 250, 30
-
-FONTS = Path('/Applications/Microsoft Word.app/Contents/Resources/DFonts')
-if not FONTS.exists():
-	FONTS = Path('/Applications/Microsoft PowerPoint.app/Contents/Resources/DFonts')
-SYMBOLS = '/System/Library/Fonts/SFNS.ttf'
-MONO = '/System/Library/Fonts/Menlo.ttc'
-SYMBOL_CHARS = set('\u2318\u21e7\u2325\u2303\u21b5\u238b')
-
-BG, LINE, GRAY, TEXT, SOFT = (13, 17, 23), (48, 54, 61), (139, 148, 158), (240, 246, 252), (201, 209, 217)
-BLUE, CODE_BG, CODE_FG = (88, 166, 255), (33, 38, 45), (255, 166, 87)
 DO_TAG, LOOK_TAG = (31, 111, 235), (35, 134, 54)
 INSET = (1236, 46, 640, 170)
 
 
-def font(name, size):
-	path = FONTS / name
-	return ImageFont.truetype(str(path), size) if path.exists() else ImageFont.truetype(SYMBOLS, size)
-
-
+manifest_path = WORK / 'run/manifest.json'
+if manifest_path.exists():
+	manifest = json.loads(manifest_path.read_text())
+	if manifest.get('outcome') == 'failed':
+		failed = next((s for s in manifest.get('steps', []) if s.get('status') != 'passed'), {})
+		raise SystemExit(f"The last recording failed at {failed.get('id', '?')}: {str(failed.get('details', ''))[:300]}\nFix the step and record again.")
 timeline = json.loads((WORK / 'run/timeline.json').read_text())
 video_start = timeline['videoStartedAt']
 events = [dict(e, v=(e['t'] - video_start) / 1000) for e in timeline['events']]
@@ -62,7 +42,10 @@ steps = [e for e in events if e['kind'] == 'step' and e['id'] in captions['steps
 if not steps:
 	raise SystemExit('No captioned steps in run/timeline.json')
 START = steps[0]['v']
-END_RAW = next(e['v'] for e in events if e['kind'] == 'end') + 0.6 - START
+END = next((e['v'] for e in events if e['kind'] == 'end'), None)
+if END is None:
+	raise SystemExit('run/timeline.json has no end: the recording did not finish. Record again.')
+END_RAW = END + 0.6 - START
 SCALE = W / next(e for e in events if e['kind'] == 'viewport')['size'][0]
 
 # Cuts: stretches the scenario cut out of the video (ctx.cut); a badge shows the label where each one was.
@@ -122,36 +105,18 @@ if not looks:
 	looks = [(0, W / 2, H / 2)]
 
 
-def draw_text(d, x, y, text, f, color, size):
-	"""Text in Aptos, with the characters Aptos lacks (the modifier keys) in San Francisco."""
-	symbols = ImageFont.truetype(SYMBOLS, size)
-	run = ''
-	for ch in text + '\0':
-		if ch in SYMBOL_CHARS or ch == '\0':
-			if run:
-				d.text((x, y), run, font=f, fill=color)
-				x += f.getlength(run)
-				run = ''
-			if ch in SYMBOL_CHARS:
-				d.text((x, y + size * 0.06), ch, font=symbols, fill=color)
-				x += symbols.getlength(ch)
-		else:
-			run += ch
-	return x
-
-
-def text_width(text, f, size):
-	symbols = ImageFont.truetype(SYMBOLS, size)
-	return sum(symbols.getlength(ch) if ch in SYMBOL_CHARS else f.getlength(ch) for ch in text)
-
-
 def tokens(text):
-	out = []
+	"""Words and `code` spans, each with whether it touches the one before (no space between them in the text), so
+	"`Workspace`," keeps its comma against the code."""
+	out, before = [], ''
 	for i, part in enumerate(text.split('`')):
 		if i % 2:
-			out.append((part, True))
+			out.append((part, True, bool(out) and not before.endswith(' ')))
 		else:
-			out += [(w, False) for w in part.split(' ') if w]
+			for j, w in enumerate(part.split(' ')):
+				if w:
+					out.append((w, False, j == 0 and bool(out)))
+		before = part
 	return out
 
 
@@ -159,13 +124,14 @@ def draw_rich(d, x, y, text, f, size, mono_size, color, max_x, line_h, max_lines
 	mono = ImageFont.truetype(MONO, mono_size)
 	space = f.getlength(' ')
 	lines, line, width = [], [], 0
-	for tok, code in tokens(text):
+	for tok, code, glued in tokens(text):
 		tw = mono.getlength(tok) + 16 if code else text_width(tok, f, size)
-		add = tw + (space if line else 0)
-		if line and x + width + add > max_x:
+		add = tw + (space if line and not glued else 0)
+		# A glued token (a comma after `code`) stays on its line.
+		if line and not glued and x + width + add > max_x:
 			lines.append(line)
 			line, width, add = [], 0, tw
-		line.append((tok, code, tw))
+		line.append((tok, code, tw, glued))
 		width += add
 	if line:
 		lines.append(line)
@@ -173,7 +139,9 @@ def draw_rich(d, x, y, text, f, size, mono_size, color, max_x, line_h, max_lines
 		raise SystemExit(f'Too long ({len(lines)} lines, at most {max_lines}): {text}')
 	for line in lines:
 		cx = x
-		for tok, code, tw in line:
+		for k, (tok, code, tw, glued) in enumerate(line):
+			if k and glued:
+				cx -= space
 			if code:
 				d.rounded_rectangle((cx, y + 3, cx + tw, y + line_h - 3), radius=7, fill=CODE_BG)
 				d.text((cx + 8, y + (line_h - mono_size) / 2 - 2), tok, font=mono, fill=CODE_FG)
@@ -252,11 +220,6 @@ def sentences(step_id):
 		yield chunk
 
 
-def srt_time(s):
-	ms = int(round(s * 1000))
-	return f'{ms // 3600000:02d}:{ms // 60000 % 60:02d}:{ms // 1000 % 60:02d},{ms % 1000:03d}'
-
-
 def main():
 	OUT.mkdir(parents=True, exist_ok=True)
 	webm = WORK / 'run/recording.webm'
@@ -319,6 +282,13 @@ def main():
 		for chunk in sentences(step_id):
 			cues.append((st + 0.05 + chunk[0]['a'], st + 0.05 + chunk[-1]['b'] + 0.25, ' '.join(w['w'] for w in chunk)))
 	(OUT / 'timeline-out.json').write_text(json.dumps({'duration': DURATION, 'steps': step_times, 'looks': looks, 'cuts': CUT_BADGES}, indent=1))
+	# Every ctx.look with its box in this video's pixels (the band is the top BAND), for a flag's "box".
+	marked = []
+	for e in events:
+		if e['kind'] == 'look' and e['v'] >= START and not in_cut(e['v'] - START):
+			t, b = out_time(e['v'] - START), e['box']
+			marked.append({'t': round(t, 2), 'step': step_at(t), 'box': [round(b['x'] * SCALE), round(b['y'] * SCALE) + BAND, round(b['width'] * SCALE), round(b['height'] * SCALE)]})
+	(OUT / 'looks.json').write_text(json.dumps(marked, indent=1))
 	(OUT / f'{NAME}.srt').write_text(''.join(f'{i}\n{srt_time(a)} --> {srt_time(min(b, cues[i][0] if i < len(cues) else b))}\n{text}\n\n' for i, (a, b, text) in enumerate(cues, start=1)))
 	subprocess.run([FFMPEG, '-v', 'error', '-y', '-i', str(mp4), '-c:v', 'libvpx-vp9', '-b:v', '0', '-crf', '34', '-row-mt', '1', '-deadline', 'good', '-cpu-used', '4', '-c:a', 'libopus', '-b:a', '96k', str(OUT / f'{NAME}.webm')], check=True)
 	print(f'{n} frames, {DURATION:.1f} s: {mp4}')

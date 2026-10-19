@@ -1,11 +1,6 @@
 {
-	"setup": "Open a folder, start a local web server, and turn on this setting.",
+	"setup": "Open a folder, start a local web server, and turn the setting on.",
 	"open": "Paste a file link into Quick Open: it offers to open it. Press Enter: the file opens here, on line three.",
 	"side": "From the README, paste the same link and press Option Enter: it opens beside it, and the README stays.",
-	"handlers": "For a localhost link, with the shared setting on, the side button opens it in the integrated browser, next to the README.",
-	"address": "In its address bar, the link keeps its query and fragment.",
-	"reuse": "A second localhost link, with the side button again, opens as a new tab in that same browser group. The README stays visible.",
-	"prefixes": "File names still work, even with a line number. So do prefixes, like commands and symbols.",
-	"invalid": "A malformed link shows Invalid Link, and Enter does nothing.",
-	"missing": "A link to a missing file reports that the file wasn't found. Cancel closes it."
+	"handlers": "For a localhost link, with the shared setting on, the side button opens it in the integrated browser, next to the README."
 }

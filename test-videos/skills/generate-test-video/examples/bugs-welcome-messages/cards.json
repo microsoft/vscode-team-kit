@@ -2,8 +2,8 @@
 	"verdict": {
 		"status": "verified",
 		"headline": "All 3 fixes verified: `${name}` fills in, phrases rotate across reloads, an empty replace list hides the message.",
-		"build": "Insiders 1.143.0 · a0c6520313 · Oct 17",
-		"not_covered": "Windows and Linux; other checks of the withdrawn TPI #342066.",
+		"build": "Insiders 1.143.0 · 341e0fa934 · Oct 19",
+		"not_covered": "Windows and Linux; the setting’s description; other checks of the withdrawn TPI #342066.",
 		"say": "Verified: all three fixes work in this Insiders build."
 	}
 }

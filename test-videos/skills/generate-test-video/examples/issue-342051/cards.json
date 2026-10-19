@@ -1,40 +1,23 @@
 {
 	"verdict": {
 		"status": "partial",
-		"headline": "Criteria 1, 2, 4, the PR’s side-group reuse and the invalid-link feedback pass; criterion 3 in part.",
-		"build": "Insiders 1.143.0 · a0c6520313 · Oct 17",
+		"headline": "Criteria 1 and 2 pass, and criterion 3 in part.",
+		"build": "Insiders 1.143.0 · 341e0fa934 · Oct 19",
 		"why": [
-			"Not run: the setting turned off, a choice between several handlers, and an unhandled link’s warning.",
-			"Each can send the link to the system browser or another app, which this recording never does."
+			"Not shown: criterion 4, left out of this short example, and the cases that can send the link outside VS Code: the setting off, several handlers, the warning."
 		],
-		"not_covered": "the setting off (system browser); a choice between several contributed handlers; the “could not be opened” warning; HTTPS localhost (HTTP here); Windows and Linux",
-		"say": "Partly verified: criteria one, two and four pass, and the browser’s side group is reused; criterion three in part. The setting turned off, several handlers and the warning aren’t run: they can send the link outside VS Code."
+		"not_covered": "criterion 4; the setting off; several handlers; the “could not be opened” warning; HTTPS localhost; Windows and Linux",
+		"say": "Partly verified: criteria one and two pass, and criterion three in part. Criterion four is left out of this short example, and so is anything that can send the link outside VS Code."
 	},
-	"watch": [
-		{
-			"tag": "CHECK THIS",
-			"title": "On macOS, the hint says “Alt”",
-			"detail": "The Open Link row says “Hold Alt while accepting to open to the side.” Elsewhere this window shows that key as ⌥, as in `[⌥] Split Editor Down`.",
-			"image": {
-				"from": "video",
-				"t": 7.0,
-				"crop": [
-					596,
-					258,
-					730,
-					108
-				],
-				"marks": [
-					[
-						654,
-						328,
-						25,
-						20
-					]
-				],
-				"caption": "Step 1: the Open Link row"
-			},
-			"say": "Check this: on a Mac, the hint says Alt, while the rest of the window shows the Option key."
-		}
-	]
+	"recap": {
+		"label": "TO CHECK",
+		"items": [
+			{
+				"flag": 1,
+				"kind": "check",
+				"title": "On macOS, the Open Link hint says “Alt”, not ⌥"
+			}
+		],
+		"say": "One thing to check: on a Mac, the Open Link hint says Alt, while the rest of the window shows the Option key."
+	}
 }

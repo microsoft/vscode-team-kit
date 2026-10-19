@@ -16,12 +16,6 @@
 			"look": "`\"sessions.chat.experimental.welcomeMessages\": {` `\"mode\": \"replace\",` `\"phrases\": [\"Hello ${name}\", \"Ready, ${name}?\", \"${name}, let's begin\"] }`",
 			"zoom": false
 		},
-		"b1desc": {
-			"label": "#339711 · 1 OF 3",
-			"do": "Hover the heading: its pencil → Phrases.",
-			"look": "The setting's description uses `${name}` for the name",
-			"zoom": 2
-		},
 		"b2": {
 			"label": "#339712 · 2 OF 3",
 			"do": "Set this, then reload a few times (⇧⌘P Developer: Reload Window). Each reload shows the next phrase; yours come after the 5 built-in ones. The title's `welcomeName` means `welcomeMessages` here.",

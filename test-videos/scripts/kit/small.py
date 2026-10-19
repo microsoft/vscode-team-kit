@@ -1,14 +1,10 @@
-"""Small JPEGs to look at. Every image an agent opens is kept, at full size, in the session's history, and a 2 GB
-history crashed the session that built this kit. So open only small JPEGs, at most 1280 px wide.
+"""Small JPEGs (at most 1280 px wide) to look at instead of full-size pictures, which stay in an agent's history.
 
     $PY small.py <image> [--crop x,y,w,h]
-        One image (a probe, a shot, a frame) -> <image>-small.jpg, or <image>-crop-x-y-w-h.jpg. A crop is in the
-        image's own pixels and keeps full detail up to 1280 px wide: use it to read small text or check a detail.
+        One image -> <image>-small.jpg, or <image>-crop-x-y-w-h.jpg: a crop in the image's own pixels, in full detail.
         A tall image becomes pages of at most 1400 px: -small-1.jpg, -small-2.jpg, ...
     $PY small.py --video <mp4> <out dir> [--every <s>] [--from <s>] [--to <s>]
-        Frames of a video, one every <s> seconds (default 1), six to a page (2 x 3), each labeled with its time:
-        <out dir>/sheet-01.jpg, ... For one moment in full detail:
-        ~/.cache/test-videos/bin/ffmpeg -v error -ss <s> -i <mp4> -frames:v 1 /tmp/f.png && $PY small.py /tmp/f.png --crop x,y,w,h
+        Frames every <s> seconds (default 1), six to a page, each labeled with its time: <out dir>/sheet-01.jpg, ...
 """
 import subprocess
 import sys
@@ -16,7 +12,9 @@ import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+sys.dont_write_bytecode = True
+
+from PIL import Image, ImageDraw, ImageFont  # noqa: E402
 
 import env
 

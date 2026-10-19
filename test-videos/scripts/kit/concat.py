@@ -12,7 +12,9 @@ import sys
 import tempfile
 from pathlib import Path
 
-import env
+sys.dont_write_bytecode = True
+
+import env  # noqa: E402
 
 FFMPEG = env.ffmpeg()
 
@@ -21,12 +23,6 @@ def composed(work):
 	captions = json.loads((work / 'captions.json').read_text())
 	name = captions.get('name') or f'{work.name}-how-to-test'
 	return work / 'out' / f'{name}.mp4', work / 'out' / f'{name}.srt', name
-
-
-def secs(ts):
-	h, m, rest = ts.split(':')
-	s, ms = rest.split(',')
-	return int(h) * 3600 + int(m) * 60 + int(s) + int(ms) / 1000
 
 
 def stamp(s):
@@ -49,11 +45,15 @@ with tempfile.TemporaryDirectory() as tmp:
 	subprocess.run([FFMPEG, '-v', 'error', '-y', '-f', 'concat', '-safe', '0', '-i', str(listing), '-c:v', 'libx264', '-preset', 'medium', '-crf', '20', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '160k', '-movflags', '+faststart', str(mp4)], check=True)
 cues, offset = [], 0.0
 timeline = {'duration': 0.0, 'steps': [], 'looks': [], 'cuts': [], 'parts': []}
+marked = []
 for part in parts:
 	video, srt, _ = composed(part)
+	part_looks = part / 'out' / 'looks.json'
+	if part_looks.exists():
+		marked += [dict(look, t=round(look['t'] + offset, 2)) for look in json.loads(part_looks.read_text())]
 	for block in srt.read_text().strip().split('\n\n'):
 		lines = block.split('\n')
-		a, b = (secs(x.strip()) for x in lines[1].split('-->'))
+		a, b = (env.secs(x.strip()) for x in lines[1].split('-->'))
 		cues.append((a + offset, b + offset, ' '.join(lines[2:])))
 	part_timeline = part / 'out' / 'timeline-out.json'
 	t = json.loads(part_timeline.read_text()) if part_timeline.exists() else {}
@@ -65,6 +65,7 @@ for part in parts:
 	offset += env.duration(video)
 timeline['duration'] = offset
 (out / 'timeline-out.json').write_text(json.dumps(timeline, indent=1))
+(out / 'looks.json').write_text(json.dumps(marked, indent=1))
 (out / f'{name}.srt').write_text(''.join(f'{i}\n{stamp(a)} --> {stamp(b)}\n{text}\n\n' for i, (a, b, text) in enumerate(cues, start=1)))
 subprocess.run([FFMPEG, '-v', 'error', '-y', '-i', str(mp4), '-c:v', 'libvpx-vp9', '-b:v', '0', '-crf', '34', '-row-mt', '1', '-deadline', 'good', '-cpu-used', '4', '-c:a', 'libopus', '-b:a', '96k', str(out / f'{name}.webm')], check=True)
 print(f'{len(parts)} parts, {offset:.1f} s: {mp4}')

@@ -1,7 +1,6 @@
 """Drawing, picture and voice helpers shared by cards.py (the verdict and end slides) and flags.py (the in-video flags)."""
 import json
 import re
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -18,8 +17,11 @@ FONTS = Path('/Applications/Microsoft Word.app/Contents/Resources/DFonts')
 if not FONTS.exists():
 	FONTS = Path('/Applications/Microsoft PowerPoint.app/Contents/Resources/DFonts')
 SYMBOLS = '/System/Library/Fonts/SFNS.ttf'
+# San Francisco has no ↵: those come from Apple Symbols.
+SYMBOLS_MORE = '/System/Library/Fonts/Apple Symbols.ttf'
+FROM_MORE = set('\u21b5')
 MONO = '/System/Library/Fonts/Menlo.ttc'
-SYMBOL_CHARS = set('\u2318\u21e7\u2325\u2303\u21b5\u238b')
+SYMBOL_CHARS = set('\u2318\u21e7\u2325\u2303\u21b5\u238b\u23ce')
 
 BG, LINE, GRAY, TEXT, SOFT = (13, 17, 23), (48, 54, 61), (139, 148, 158), (240, 246, 252), (201, 209, 217)
 BLUE, CODE_BG, CODE_FG, FRAME = (88, 166, 255), (33, 38, 45), (255, 166, 87), (110, 118, 129)
@@ -31,9 +33,12 @@ def font(name, size):
 	return ImageFont.truetype(str(path), size) if path.exists() else ImageFont.truetype(SYMBOLS, size)
 
 
+def symbol_font(ch, size):
+	return ImageFont.truetype(SYMBOLS_MORE if ch in FROM_MORE else SYMBOLS, size)
+
+
 def draw_text(d, x, y, text, f, color, size):
-	"""Text in Aptos, with the characters Aptos lacks (the modifier keys) in San Francisco."""
-	symbols = ImageFont.truetype(SYMBOLS, size)
+	"""Text in Aptos, with the characters Aptos lacks (the modifier keys) in the system's symbol fonts."""
 	run = ''
 	for ch in text + '\0':
 		if ch in SYMBOL_CHARS or ch == '\0':
@@ -42,6 +47,7 @@ def draw_text(d, x, y, text, f, color, size):
 				x += f.getlength(run)
 				run = ''
 			if ch in SYMBOL_CHARS:
+				symbols = symbol_font(ch, size)
 				d.text((x, y + size * 0.06), ch, font=symbols, fill=color)
 				x += symbols.getlength(ch)
 		else:
@@ -50,8 +56,7 @@ def draw_text(d, x, y, text, f, color, size):
 
 
 def text_width(text, f, size):
-	symbols = ImageFont.truetype(SYMBOLS, size)
-	return sum(symbols.getlength(ch) if ch in SYMBOL_CHARS else f.getlength(ch) for ch in text)
+	return sum(symbol_font(ch, size).getlength(ch) if ch in SYMBOL_CHARS else f.getlength(ch) for ch in text)
 
 
 def tokens(text):

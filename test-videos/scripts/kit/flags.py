@@ -1,39 +1,19 @@
-"""Flags problems inside a finished how-to video. At each flag's moment the video pauses on that frame: everything but
-the problem dims, the problem gets an outline, a callout explains it, and the voice says it in a sentence. Then the
-video plays on.
+"""Pauses a finished how-to video at each problem in flags.json (its fields are in the skill's slides.md): the frame
+holds, everything but the problem dims, the problem is outlined, a callout explains it and the voice says it.
 
     $PY flags.py <work dir> [--preview]
 
-<work dir> holds the finished video (captions.json "name", out/<name>.mp4, .srt and timeline-out.json, as written by
-compose.py or concat.py) and flags.json:
-
-{
-	"flags": [
-		{
-			"t": 19.5,                          the moment, in seconds of out/<name>.mp4: the pause snaps to the nearest gap
-			                                    in the voice (within 1.5 s; "snap": false pauses exactly at "t")
-			"kind": "bug",                      fail | change | bug | check: the colors and the default tag
-			"tag": "LIKELY BUG",                optional: another tag
-			"box": [x, y, w, h],                the problem, in the video's 1920x1330 pixels (the band is the top 250)
-			"marks": [[x, y, w, h]],            optional: dashed outlines, for example where something was before
-			"title": "…", "detail": "…",        the callout (`code` allowed); keep it short: it's read during the pause
-			"image": {…},                       optional: a picture in the callout, as in cards.json
-			"at": "right",                      optional: right | left | below | above; picked to fit if omitted
-			"say": "…"                          the voice line
-		}
-	]
-}
-
-Writes <work>/flagged/: out/<name>.mp4, .srt and timeline-out.json, the video with the pauses, which cards.py then uses
-in place of out/<name>.mp4. --preview only writes flagged/preview-<n>.jpg (each paused frame with its flag, small) and
-prints where each pause snapped: look at them first.
+Writes flagged/out/<name>.mp4, .srt and timeline-out.json, which cards.py then uses. --preview only writes
+flagged/preview-<n>.jpg (each paused frame with its flag) and prints where each pause snapped.
 """
 import json
 import subprocess
 import sys
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+sys.dont_write_bytecode = True
+
+from PIL import Image, ImageDraw  # noqa: E402
 
 import env
 
@@ -60,6 +40,9 @@ MAIN_MP4 = WORK / 'out' / f'{NAME}.mp4'
 MAIN_SRT = WORK / 'out' / f'{NAME}.srt'
 TIMELINE = json.loads((WORK / 'out/timeline-out.json').read_text())
 FLAGS = json.loads((WORK / 'flags.json').read_text())['flags']
+if not FLAGS:
+	print('no flags: nothing to pause; cards.py uses out/ as it is')
+	sys.exit(0)
 OUT = WORK / 'flagged'
 
 
@@ -229,6 +212,8 @@ def main():
 		tag = flag.get('tag', KINDS[flag['kind']][0])
 		(folder / 'captions.json').write_text(json.dumps({'name': part_name, 'title': TITLE, 'steps': {flag_id: {'label': tag, 'do': flag['read']}}}, indent=1))
 		print(f'  {flag_id}: pause at {flag["cut"]:.2f} s for {seconds:.1f} s ({take["seconds"]:.1f} s of voice, {words(flag["read"])} words to read)')
+		if seconds > 8:
+			print(f'  {flag_id}: a {seconds:.1f} s pause is long: shorten its "say" to one sentence, or its title and detail')
 
 	# One pass: the video cut at each pause, with the pauses in between.
 	cuts = sorted({f['cut'] for f in flags})
