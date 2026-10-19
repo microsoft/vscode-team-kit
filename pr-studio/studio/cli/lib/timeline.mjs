@@ -81,7 +81,9 @@ export function estimateTimeline(storyboard, facts, { leadIn = 0.6, gap = 0.35, 
 			}
 			return { i, display, spoken: display, a: +a.toFixed(3), b: +b.toFixed(3) };
 		});
-		const end = words.at(-1).b;
+		// A hold keeps the beat on screen after its last word, in silence, so what it shows can be read.
+		const end = words.at(-1).b + (beat.hold ?? 0);
+		t = Math.max(t, end);
 		const cues = {};
 		for (const [name, value] of Object.entries(beat.cues ?? {})) {
 			const spec = cueSpec(value, facts);

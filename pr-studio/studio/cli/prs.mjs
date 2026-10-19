@@ -15,10 +15,13 @@ const HELP = `prs: pull request explainer videos
   prs voice [slug] [--provider p] [--redo beat,...]  narration + word timing; --redo voices those beats again (a fresh take)
   prs preview [slug] [--at t1,t2]    key frames + contact sheet in build/stills/, then lint
   prs publish [slug]                 lint, render, encode, captions file, sync gate, deliver, add to the history
+  prs review-pack [slug]             before each review round: the checks, cue timings, claims beside their lines and
+                                     stills, in build/review/round-<n>/; from round 2, only what changed (and its neighbours)
 
   The steps on their own:
   prs check [slug]                   check the storyboard: the length cap, cues, placeholders, evidence anchors
   prs file <slug> <path> [--base]    print any file of the repository at the PR's head commit (--base: before the PR)
+  prs app <slug> [--before]          the PR's VS Code Insiders build by commit (and the one before it), downloaded once: AFTER=<app>
   prs prepare [slug]                 verify every on-screen text and code reference; build the video page
   prs stills [slug] [--beat id] [--at t1,t2] [--ends]   key frames + contact sheet in build/stills/; --ends: one frame per beat, at its fullest
   prs lint [slug] [--every 0.5]      layout, text provenance, caption band, novelty, QR
@@ -28,12 +31,15 @@ const HELP = `prs: pull request explainer videos
   prs catalog [--stills | --sheet f] list the treatments (and render their stills, or all on one numbered picture)
   prs catalog --icons                the icon names a treatment's icon fields take
   prs history [--last n]             what recent videos used (the next one is picked to look different)
+  prs mark <slug> <step> [--deck]    note a step that isn't a command (review asked, verdict, capture done) in the run log
   prs smoke [--provider p]           make a short demo video end to end with timings (checks this machine)
 
 Slides (the presentation skill):
   prs deck new --pr <PR> [slug]         start a deck about a PR: fetches it, fills the title card and the status (with its QR code)
   prs deck new <slug> [--title "..."]   start a deck on any topic in decks/<slug>/ (deck.mjs: the slides as plain data)
   prs deck build [slug] [--no-deliver]  PDF, one PNG per page, contact sheet, notes, checks; deliver to ~/Downloads/pr-decks/
+  prs deck review <slug>                before each review round: the checks and every slide with its notes and sources, in
+                                        decks/<slug>/review/round-<n>/; from round 2, only the slides that changed
   prs deck grid <slug> <assets/x.png> [--vs <assets/y.png>]
                                         the picture with a grid of its pixels, to read crop, pin and ring positions;
                                         --vs: where a before and an after of the same screen differ
@@ -83,12 +89,50 @@ function parseArgs(argv) {
 	return args;
 }
 
+/** What this run is about, for its run log: a video's slug or a deck's. */
+const RUN = { slug: null, deck: null };
+
+/** The run log of a video (build/run-log.jsonl) or a deck (decks/<slug>/run-log.jsonl): every command and step, timed. */
+function runLog({ slug, deck }) {
+	if (deck) {
+		const dir = path.join(ROOT, 'decks', deck);
+		return fs.existsSync(dir) ? path.join(dir, 'run-log.jsonl') : null;
+	}
+	if (slug && fs.existsSync(videoDir(slug))) {
+		fs.mkdirSync(path.join(videoDir(slug), 'build'), { recursive: true });
+		return path.join(videoDir(slug), 'build', 'run-log.jsonl');
+	}
+	return null;
+}
+
+function appendRunLog(target, entry) {
+	const file = runLog(target);
+	if (file) {
+		fs.appendFileSync(file, `${JSON.stringify(entry)}\n`);
+	}
+}
+
 async function main() {
 	guardOffline();
 	markUsed();
 	const [cmd, ...rest] = process.argv.slice(2);
 	const args = parseArgs(rest);
-	const slugArg = () => resolveSlug(args._[0]);
+	const started = new Date();
+	let failed = false;
+	try {
+		await run(cmd, args);
+	} catch (error) {
+		failed = true;
+		throw error;
+	} finally {
+		if (cmd && !['help', '--help', 'mark', 'doctor', 'catalog', 'history', 'smoke'].includes(cmd)) {
+			appendRunLog(RUN, { at: started.toISOString(), cmd, args: rest.join(' ').slice(0, 200), seconds: +((Date.now() - started) / 1000).toFixed(1), exit: failed ? 1 : (process.exitCode ?? 0) });
+		}
+	}
+}
+
+async function run(cmd, args) {
+	const slugArg = () => (RUN.slug = resolveSlug(args._[0]));
 	// The repository's own commands (changelog, Slack requests, the gallery): the plugin's copy has no repo.mjs.
 	if (fs.existsSync(fileURLToPath(new URL('./repo.mjs', import.meta.url)))) {
 		const repo = await import('./repo.mjs');
@@ -118,6 +162,7 @@ async function main() {
 		case 'new': {
 			const { newVideo } = await import('./lib/fetch.mjs');
 			const { ref, data, code, reused } = await timed(null, 'new', () => newVideo(args._[0], args._[1], { force: !!args.force }));
+			RUN.slug = ref.slug;
 			console.log(`videos/${ref.slug}: ${data.facts.title}${reused ? ' (downloaded before this run: offline)' : ''}`);
 			console.log(`  +${data.facts.additions} \u2212${data.facts.deletions} in ${data.facts.changedFiles} files \u00b7 head ${data.facts.headSha9} \u00b7 ${data.tier.name}: ${data.tier.beats} beats to start from, at most ${CAP.fileSeconds} s`);
 			if (code) {
@@ -153,7 +198,7 @@ async function main() {
 		}
 		case 'file': {
 			// Any file of the repository at the PR's head commit (or --base, before the PR), for behaviour outside the diff.
-			const slug = resolveSlug(args._[0]);
+			const slug = slugArg();
 			const file = args._[1];
 			if (!file) {
 				throw new Error('Usage: prs file <slug> <path in the repository> [--base]');
@@ -228,6 +273,19 @@ async function main() {
 			await timed(slug, 'publish', () => publish(slug, { skipSync: !!args['skip-sync'] }));
 			return;
 		}
+		case 'app': {
+			const slug = slugArg();
+			const { app } = await import('./lib/app.mjs');
+			await timed(slug, 'app', () => app(slug, { before: !!args.before }));
+			return;
+		}
+		case 'review-pack': {
+			const slug = slugArg();
+			await (await import('./lib/doctor.mjs')).ensureTools();
+			const { reviewPack } = await import('./lib/review.mjs');
+			await timed(slug, 'review-pack', () => reviewPack(slug));
+			return;
+		}
 		case 'catalog': {
 			if (args.stills || args.sheet) {
 				await (await import('./lib/doctor.mjs')).ensureTools();
@@ -248,8 +306,23 @@ async function main() {
 			return;
 		}
 		case 'deck': {
-			const { deckCommand } = await import('./lib/deck.mjs');
+			const { deckCommand, deckOfCommand } = await import('./lib/deck.mjs');
+			RUN.deck = deckOfCommand(args);
 			process.exitCode = await deckCommand(args);
+			return;
+		}
+		case 'mark': {
+			// A step that isn't a prs command (a review asked or answered, a capture done), for the run log.
+			const [slug, step] = args._;
+			if (!slug || !step) {
+				throw new Error('Usage: prs mark <slug> <step> [--deck] [--note "..."]');
+			}
+			const target = args.deck ? { deck: slug } : { slug: resolveSlug(slug) };
+			if (!runLog(target)) {
+				throw new Error(`No ${args.deck ? 'deck' : 'video'} "${slug}"`);
+			}
+			appendRunLog(target, { at: new Date().toISOString(), mark: step, ...(typeof args.note === 'string' ? { note: args.note.slice(0, 200) } : {}) });
+			console.log(`${step}: noted in the run log`);
 			return;
 		}
 		default:

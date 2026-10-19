@@ -454,6 +454,22 @@ export function prChecks(pages, pr) {
 				}
 			}
 		}
+		// The speaker notes too: their code names and paths (the deck's own pictures, in assets/, are fine).
+		const said = [s.notes, s.say, ...(Array.isArray(s.clicks) ? s.clicks.map(c => c?.say) : [])].filter(x => typeof x === 'string');
+		for (const text of said) {
+			for (const m of text.matchAll(/`([^`]+)`/g)) {
+				const parts = m[1].split(/\u2026|\.\.\./).map(x => x.trim()).filter(x => x.length >= 3);
+				if (parts.length > 1 ? parts.some(x => !known(x)) : !known(m[1])) {
+					out.push({ n: i + 1, kind: 'inline code in the notes not in the PR (check the spelling against the diff)', text: m[1].slice(0, 90) });
+				}
+			}
+			const rest = text.replace(/`[^`]+`/g, ' ').replace(/https?:\/\/\S+/g, ' ');
+			for (const m of rest.matchAll(/(?:[\w.-]+\/)+[\w.-]+\.[a-z]{1,5}\b/gi)) {
+				if (!known(m[0]) && !/^(?:assets|designs)\//.test(m[0])) {
+					out.push({ n: i + 1, kind: 'a path in the notes the PR doesn\'t have', text: m[0] });
+				}
+			}
+		}
 	});
 	return out;
 }

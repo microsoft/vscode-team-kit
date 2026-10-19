@@ -30,6 +30,19 @@ function resolveDeck(arg) {
 	return all.sort((a, b) => fs.statSync(path.join(root, b, 'deck.mjs')).mtimeMs - fs.statSync(path.join(root, a, 'deck.mjs')).mtimeMs)[0];
 }
 
+/** The deck a `prs deck` command is about, for its run log; null when there is none (or none yet). */
+export function deckOfCommand(args) {
+	const [sub, first] = args._;
+	try {
+		if (sub === 'new') {
+			return first ?? (typeof args.pr === 'string' ? parsePrRef(args.pr).slug : null);
+		}
+		return ['build', 'grid', 'review'].includes(sub) ? resolveDeck(first) : null;
+	} catch {
+		return null;
+	}
+}
+
 function template({ title, ref }) {
 	const q = text => `'${String(text).replace(/\\/g, '\\\\').replace(/'/g, '\\\'')}'`;
 	return `// ${title}: the slides as plain data. Build it with prs deck build. Layouts and their fields: layouts.md of the
@@ -376,6 +389,11 @@ export async function deckCommand(args) {
 		}
 		case 'samples':
 			return (await buildSamples({ pdf: !args['no-pdf'] })) ? 0 : 1;
+		case 'review': {
+			const { deckReviewPack } = await import('./review.mjs');
+			await deckReviewPack(deckDir(resolveDeck(rest[0])));
+			return 0;
+		}
 		case 'grid':
 			await gridPicture(resolveDeck(rest[0]), rest[1], { vs: args.vs });
 			return 0;
@@ -386,7 +404,7 @@ export async function deckCommand(args) {
 			return 0;
 		}
 		default:
-			console.error('prs deck new --pr <PR> [slug] | new <slug> [--title "..."] | build [slug] [--no-deliver] | grid <slug> <assets/x.png> [--vs <assets/y.png>] | samples | list');
+			console.error('prs deck new --pr <PR> [slug] | new <slug> [--title "..."] | build [slug] [--no-deliver] | review <slug> | grid <slug> <assets/x.png> [--vs <assets/y.png>] | samples | list');
 			return 2;
 	}
 }

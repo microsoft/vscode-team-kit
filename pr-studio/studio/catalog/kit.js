@@ -24,7 +24,8 @@ export function header(root, p, ctx) {
  */
 export function spread(ctx, items, { lead = 0.8, tail = 1.2, key = 'at' } = {}) {
 	const s = ctx.beat.start + lead;
-	const e = Math.max(s + 0.4, ctx.beat.end - tail);
+	// Over the spoken part of the beat: its hold, if any, is left for reading what came in.
+	const e = Math.max(s + 0.4, ctx.beat.end - (ctx.beat.hold ?? 0) - tail);
 	return items.map((item, i) => (item?.[key] !== undefined && item?.[key] !== null
 		? ctx.at(item[key])
 		: items.length === 1 ? s : lerp(s, e, i / (items.length - 1))));

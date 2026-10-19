@@ -63,13 +63,13 @@ test('the samples show every built-in layout', async () => {
 	assert.deepEqual(Object.keys(BUILT_IN).filter(name => !used.has(name) && name !== 'html'), []);
 });
 
-test('a deck about a PR: its status comes from the PR, and code or paths the PR lacks are flagged', () => {
+test('a deck about a PR: its status comes from the PR, and code or paths the PR lacks are flagged, in the notes too', () => {
 	const facts = { authorLogin: 'mona', authorName: 'Mona Lisa', commitCount: 2, reviewers: ['mona', 'hubot', 'copilot-pull-request-reviewer[bot]'], approvers: ['hubot'], reviewDecision: 'APPROVED', state: 'MERGED', createdAt: '2026-10-15T07:59:00Z', mergedAt: '2026-10-15T09:29:39Z' };
 	const open = { ...facts, reviewers: [], reviewDecision: 'REVIEW_REQUIRED', state: 'OPEN', updatedAt: '2026-10-14T10:00:00Z' };
 	const slide = (n, s) => ({ s, first: true, reveal: false, slideNo: n });
 	const pages = [
 		slide(1, { layout: 'code', file: 'cache.ts', code: 'if (fresh) {\n\treturn cached; // \u2026\n}\nreturn compute();' }),
-		slide(2, { layout: 'statement', text: 'Uses `readCache` and `writeCacheFast` in src/cache.ts and src/missing.ts', notes: '`notChecked` in the notes' }),
+		slide(2, { layout: 'statement', text: 'Uses `readCache` and `writeCacheFast` in src/cache.ts and src/missing.ts', notes: '`readCache` and `readCash` in the notes; the picture is assets/before.png, the code src/gone.ts' }),
 	];
 	const pr = { paths: ['src/cache.ts'], corpus: '+ if (fresh) { + return cached; // keep it + } return computeAll(); readCache' };
 	assert.deepEqual({
@@ -85,7 +85,7 @@ test('a deck about a PR: its status comes from the PR, and code or paths the PR 
 		notes: 'Opened on 15 Oct 2026 by @mona (Mona Lisa); reviewed by @hubot, Copilot; approved by @hubot; merged on 15 Oct 2026, 91 minutes after it was opened.',
 		spans: ['2 hours 48 minutes', '2 hours', '3 days'],
 		open: ['Opened', 'Review required', 'Not merged yet'],
-		problems: ['1 return compute();', '2 writeCacheFast', '2 src/missing.ts'],
+		problems: ['1 return compute();', '2 writeCacheFast', '2 src/missing.ts', '2 readCash', '2 src/gone.ts'],
 	});
 });
 

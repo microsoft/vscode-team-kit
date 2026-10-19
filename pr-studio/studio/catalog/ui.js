@@ -85,6 +85,27 @@ export const toasts = defineTreatment({
 });
 
 /**
+ * The time in a recording to show at video time t, for a clip with marked actions: anchors are { T: the cue's time in
+ * the video, r: the mark's time in the recording }. Each action plays at 1x from its cue; the frame just before the next
+ * mark holds until that mark's cue (or the rest of the wait is cut when the cue comes sooner); before the first anchor
+ * the recording leads into it at 1x, holding its first frame; after the last one it plays on and holds its end.
+ */
+export function footageTime(anchors, t) {
+	const first = anchors[0];
+	if (t <= first.T) {
+		return Math.max(0, first.r - (first.T - t));
+	}
+	for (let k = 0; k < anchors.length; k++) {
+		const a = anchors[k], b = anchors[k + 1];
+		if (!b || t < b.T) {
+			const r = a.r + (t - a.T);
+			return b ? Math.min(r, b.r - 1 / 30) : r;
+		}
+	}
+	return 0;
+}
+
+/**
  * The real app, recorded with Playwright: one recording, or the same steps before and after the change side by side.
  * prs prepare extracts each clip's frames (30 a second, cropped) into build/footage/; this shows the one for each time.
  */
@@ -92,10 +113,10 @@ export const footage = defineTreatment({
 	id: 'ui.footage',
 	need: 'ui',
 	name: 'Footage of the real app',
-	when: 'The real app doing what the PR is about, recorded with Playwright: one recording, or the same steps before and after the change, side by side. Only for a beat with "footage": true in the storyboard (prs direct gives it this). Each clip starts playing on its at cue and holds its last frame; the narration says what happens as it happens.',
+	when: 'The real app doing what the PR is about, recorded with Playwright (the capture kit): one recording, or the same steps before and after the change, side by side. Only for a beat with "footage": true in the storyboard (prs direct gives it this). With marks, each marked action plays at its cue (record it any time, even before the voice); without, the clip starts playing at its at cue. Each holds its last frame; the narration says what happens as it happens.',
 	params: {
 		eyebrow: 'label', title: 'label',
-		after: '{ src, from, to, at, speed, label, note, crop }  (src: the recording, in footage/; from, to: the seconds of it to show; at: when it starts playing; speed: 1 by default; crop: [x, y, w, h] in its pixels)',
+		after: '{ src, marks, from, to, at, speed, label, note, crop }  (src: the recording, in footage/; marks: { <mark from k.mark()>: <cue> }, each action at its cue, at real speed; or at: when it starts playing, and speed (1 by default); from, to: the seconds of it to show; crop: [x, y, w, h] in its pixels)',
 		before: 'the same, recorded without the change (optional): the two start at the same action',
 		layout: "'columns' (default) or 'rows' (for a part that changes that is wide and short)",
 	},
@@ -128,7 +149,13 @@ export const footage = defineTreatment({
 			box.dataset.box = 'card';
 			const img = el('img', '', box, { position: 'absolute', left: 0, top: 0, width: w, height: hgt, display: 'block' });
 			const note = s.spec.note ? txt(root, s.spec.note, 'st-abs', { left: x, top: y + hgt + 12, width: w, fontSize: 20, lineHeight: 1.3, color: C.body }, 'div') : null;
-			return { ...s, lab, box, img, note, start: ctx.at(s.spec.at, 0.4), speed: s.spec.speed ?? 1 };
+			// With marks: each marked action at its cue (in recording order); else from its at cue, at its speed.
+			const anchors = s.spec.marks ? Object.entries(s.spec.marks).map(([mark, cue]) => ({ mark, T: ctx.at(cue), r: s.meta.marks?.[mark] })).sort((a, b) => a.r - b.r) : null;
+			anchors?.forEach((a, n) => {
+				need(a.r !== undefined, `ui.footage: mark "${a.mark}" of the ${s.side} clip is not prepared (prs prepare reads the clip's marks)`);
+				need(n === 0 || a.T > anchors[n - 1].T, `ui.footage: mark "${a.mark}" comes after "${anchors[n - 1]?.mark}" in the ${s.side} recording, so its cue must come later too`);
+			});
+			return { ...s, lab, box, img, note, anchors, start: ctx.at(s.spec.at, 0.4), speed: s.spec.speed ?? 1 };
 		});
 		return { h, items };
 	},
@@ -141,7 +168,8 @@ export const footage = defineTreatment({
 			if (it.note) {
 				enter(it.note, t, at + 0.2, { dy: 6 });
 			}
-			const n = Math.min(it.meta.frames - 1, Math.floor(Math.max(0, t - it.start) * it.speed * 30));
+			const r = it.anchors ? footageTime(it.anchors, t) : Math.max(0, t - it.start) * it.speed;
+			const n = Math.min(it.meta.frames - 1, Math.max(0, Math.floor(r * 30)));
 			picture(it.img, `${it.meta.dir}/${String(n + 1).padStart(5, '0')}.jpg`);
 		});
 	},

@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.5.0 — 2026-10-19
+
+Faster to make. In side-by-side blind runs (the same agent and prompt, one PR each), a video took 19 minutes on average instead of 30: 22 instead of 29 for a visible change, and 6 instead of 37 for one nobody can see. A deck took 17 minutes instead of 20. Blind judges preferred the new output 4 times out of 6, and found no factual error in it, against 4 in 0.4.0's (in both, the title card's first frames show a total still counting up).
+
+- **The review reads a pack, and round 2 looks only at what changed.**
+  - `prs review-pack <slug>` (`prs deck review <slug>` for a deck) gathers what a reviewer checks: the lint and sync results, each beat's words and cues with what comes on screen when, each claim beside the line it rests on, and a still at every cue.
+  - From the second round on, the engine compares each beat or slide with the last round's and scopes the review to the must-fixes, what changed and its neighbours; much changed means a full round again.
+  - A nice-to-have is done only when it's cheap; the rest are listed as not done.
+- **Lint catches what reviewers used to.**
+  - Text on screen for less time than it takes to read before its beat leaves is a problem; an element shown well after the narration names it, and a beat showing only its heading, are warnings.
+  - `"hold": <s>` on a beat keeps it on screen after its last word.
+  - The deck build checks the speaker notes' code names and paths as it checks the slides.
+- **Capturing the app is a short script.**
+  - The capture kit (`studio/capture/kit.mjs`) owns the throwaway profile, its own `HOME` with the keychain linked, the sign-in copy, the settings, the window, the pointer, click rings and key badges, screenshots, and the cleanup. A script holds only the PR's steps (`args` adds launch arguments, such as a sample extension). A missing element names the closest ones and saves what the window showed.
+  - `prs app <slug> [--before]` finds the Insiders builds with and without a merged VS Code PR and downloads both at once, resuming a dropped download. The skills start it right after `prs new`, so the builds arrive while the story is written. Setup prunes builds unused for two weeks.
+- **Record once.** `k.mark(<cue>)` notes each action, and `ui.footage` plays each at its cue, at real speed, holding the result until the next. Capture needs only the storyboard, so it can run in a subagent while the voice and the scenes are made, and voicing again doesn't need a new recording.
+- **Fewer turns.** Each skill starts with the commands in order. The brief lists the settings and named constants the PR adds, each with its evidence ready to paste into a claim.
+- **Measured.** Every `prs` command adds its time and result to the video's or deck's `run-log.jsonl`; `prs mark` notes a step that isn't a command.
+
 ## 0.4.0 — 2026-10-19
 
 Smaller and simpler: the same videos and decks from a fraction of the instructions and the install.

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { codeKey, fact, label, quote, ident, path as pathText, code, resolvePart, textOf, walkRefs, formatFact } from '../engine/text.js';
 import { resolvePlaceholders, findPhrase, estimateTimeline, displayTokens } from '../cli/lib/timeline.mjs';
 import { parseDiff } from '../cli/lib/code.mjs';
-import { approversOf, deriveArea, isTestFile, lengthTier, prPictures, reviewDiscussion, symbolsFromDiff, testsFromDiff } from '../cli/lib/fetch.mjs';
+import { approversOf, constantsFromDiff, deriveArea, isTestFile, lengthTier, prPictures, reviewDiscussion, settingsFromDiff, symbolsFromDiff, testsFromDiff } from '../cli/lib/fetch.mjs';
 import { parsePrRef, voicePace } from '../cli/lib/common.mjs';
 import { defineVideo, defineTreatment, word } from '../engine/scene.js';
 
@@ -79,6 +79,23 @@ test('symbols and tests come out of the diff', () => {
 	assert.deepStrictEqual(sym.removed, ['old']);
 	assert.deepStrictEqual(sym.changed, ['Svc']);
 	assert.deepStrictEqual(testsFromDiff(files), [{ path: 't/x.test.ts', names: ['attaches the bearer'] }]);
+});
+
+test('the settings and named constants a PR adds, each with its evidence', () => {
+	const diff = [
+		'diff --git a/c.ts b/c.ts', '--- a/c.ts', '+++ b/c.ts', '@@ -1,3 +1,16 @@',
+		'+export const listSetting = \'files.list.enabled\';', '+const MAX_ROWS = 50;', '+const gap = 8;', ' class A {',
+		'+\tstatic readonly WIDTH: number = 260;', '+\t\tconst local = 3;', ' \tproperties: {',
+		'+\t\t[listSetting]: {', '+\t\t\ttype: \'boolean\',', '+\t\t\tdefault: false,', '+\t\t\tdescription: localize(\'k\', "Shows the list."),', '+\t\t},',
+		'+\t\t\'files.limit\': {', '+\t\t\tdefault: 100,', '+\t\t},', '+\t\tswitch (x) { default: break; }',
+		'diff --git a/t.test.ts b/t.test.ts', '--- a/t.test.ts', '+++ b/t.test.ts', '@@ -1 +1,2 @@', '+const LIMIT = 4;',
+	].join('\n');
+	const files = parseDiff(`${diff}\n`);
+	assert.deepStrictEqual(settingsFromDiff(files).map(s => [s.id, s.type, s.default, s.description, s.anchor]), [
+		['files.list.enabled', 'boolean', 'false', 'Shows the list.', '[listSetting]: {'],
+		['files.limit', null, '100', null, '\'files.limit\': {'],
+	]);
+	assert.deepStrictEqual(constantsFromDiff(files).map(c => c.anchor), ['const MAX_ROWS = 50', 'const gap = 8', 'static readonly WIDTH: number = 260']);
 });
 
 test('areas, tests and the length tier', () => {

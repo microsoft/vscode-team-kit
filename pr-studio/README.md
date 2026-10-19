@@ -15,15 +15,15 @@ Explainer videos and slide decks of pull requests, in one white Microsoft look, 
 
 1. **Get the engine** — `scripts/setup.mjs` copies `studio/` into `~/.cache/pr-studio/engine/<hash>/`, links one shared npm install for each lock file, and prints the folder.
    - Work in progress (`videos/<slug>/`, `decks/<slug>/`) lives in `~/.cache/pr-studio/work/`, outside the copies, so a newer plugin keeps it.
-   - Copies unused for a day, unused installs, and the render caches of work untouched for a week are pruned.
+   - Copies unused for a day, unused installs, Insiders builds unused for two weeks, and the render caches of work untouched for a week are pruned.
    - Delivered files in `~/Downloads/` are never touched.
 2. **Fetch the PR** — the description, commits, review discussion, diff and the changed files at the head commit.
-3. **Live UI** — when the PR changes something visible, the agent drives a build of the app with Playwright, in a throwaway profile. It records the interaction for the video, side by side with a build without the change when the behaviour changes, and saves a screenshot of each state for the deck.
+3. **Live UI** — when the PR changes something visible, the agent drives a build of the app with Playwright, in a throwaway profile, through the capture kit (`studio/capture/kit.mjs`): it owns the profile, the sign-in copy, the window, the pointer and the cleanup, so a script holds only the PR's steps. `prs app` downloads the Insiders builds with and without a VS Code PR once. The kit records the interaction for the video, with marks that play each action at its words, side by side with a build without the change when the behaviour changes, and saves a screenshot of each state for the deck.
 4. **Video** — the agent writes the narration, with evidence for every claim: the six answers (what changes, why, how it works, what it looks like or does, what could break and how it is tested, the status and where to start reading) and nothing else, in at most 90 seconds.
    - `prs direct` picks one of 24 diagram treatments for each beat, different from recent videos, and scaffolds the scenes.
-   - The engine voices and times the narration, checks every frame (layout, where every word comes from, captions), renders, and checks the audio against the captions.
+   - The engine voices and times the narration, checks every frame (layout, where every word comes from, captions, and whether on-screen text is up long enough to read), renders, and checks the audio against the captions.
 5. **Deck** — `prs deck new --pr` starts from the PR's real data: the title card, and the status with the PR's QR code. The agent writes as few slides as give the same six answers (at most 12), from 27 layouts. `prs deck build` checks words per slide, overflow, sources, and every code line and path against the PR.
-6. **Review** — a reviewer subagent ([shared/review.md](shared/review.md)) checks accuracy against the diff, the six answers, a cut test on every sentence and slide, craft, and the real app, and must sign off. A host or calling skill without subagents gets a labelled self-review.
+6. **Review** — a reviewer subagent ([shared/review.md](shared/review.md)) checks accuracy against the diff, the six answers, a cut test on every sentence and slide, craft, and the real app, and must sign off. Before each round, `prs review-pack` (`prs deck review` for a deck) gathers the checks, the cue timings, each claim beside its line, and stills; from the second round on, it scopes the review to what changed. A host or calling skill without subagents gets a labelled self-review.
 7. **Deliver** — videos land in `~/Downloads/pr-videos/<slug>/` and decks in `~/Downloads/pr-decks/<slug>/`. The mp4 or PDF and a contact sheet are recorded as chat artifacts, or returned to the calling skill.
 
 ## Plugin Structure
@@ -38,12 +38,12 @@ pr-studio/
 │   └── setup.test.mjs         its tests (the kit's npm test)
 ├── shared/                    read by both skills
 │   ├── contract.md            what every video and deck answers, and the rules for facts
-│   ├── capture.md             the real app, driven with Playwright
+│   ├── capture.md             the real app, driven with Playwright through the capture kit
 │   └── review.md              the reviewer, and the self-review
 ├── skills/
 │   ├── generate-presentation/ SKILL.md, layouts.md
 │   └── generate-video/        SKILL.md
-└── studio/                    the engine: CLI, video engine, diagrams, theme, deck kit, voice, tests
+└── studio/                    the engine: CLI, video engine, diagrams, theme, deck kit, capture kit, voice, tests
 ```
 
 ## Requirements

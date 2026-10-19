@@ -83,7 +83,47 @@ function extractFootage(slug, beat, side, s) {
 	if (!m) {
 		throw new Error(`could not read the size of the frames of ${s.src}`);
 	}
-	return { dir: `footage/${beat}/${name}`, frames, w: Number(m[1]), h: Number(m[2]) };
+	// The moments the capture kit marked in the recording (<clip>.marks.json), in seconds into these frames: ui.footage
+	// plays each marked action at its cue.
+	let marks;
+	if (s.marks) {
+		const file = src.replace(/\.[^.\/]+$/, '.marks.json');
+		if (!fs.existsSync(file)) {
+			throw new Error(`marks: ${path.basename(file)} is missing (the capture kit writes it next to the recording when the script calls k.mark())`);
+		}
+		const recorded = Object.fromEntries((readJson(file).marks ?? []).map(x => [x.name, x.t]));
+		marks = {};
+		for (const name of Object.keys(s.marks)) {
+			if (recorded[name] === undefined) {
+				throw new Error(`marks: no mark "${name}" in ${path.basename(file)} (it has ${Object.keys(recorded).join(', ') || 'none'})`);
+			}
+			marks[name] = +(recorded[name] - from).toFixed(3);
+		}
+	}
+	return { dir: `footage/${beat}/${name}`, frames, w: Number(m[1]), h: Number(m[2]), ...(marks ? { marks } : {}) };
+}
+
+/**
+ * Warnings for marked actions that won't fit between their cues: ui.footage plays each action at 1x from its cue, and
+ * the next one starts at its own cue, so a shorter gap than the recording took cuts the action. Cue names and seconds
+ * into the beat are checked; word() times are not.
+ */
+export function marksFit(beat, side, wanted, marks, timed) {
+	if (!wanted || !marks || !timed) {
+		return [];
+	}
+	const at = ref => (typeof ref === 'string' ? timed.cues?.[ref] : typeof ref === 'number' ? timed.start + ref : undefined);
+	const list = Object.entries(wanted).map(([mark, ref]) => ({ mark, ref, r: marks[mark], T: at(ref) })).filter(x => x.T !== undefined).sort((a, b) => a.r - b.r);
+	const out = [];
+	for (let k = 0; k + 1 < list.length; k++) {
+		const a = list[k], b = list[k + 1];
+		if (b.T <= a.T) {
+			out.push(`${beat}.${side}: mark "${b.mark}" comes after "${a.mark}" in the recording, but its cue (${b.ref}) comes before: swap the cues, or the marks`);
+		} else if (b.T - a.T < Math.min(b.r - a.r, 1.5) - 0.05) {
+			out.push(`${beat}.${side}: the action after mark "${a.mark}" took ${(b.r - a.r).toFixed(1)} s to record, but cue "${b.ref}" comes ${(b.T - a.T).toFixed(1)} s after "${a.ref}": it will be cut (say more between them, or move a cue)`);
+		}
+	}
+	return out;
 }
 
 export function prCorpus(slug, pr) {
@@ -228,6 +268,7 @@ export async function prepare(slug, { quiet = false } = {}) {
 			if (spec.params?.[side]) {
 				try {
 					footage[id][side] = extractFootage(slug, id, side, spec.params[side]);
+					warnings.push(...marksFit(id, side, spec.params[side].marks, footage[id][side].marks, timeline?.beats?.find(b => b.id === id)));
 				} catch (error) {
 					problems.push(`${id}.${side}: ${error.message}`);
 				}
@@ -244,10 +285,11 @@ export async function prepare(slug, { quiet = false } = {}) {
 		if (!tb) {
 			throw new Error(`Beat "${sb.id}" is missing from the timeline; run prs voice`);
 		}
-		return { id: sb.id, need: sb.need, start: k === 0 ? 0 : tb.start, end: tb.end, words: tb.words, cues: tb.cues };
+		return { id: sb.id, need: sb.need, start: k === 0 ? 0 : tb.start, end: tb.end, words: tb.words, cues: tb.cues, ...(sb.hold ? { hold: sb.hold } : {}) };
 	});
 	const lastWord = beats.at(-1).words.at(-1).b;
-	const endAt = +(lastWord + 0.45).toFixed(3);
+	// The end card follows the last word, after the last beat's hold.
+	const endAt = +(lastWord + 0.45 + (storyboard.beats.at(-1).hold ?? 0)).toFixed(3);
 	const total = +Math.max(timeline.total, endAt + 3.4).toFixed(3);
 	const project = {
 		id: slug, estimated: !real,
@@ -256,6 +298,21 @@ export async function prepare(slug, { quiet = false } = {}) {
 		beats, code, footage,
 	};
 	writeJson(path.join(bdir, 'project.json'), project);
+	// What each beat is made of, for the next review round (prs review-pack): a beat whose hash changed is one to look at
+	// again. Times are relative to the beat and rounded, so a beat that only moved (an earlier one got longer) is the same.
+	const near = t => Math.round(t * 20) / 20;
+	const made = beats.map((b, k) => {
+		const sb = storyboard.beats[k], spec = video.beats[b.id];
+		const rel = t => near(t - b.start);
+		return [b.id, sha256(JSON.stringify({
+			treatment: spec.treatment, params: spec.params ?? {}, say: sb.say, claims: sb.claims ?? [], hold: sb.hold ?? 0, length: near(b.end - b.start),
+			words: b.words.map(w => [w.display, rel(w.a), rel(w.b)]), cues: Object.entries(b.cues).map(([n, t]) => [n, rel(t)]), footage: footage[b.id] ?? null,
+		})).slice(0, 16)];
+	});
+	writeJson(path.join(bdir, 'beats.json'), {
+		motion: video.motion, layout: video.layout ?? null, carry: video.carry ? sha256(JSON.stringify(video.carry)).slice(0, 16) : null,
+		beats: Object.fromEntries(made), say: Object.fromEntries(storyboard.beats.map(b => [b.id, b.say])),
+	});
 	await bundle(slug);
 	const lock = {
 		project: sha256File(path.join(bdir, 'project.json')),

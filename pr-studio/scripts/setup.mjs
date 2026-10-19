@@ -24,10 +24,16 @@ export const SOURCE = path.join(path.dirname(fileURLToPath(import.meta.url)), '.
 /** Written last, once a copy (or an install) succeeded: its hash. */
 const READY_FILE = '.setup-ready';
 
+/** Written by prs app once a build is unpacked; touched whenever it is used. */
+const READY_BUILD = '.ready';
+
 /** An engine copy not used for this long (set up, or run: prs marks its copy) is removed; render caches of work untouched
  * for this long too. */
 const COPY_MS = 24 * 60 * 60 * 1000;
 const CACHE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** An app build (prs app) not used for this long is removed: each is close to a gigabyte. */
+const BUILD_MS = 14 * 24 * 60 * 60 * 1000;
 
 /** A video or deck in an older engine copy changed this recently may still be in use by a session of that engine: it
  * stays where it is until it is idle. */
@@ -315,6 +321,18 @@ export function unusedDeps(state, now = Date.now(), age = COPY_MS) {
 		.filter(dir => !used.has(dir) && !(fs.existsSync(path.join(dir, READY_FILE)) && now - fs.statSync(path.join(dir, READY_FILE)).mtimeMs < age));
 }
 
+/** The app builds (prs app, in the engine's cache) not used for two weeks, and partial downloads older than a day. */
+export function staleBuilds(root, now = Date.now(), age = BUILD_MS) {
+	return (fs.existsSync(root) ? fs.readdirSync(root) : []).map(name => path.join(root, name)).filter(dir => {
+		const ready = path.join(dir, READY_BUILD);
+		try {
+			return fs.existsSync(ready) ? now - fs.statSync(ready).mtimeMs > age : now - fs.statSync(dir).mtimeMs > COPY_MS;
+		} catch {
+			return false;
+		}
+	});
+}
+
 function isProcessRunning(pid) {
 	try {
 		process.kill(pid, 0);
@@ -373,6 +391,10 @@ function tidy(state, current) {
 	for (const cache of staleCaches(state)) {
 		fs.rmSync(cache, { recursive: true, force: true });
 		console.error(`Removed a render cache untouched for a week: ${cache}`);
+	}
+	for (const build of staleBuilds(path.join(os.homedir(), '.cache', 'pr-studio', 'builds'))) {
+		fs.rmSync(build, { recursive: true, force: true });
+		console.error(`Removed an app build unused for two weeks: ${build}`);
 	}
 }
 

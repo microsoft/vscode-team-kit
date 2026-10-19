@@ -25,6 +25,9 @@ export async function checkStory(slug) {
 		if (!Object.hasOwn(NEEDS, b.need ?? '')) {
 			errors.push(`beat ${b.id}: need "${b.need}" is not one of ${Object.keys(NEEDS).join(', ')}`);
 		}
+		if (b.hold !== undefined && !(typeof b.hold === 'number' && b.hold > 0 && b.hold <= 5)) {
+			errors.push(`beat ${b.id}: "hold" is the seconds the beat stays up after its last word, more than 0 and at most 5`);
+		}
 		if (!b.say || /TODO/.test(b.say)) {
 			errors.push(`beat ${b.id}: write the narration ("say")`);
 			return;

@@ -80,6 +80,82 @@ export function symbolsFromDiff(diffFiles) {
 	return out;
 }
 
+const DOTTED = String.raw`[A-Za-z][\w-]*(?:\.[\w-]+)+`;
+const SETTING_KEY = new RegExp(String.raw`^\s*(?:(['"])(${DOTTED})\1|\[([A-Za-z_$][\w$.]*)\])\s*:\s*\{\s*$`);
+const STRING_CONST = new RegExp(String.raw`\b(?:const|readonly)\s+([A-Za-z_$][\w$]*)\s*(?::\s*string\s*)?=\s*(['"])(${DOTTED})\2`);
+const NUMBER_CONST = /^(\s*(?:export\s+)?(?:(?:static\s+)?readonly|const)\s+([A-Za-z_$][\w$]*)\s*(?::\s*[\w<>[\]]+\s*)?=\s*(-?\d[\d_.]*(?:\s*[*/+-]\s*\d[\d_.]*)*))\s*;?\s*(?:\/\/.*)?$/;
+
+/**
+ * The settings a PR adds: a schema entry on added lines outside the tests ('id': {, or [constant]: {, with a default
+ * in the lines after it), each with the { file, anchor } that proves it. A key given by a constant is resolved through
+ * the string constants the diff shows.
+ */
+export function settingsFromDiff(diffFiles) {
+	const ids = new Map();
+	for (const [, file] of diffFiles) {
+		for (const l of file.hunks.flatMap(h => h.lines)) {
+			const m = l.type !== '-' && l.text.match(STRING_CONST);
+			if (m) {
+				ids.set(m[1], m[3]);
+			}
+		}
+	}
+	const out = [];
+	for (const [p, file] of diffFiles) {
+		if (isTestFile(p)) {
+			continue;
+		}
+		for (const h of file.hunks) {
+			const lines = h.lines.filter(l => l.type !== '-');
+			lines.forEach((l, i) => {
+				const m = l.type === '+' && l.text.match(SETTING_KEY);
+				if (!m) {
+					return;
+				}
+				const body = [];
+				for (const n of lines.slice(i + 1, i + 16)) {
+					if (/^\s*\}/.test(n.text)) {
+						break;
+					}
+					body.push(n.text);
+				}
+				const field = name => body.map(t => t.match(new RegExp(String.raw`^\s*["']?${name}["']?\s*:\s*(.+?),?\s*$`))?.[1]).find(Boolean);
+				const value = field('default');
+				if (value === undefined) {
+					return;
+				}
+				const constant = m[3] ?? null;
+				const said = field('markdownDescription') ?? field('description');
+				out.push({
+					path: p, id: m[2] ?? ids.get(constant?.split('.').pop()) ?? null, constant,
+					type: field('type')?.replace(/^['"]|['"]$/g, '') ?? null, default: value,
+					description: said?.match(/(['"`])((?:\\.|(?!\1).)*)\1\s*\)?$/)?.[2] ?? null,
+					anchor: l.text.trim(),
+				});
+			});
+		}
+	}
+	return out;
+}
+
+/** The numeric constants a PR adds outside the tests (a limit, a delay, a size): what a claim with a number rests on.
+ * Only named ones: at the top level, static, or in capitals (a local `const gap = 8` is layout, not a fact). */
+export function constantsFromDiff(diffFiles) {
+	const out = [];
+	for (const [p, file] of diffFiles) {
+		if (isTestFile(p)) {
+			continue;
+		}
+		for (const l of file.hunks.flatMap(h => h.lines)) {
+			const m = l.type === '+' && l.text.match(NUMBER_CONST);
+			if (m && (!/^\s/.test(l.text) || /\bstatic\b/.test(m[1]) || /^[A-Z][A-Z0-9_]+$/.test(m[2]))) {
+				out.push({ path: p, name: m[2], value: m[3], anchor: m[1].trim() });
+			}
+		}
+	}
+	return out;
+}
+
 export function testsFromDiff(diffFiles) {
 	const out = [];
 	for (const [p, file] of diffFiles) {
@@ -217,7 +293,7 @@ export async function fetchPr(ref) {
 	};
 	const diffFiles = parseDiff(diff);
 	const pictures = prPictures(pr.body ?? '', comments, reviewComments);
-	return { facts, body: pr.body ?? '', diff, discussion, pictures, symbols: symbolsFromDiff(diffFiles), tests: testsFromDiff(diffFiles), tier: lengthTier(facts, pr.body ?? '') };
+	return { facts, body: pr.body ?? '', diff, discussion, pictures, symbols: symbolsFromDiff(diffFiles), tests: testsFromDiff(diffFiles), settings: settingsFromDiff(diffFiles), constants: constantsFromDiff(diffFiles), tier: lengthTier(facts, pr.body ?? '') };
 }
 
 /** Accounts that post status or policy notes, not review. */
@@ -362,6 +438,23 @@ export function writeBrief(dir, data) {
 		lines.push('', '## Tests added or changed', '');
 		for (const t of tests.filter(x => x.names.length)) {
 			lines.push(`- \`${t.path}\`: ${t.names.slice(0, 15).map(n => `"${n}"`).join(', ')}${t.names.length > 15 ? ` (+${t.names.length - 15} more)` : ''}`);
+		}
+	}
+	const { settings = [], constants = [] } = data;
+	if (settings.length || constants.length) {
+		lines.push('', '## Settings and constants the PR adds', '');
+		lines.push('Found by their shape in the diff: check one before you claim it. Each ends with its evidence, ready to paste into a claim.', '');
+		const ev = x => `\`{ "file": ${JSON.stringify(x.path)}, "anchor": ${JSON.stringify(x.anchor)} }\``;
+		for (const s of settings.slice(0, 20)) {
+			const name = s.id ? `\`${s.id}\`` : `the setting \`${s.constant}\` names`;
+			const said = s.description ? `: "${s.description.length > 140 ? `${s.description.slice(0, 140)}\u2026` : s.description}"` : '';
+			lines.push(`- Setting ${name} (${s.type ? `${s.type}, ` : ''}default \`${s.default}\`)${said} ${ev(s)}`);
+		}
+		for (const c of constants.slice(0, 12)) {
+			lines.push(`- \`${c.name} = ${c.value}\` in \`${c.path}\` ${ev(c)}`);
+		}
+		if (constants.length > 12) {
+			lines.push(`- and ${constants.length - 12} more constants (search \`pr.diff\`)`);
 		}
 	}
 	if (f.linkedIssues.length) {

@@ -14,6 +14,10 @@ draws them and checks the words, code lines, paths and sources. First read [cont
 20+, and access to github.com. Commands install what they need into `~/.cache/` on first use. `gh`, signed in, is
 optional.
 
+**The fast path:** `setup.mjs` → `prs deck new --pr` → pictures, captures in a subagent if you have one (`prs app`, the
+capture kit) → outline → `deck.mjs` → `prs deck build --no-deliver` until `Checks: clean`, and look → `prs deck review`
+and the review → fixes, build, `prs deck review`, until signed off → `prs deck build` delivers.
+
 ## 1. Find the PR and the engine
 
 - **The PR:**
@@ -31,13 +35,16 @@ Post a one-line update after each step.
 
 1. **Start.** `prs deck new --pr <url>` fetches the PR into `<studio>/videos/<slug>/` (the slug is `<owner>-<repo>-<n>`;
    pass it to every command) and writes `<studio>/decks/<slug>/deck.mjs`. The title card and the status slide (with the
-   PR's QR code) are filled from the PR's data. There is no end slide.
+   PR's QR code) are filled from the PR's data. There is no end slide. If the change is visible in VS Code, start
+   `prs app <slug> --before` in the background now: the builds download while you read.
 2. **Facts.** Read them as the contract says. The brief's Pictures section lists the author's and the CI's screenshots.
 3. **Pictures.**
    - Download the PR's screenshots you'll use into `assets/` (`curl -fsSL -o <studio>/decks/<slug>/assets/<name>.png
      '<url>'`; the CI's are PNGs without an extension). Open each to check it shows what the brief says.
-   - When the PR changes something a user sees or does, capture the app too ([capture.md](../../shared/capture.md)):
-     the author's pictures show what they saw, yours show the change running.
+   - When the PR changes something a user sees or does, capture the app too ([capture.md](../../shared/capture.md),
+     with `record: false` and a `k.shot()` of each state): the author's pictures show what they saw, yours show the
+     change running. With subagents, hand the capture to one (capture.md, the slug, `<studio>`, and the states to
+     show), and outline meanwhile.
    - `prs deck grid <slug> assets/<file>` draws the picture with a grid of its pixels, to place crops, pins and rings.
      Add `--vs assets/<other>` to see where two pictures differ.
    - Draw a `ui` or `chat` mock only for what neither the pictures nor the app can show, and say in the notes that it
@@ -86,9 +93,11 @@ Every slide:
 
 ## 3. Review
 
-Follow [review.md](../../shared/review.md).
+Follow [review.md](../../shared/review.md), with `prs deck review <slug>` before each round (after a `--no-deliver`
+build).
 - **Reviewer inputs:**
   - the PR URL, the slug and `<studio>`;
+  - the pack's `pack.md` (`prs deck review` prints its path);
   - `brief.md` and `pr.diff` from `<studio>/videos/<slug>/`;
   - `deck.mjs`, `assets/` and `out/` from `<studio>/decks/<slug>/`.
 - **Review file:** `<studio>/decks/<slug>/review.md`.

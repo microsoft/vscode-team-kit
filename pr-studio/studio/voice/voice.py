@@ -888,6 +888,7 @@ class PreparedBeat:
 	spoken_text: str
 	cues: dict[str, Any]
 	gap_before: float | None
+	hold: float = 0.0
 
 
 DIGIT_WORDS = ['oh', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine']
@@ -956,7 +957,7 @@ def prepare_beats(storyboard: dict[str, Any], facts: dict[str, Any]) -> list[Pre
 	for beat in storyboard['beats']:
 		text = resolve_placeholders(beat['say'], facts)
 		tokens = apply_auto_pronunciations(apply_pronunciations(text, pronounce), pronounce)
-		beats.append(PreparedBeat(beat['id'], text, tokens, spoken_text_from_tokens(tokens), beat.get('cues', {}) or {}, beat.get('gapBefore')))
+		beats.append(PreparedBeat(beat['id'], text, tokens, spoken_text_from_tokens(tokens), beat.get('cues', {}) or {}, beat.get('gapBefore'), float(beat.get('hold') or 0)))
 	return beats
 
 
@@ -1090,7 +1091,8 @@ def synth(video: Path, provider_arg: str | None, force: bool, workers: int, redo
 			current += DEFAULT_GAP if beat.gap_before is None else beat.gap_before
 		elif beat.gap_before is not None:
 			current += beat.gap_before
-		start, end = round(current, 3), round(current + duration, 3)
+		# A hold keeps the beat on screen after its last word, in silence.
+		start, end = round(current, 3), round(current + duration + beat.hold, 3)
 		absolute = [{'i': w['i'], 'display': w['display'], 'spoken': w['spoken'], 'a': round(start + float(w['a']), 3), 'b': round(start + float(w['b']), 3)} for w in words]
 		timeline_beats.append({'id': beat.id, 'start': start, 'end': end, 'text': beat.text, 'words': absolute, 'cues': resolve_cues(beat.cues, absolute, facts), 'alignScore': round(score, 4)})
 		inputs.append((beat.id, start, wav))

@@ -15,53 +15,61 @@ visible change is not done without its capture: the setup below is part of the j
 ## Capture it
 
 1. **The steps.** The PR's "how to test", its screenshots and its tests give the steps and what should happen. Pick
-   the shortest interaction that shows the change: its action and its result.
-2. **The apps.** You need the app with the change and, for a before and after, the app without it:
-   - Use the same kind of build, profile, window and sample data, so only the change differs. Run each with a throwaway
-     profile in a temp folder, never in the user's own windows or files.
-   - VS Code needs no checkout or build: Insiders builds by commit.
-     - `https://update.code.visualstudio.com/api/commits/insider/<platform>` lists them, newest first (`darwin-arm64`,
-       `darwin`, `linux-x64`).
-     - `https://update.code.visualstudio.com/commit:<sha>/<platform>/insider` downloads one (a zip of about 300 MB).
-     - `gh api repos/<owner>/<repo>/compare/<merge commit>...<build sha> --jq .status` says whether a build has the
-       change: `ahead` or `identical` has it, `behind` or `diverged` doesn't. The merge commit comes from
-       `gh pr view <url> --json mergeCommit`.
-     - The newest build without the change is the before, and the oldest with it is the after.
-   - For an open PR, build its base and its head.
-3. **Keep it to itself, signed in when needed.**
-   - **Home:** when the app reads the user's home (VS Code lists their personal skills and agents from it), give it its
-     own `HOME` in the temp folder, with the user's keychain linked in (macOS: `<home>/Library/Keychains` →
-     `~/Library/Keychains`). Without it, macOS asks the user in a dialog.
-   - **Sign-in:** when the demo needs the app signed in (chat, anything AI), copy the signed-in state of the same kind
-     of app into the throwaway profile. For VS Code:
-     - `sqlite3 <signed-in profile>/User/globalStorage/state.vscdb ".backup <profile>/User/globalStorage/state.vscdb"`;
-     - the signed-in profile is `~/Library/Application Support/Code - Insiders` for Insiders, `~/.vscode-oss-dev` for
-       Code OSS;
-     - add `"update.mode": "none"` to the profile's settings.
-   - Keep the account's name out of the frame.
-   - The script deletes its temp folder (profile and `HOME`) in a `finally`, so no run leaves the copy of the sign-in
-     behind.
-   - Keep the temp folder's path short (`mktemp -d /tmp/prs-XXXX`, or `~/.prs-XXXX` where `/tmp` isn't allowed): VS
-     Code puts a socket in its profile, and macOS caps a socket's path at about 100 characters, so a deep folder makes
-     it exit at once.
-4. **Drive it with Playwright** (`<studio>/node_modules/playwright-core`: `_electron.launch` for an Electron app, a
-   browser context for a web app). Do the same steps at the same pace in each app. Wait until each step can be done;
-   after it, check that its result is on screen. A capture counts only if it is.
-5. **Readable.**
-   - Use a window of about 1280×720 with the app zoomed in (VS Code: `"window.zoomLevel": 1`), and draw menus in the
-     window, where captures see them (VS Code on macOS: `"window.menuStyle": "custom"`). Size the window once the app
-     has loaded, then lock it (`setResizable(false)` on its `BrowserWindow`), so it can't change mid-recording.
-   - For screenshots of an Electron app, launch it with `--force-device-scale-factor=2` and take them with the window's
-     `capturePage()` (through `electronApp.evaluate`): `page.screenshot()` can clip a zoomed window.
+   the shortest interaction that shows the change: its action and its result. Capture needs only the storyboard, so it
+   can run while the rest is made.
+2. **The apps.** Use the same kind of build, profile, window and sample data for both, so only the change differs.
+   - VS Code: `prs app <slug>` prints `AFTER=<app>`, the oldest Insiders build with the PR's merge; `--before` adds
+     `BEFORE=<app>`, the newest without it. Each downloads once, into `~/.cache/pr-studio/builds/`.
+   - An open PR, or another app: build its base and its head.
+3. **Script it with the capture kit:** `footage/capture.mjs` for a video (`assets/` for a deck), run once per app:
+   `node capture.mjs <app> after`, and the same with `before`.
+
+   ```js
+   import { vscode } from '<studio>/capture/kit.mjs';
+   await vscode({
+     repo: { files: { 'notes.md': '# Notes\n\nOne line of notes.\n' } },
+   }, async k => {
+     k.mark('open');
+     await k.click({ role: 'treeitem', name: 'notes.md' });
+     await k.see({ role: 'tab', name: 'notes.md' });
+     k.mark('preview');
+     await k.command('Markdown: Open Preview to the Side');
+     await k.see({ role: 'tab', name: '[Preview] notes.md' });
+     await k.hold(1500);
+     await k.shot('preview');
+   });
+   ```
+
+   - **What it does:** it runs VS Code in a throwaway profile with its own `HOME` (the keychain linked, so macOS asks
+     nothing). The window is light, at zoom 1, locked to 1280×720, with menus drawn inside it, a pointer, click rings and
+     key badges. It records `<name>.webm` and `<name>.marks.json`, and deletes the profile whatever happens.
+   - **Steps:**
+     - `see`, `click`, `hover`, `type`, `press('Meta+S')`, `command(title)` (F1, the title, Enter), `hold(ms)`, and
+       `shot(label)` (`<name>-<label>.png`, at twice the size); `k.name` is `after` or `before`, and `k.page` and
+       `k.app` are Playwright's.
+     - A target is a CSS selector, `{ role, name }`, `{ text }` or `{ label }`.
+     - Each step waits until it can be done. Check each result with `see`: a capture counts only if it shows.
+   - **Marks:** call `k.mark(<cue>)` just before each action the narration names, with the name of its cue. The video
+     plays each action at its cue at real speed, so one recording fits any take of the voice.
+   - **Finding things:** `await k.probe('here')` writes the window's accessibility tree (roles and names) and a
+     screenshot. A failed step writes one itself, and names the closest elements.
+   - **Options:**
+     - `repo: { files, change, stage }`: the sample git repository it opens: `files` committed, then `change` written
+       (`null` deletes a file), and staged with `stage: true`;
+     - `workspace: <folder>`: a folder to open in place of `repo`;
+     - `settings: { … }`: user settings over the kit's (a setting the PR adds is in the brief);
+     - `record: false`: screenshots only (a deck);
+     - `signIn: true`: for chat and anything AI, a copy of the user's signed-in Insiders state, deleted with the profile;
+     - `args: [ … ]`: more arguments for the app, such as `--extensionDevelopmentPath=<folder>` for a sample extension
+       that sets up what the change needs.
+   - **Another app:** Playwright (`<studio>/node_modules/playwright-core`) with the same care: a throwaway profile, a
+     fixed window, a pointer and click rings drawn in the page, and cleanup in a `finally`.
+4. **Readable and private.**
+   - Same steps at the same pace in both apps: rest on a target before a click, hold each result a second or two, and
+     type at a human pace (the kit does).
    - Crop to the part that changes, with the same crop for the before and the after.
-   - A recording has no pointer: draw one in the page (an arrow above everything, following the mouse) and a ring that
-     grows on each click.
-   - Move the mouse in steps (`mouse.move(x, y, { steps: 25 })`), rest on the target, click, and hold each result for a
-     second or two.
-   - Show a shortcut's keys in a badge while they are pressed, and type at a human pace.
-6. **Keep it:**
-   - the scripts, the recordings and a screenshot of each state, in `<studio>/videos/<slug>/footage/` for a video, or
-     `<studio>/decks/<slug>/assets/` for a deck;
-   - the downloaded builds can go once it is delivered.
+   - Keep the account's name and anything private out of the frame.
+5. **Keep it:** the script, the recordings with their marks, and a screenshot of each state, in `footage/` (a deck:
+   `assets/`). The setup prunes builds unused for 14 days.
 
 Then use it as your skill says: a `ui.footage` beat in a video, `image` and `split` slides in a deck.

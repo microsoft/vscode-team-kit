@@ -165,7 +165,10 @@ export async function direct(slug, { seed, motion: forcedMotion, use, reason, fo
 			}
 			lines.push(`\t\t// says: "${b.say.length > 150 ? `${b.say.slice(0, 150)}\u2026` : b.say}"  cues: ${Object.keys(b.cues ?? {}).join(', ') || '(none)'}`);
 			if (t.id === 'ui.footage') {
-				lines.push(`\t\t${JSON.stringify(b.id)}: ui.footage({ eyebrow: label('TODO'), title: label('TODO'), before: { src: 'footage/before.webm', from: 0, to: 8, at: 'TODO' }, after: { src: 'footage/after.webm', from: 0, to: 8, at: 'TODO' } }),`);
+				const names = Object.keys(b.cues ?? {});
+				const marks = `{ ${(names.length ? names : ['TODO']).map(n => `${JSON.stringify(n)}: ${JSON.stringify(n)}`).join(', ')} }`;
+				lines.push(`\t\t// name each k.mark() in the capture after the cue it plays at; drop before: if nothing changed visibly`);
+				lines.push(`\t\t${JSON.stringify(b.id)}: ui.footage({ eyebrow: label('TODO'), title: label('TODO'), before: { src: 'footage/before.webm', marks: ${marks} }, after: { src: 'footage/after.webm', marks: ${marks} } }),`);
 				continue;
 			}
 			const demo = t.id === 'title.frame' ? { headline: { $text: 'label' } } : t.demo?.() ?? {};

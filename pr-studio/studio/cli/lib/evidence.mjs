@@ -60,6 +60,33 @@ function anchorIn(text, anchor) {
 	}
 }
 
+/** Where a piece of evidence is, in a line a reviewer can check at a glance: the file and line it anchors, or the quote. */
+export function evidenceLine(slug, pr, ev) {
+	const cut = t => String(t).replace(/\s+/g, ' ').trim().slice(0, 140);
+	if (ev.fact !== undefined) {
+		const key = String(ev.fact).replace(/^facts\./, '');
+		return `pr.json ${key} = ${cut(JSON.stringify(key.split('.').reduce((o, k) => o?.[k], pr.facts)))}`;
+	}
+	for (const kind of ['body', 'review', 'commit']) {
+		if (ev[kind] !== undefined) {
+			return `${kind === 'body' ? 'PR description' : kind === 'review' ? 'review discussion' : 'commit message'}: "${cut(ev[kind])}"`;
+		}
+	}
+	if (!ev.file) {
+		return cut(JSON.stringify(ev));
+	}
+	if (ev.status !== undefined && !ev.anchor) {
+		return `${ev.file} (${ev.status} in this PR)`;
+	}
+	try {
+		const lines = (ev.removed ? removedLines(slug, ev.file) : fileAtHead(slug, pr.facts, ev.file)).split('\n');
+		const k = lines.findIndex(l => anchorIn(l, ev.anchor ?? ''));
+		return k < 0 ? `${ev.file}: "${cut(ev.anchor)}" (spans lines)` : `${ev.file}${ev.removed ? ' (removed)' : `:${k + 1}`}: ${cut(lines[k])}`;
+	} catch (error) {
+		return `${ev.file}: ${error.message}`;
+	}
+}
+
 /** Returns null when the evidence holds, else a message saying what to fix. */
 export function checkEvidence(slug, pr, ev) {
 	if (ev.fact !== undefined) {

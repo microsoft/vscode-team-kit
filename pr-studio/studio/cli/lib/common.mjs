@@ -212,7 +212,8 @@ export function voiceEnv() {
 	return { ...process.env, PRS_FFMPEG: findFfmpeg(), HF_HUB_DISABLE_TELEMETRY: '1', ...((cached || isOffline()) && !process.env.HF_HUB_OFFLINE ? { HF_HUB_OFFLINE: '1' } : {}) };
 }
 
-/** Hash of everything in the storyboard that changes the narration audio or its cue times. */
+/** Hash of everything in the storyboard that changes the narration audio or its cue times. (A hold counts only when
+ * set, so videos voiced before holds existed stay current.) */
 export function storyboardVoiceHash(storyboard) {
-	return sha256(JSON.stringify(storyboard.beats.map(b => [b.id, b.say, b.cues ?? {}, b.gapBefore ?? null])) + JSON.stringify(storyboard.pronounce ?? {}));
+	return sha256(JSON.stringify(storyboard.beats.map(b => [b.id, b.say, b.cues ?? {}, b.gapBefore ?? null, ...(b.hold ? [b.hold] : [])])) + JSON.stringify(storyboard.pronounce ?? {}));
 }

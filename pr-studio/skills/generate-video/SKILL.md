@@ -15,6 +15,11 @@ the engine fetches, voices, renders, and checks every word on screen against the
 macOS or Linux with Node.js 20+, Python 3.11–3.13, and access to github.com and PyPI. Commands install what they need
 into `~/.cache/` on first use. `gh`, signed in, is optional: public PRs work without it.
 
+**The fast path:** `setup.mjs` → `prs new` → `storyboard.json` and `prs check` → `prs direct` → footage, in a subagent
+if you have one (`prs app`, the capture kit) → `prs voice` in the background while you fill `scenes.js` → `prs preview`
+until lint is clean → `prs publish` → `prs review-pack` and the review → fixes, `prs publish`, `prs review-pack`, until
+signed off → deliver.
+
 ## 1. Find the PR and the engine
 
 - **The PR:**
@@ -34,10 +39,11 @@ into `~/.cache/` on first use. `gh`, signed in, is optional: public PRs work wit
 
 ## 2. Make the video
 
-About 30 minutes, or 60–90 with footage and the review rounds. Post a one-line update after each step.
+About 10 minutes, or 25 with footage, reviews included. Post a one-line update after each step.
 
 1. **Fetch.** `prs new <url>` writes `<studio>/videos/<slug>/` (the slug is `<owner>-<repo>-<n>`; pass it to every
-   command): `brief.md`, `pr.diff`, the changed files, and a storyboard skeleton.
+   command): `brief.md`, `pr.diff`, the changed files, and a storyboard skeleton. If the change is visible in VS Code,
+   start `prs app <slug> --before` in the background now: the builds download while you write the story.
 2. **Story.** Write `storyboard.json` (below). Run `prs check <slug>` until it passes, then apply the cut test.
 3. **Direct.** `prs direct <slug>` picks a diagram treatment for each beat, different from recent videos. It scaffolds
    `scenes.js` with each pick's fields and a note on how to narrate it ("names the aspects in order"): fit each `say`
@@ -46,12 +52,16 @@ About 30 minutes, or 60–90 with footage and the review rounds. Post a one-line
    - To re-pick one that can't show its beat: `prs direct <slug> --use <beat>=<treatment> --reason "…"`, then
      `prs direct <slug> --force` to rewrite the scaffold (before you fill it; the picks stay). `prs catalog` lists the
      treatments. If none fits, say so in your answer.
-4. **Footage,** when the PR changes something a user sees or does: [capture.md](../../shared/capture.md).
+4. **Footage,** when the PR changes something a user sees or does: [capture.md](../../shared/capture.md). It needs only
+   the storyboard. With subagents, hand it to one now (capture.md, the slug, `<studio>`, and the footage beat's `say`
+   and cues), and go on with the next steps while it records.
 5. **Voice and scenes.** Start `prs voice <slug>` in the background, and fill every TODO of `scenes.js` meanwhile
    (below). The voice prints what a listener hears in each beat. Fix a word "heard differently" with `pronounce` or
    other words, then run `prs voice <slug> --redo <beat>`.
 6. **Preview.** `prs preview <slug>` renders key frames and `build/stills/contact.png`, then lints. Look at the sheet,
-   then the frames that matter, and fix until lint reports 0 problems.
+   then the frames that matter, and fix until lint reports 0 problems. Lint times the screen too: text up too briefly to
+   read is a problem (give the beat a `hold`, or say less), and an element named before it shows is a warning worth a
+   look.
 7. **Publish.** `prs publish <slug>` renders, encodes, and checks the audio against the captions (the sync gate; a
    failure says what to fix). It then delivers the video.
 
@@ -78,6 +88,7 @@ a before and after can show both what changes and why.
   `{ "body" }`, `{ "commit" }` or `{ "review" }` (exact words), or `{ "fact": "additions" }`. A count you make is a
   claim: anchor each thing counted.
 - **`"footage": true`:** on the beat that shows the real app.
+- **`"hold": 1.5`:** seconds (up to 5) the beat stays after its last word, when its screen needs time to be read.
 
 The first beat (`title`) says what the PR does in one sentence; its card shows the number, author, size and state. The
 last (`status`) says what matters most before review or merge; its screen lists scope, tests and where to start reading.
@@ -107,26 +118,24 @@ Beat keys are the storyboard ids. The engine lays everything out. Never open ano
   Without one, items spread over the beat.
 - **Icons:** `prs catalog --icons` lists the names.
 - **Footage:** a `"footage": true` beat gets `ui.footage`.
-  - `after: { src: 'footage/after.webm', from, to, at }` shows seconds `from`–`to` of the recording, starting at cue
-    `at`; `before` is the same for the app without the change. Optional: `crop: [x, y, w, h]`, `speed`, `label`,
-    `note`, and `layout: 'rows'` for a wide, short part.
+  - `after: { src: 'footage/after.webm', marks: { open: 'open', click: 'click' } }` plays each action marked in the
+    recording (`k.mark('click')`) at the cue it maps to, at real speed, and holds its result until the next; `before`
+    is the same for the app without the change. Optional: `crop: [x, y, w, h]`, `label`, `note`, and
+    `layout: 'rows'` for a wide, short part. A clip without marks takes `from`, `to`, `at` (its cue) and `speed`.
   - Narrate what happens as it happens, with a cue on each action and its result. A before and after is one beat: say
     the action once, then the difference ("press Save: the old build drops the selection, the new one keeps it").
-    Write about as many seconds of words as the clip lasts.
-  - A clip plays at one speed from its cue, so a clip with several actions has to match the words' timing: record it
-    after `prs voice`, pacing each action to its cue's second in `build/timeline.json`. Voicing that beat again moves
-    them.
+  - Voicing again moves the cues, and the actions follow them: record once.
 
 ## 3. Review
 
-Follow [review.md](../../shared/review.md).
+Follow [review.md](../../shared/review.md), with `prs review-pack <slug>` before each round.
 - **Reviewer inputs:**
   - the PR URL, the slug and `<studio>`;
-  - from `<studio>/videos/<slug>/`: `brief.md`, `pr.diff`, `storyboard.json`, `scenes.js`, `build/stills/` and
-    `footage/`;
+  - the pack's `pack.md` (`prs review-pack` prints its path);
+  - from `<studio>/videos/<slug>/`: `brief.md`, `pr.diff`, `storyboard.json`, `scenes.js` and `footage/`;
   - the delivered mp4.
 - **Review file:** `build/review.md`.
-- **After fixes:** run `prs preview` and `prs publish` again.
+- **After fixes:** run `prs publish` and `prs review-pack` again.
 
 ## 4. Deliver
 

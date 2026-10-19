@@ -165,7 +165,7 @@
       "name": "pr-studio",
       "source": "./pr-studio/",
       "description": "Explainer videos and slide decks of pull requests, in one white Microsoft look, made in chat by the model you pick. Self-contained.",
-      "version": "0.4.0",
+      "version": "0.5.0",
       "categories": ["workflow"],
       "status": "experimental",
       "maintainers": ["federicobrancasi"],

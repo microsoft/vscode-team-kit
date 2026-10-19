@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { copyState, engineFiles, filesHash, link, migrateWork, oldCopies, stalePartials, staleCaches, stateDir, unusedDeps } from './setup.mjs';
+import { copyState, engineFiles, filesHash, link, migrateWork, oldCopies, staleBuilds, stalePartials, staleCaches, stateDir, unusedDeps } from './setup.mjs';
 
 function tmp() {
 	return fs.mkdtempSync(path.join(os.tmpdir(), 'prs-setup-'));
@@ -141,4 +141,19 @@ test('old engine copies and unused packages go; the current copy, recent ones an
 	}
 	fs.symlinkSync(path.join(state, 'deps', 'linked', 'node_modules'), path.join(engine, 'current', 'node_modules'), 'dir');
 	assert.deepEqual(unusedDeps(state).map(p => path.basename(p)), ['unused']);
+});
+
+test('app builds unused for two weeks go, and partial downloads after a day; recent ones stay', () => {
+	const root = tmp();
+	for (const [name, days, ready] of [['used', 3, true], ['old', 15, true], ['partial', 2, false], ['downloading', 0, false]]) {
+		const dir = path.join(root, name);
+		fs.mkdirSync(dir);
+		if (ready) {
+			write(path.join(dir, '.ready'), 'sha\n');
+			age(path.join(dir, '.ready'), days * DAY);
+		} else {
+			age(dir, days * DAY);
+		}
+	}
+	assert.deepEqual(staleBuilds(root).map(p => path.basename(p)).sort(), ['old', 'partial']);
 });

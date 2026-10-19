@@ -44,6 +44,8 @@ export async function encodeChecked(slug, { skipSync = false } = {}) {
 		t0 = performance.now();
 		const sync = spawnSync(py, [path.join(ROOT, 'voice', 'voice.py'), 'check-sync', out, path.join(bdir, 'project.json')], { stdio: ['ignore', 'pipe', 'inherit'], env, encoding: 'utf8' });
 		process.stdout.write(sync.stdout);
+		// Kept for the review pack: what the voice really said, beat by beat.
+		fs.writeFileSync(path.join(bdir, 'sync.txt'), sync.stdout ?? '');
 		seconds.sync = (performance.now() - t0) / 1000;
 		if (sync.status !== 0) {
 			throw new Error('SYNC GATE failed: the audio in the mp4 does not match the captions. Not delivered.');
