@@ -1,0 +1,18 @@
+{
+	"flags": [
+		{
+			"t": 7.6,
+			"kind": "check",
+			"box": [
+				612,
+				326,
+				334,
+				26
+			],
+			"title": "The hint says Alt, not ⌥",
+			"detail": "Elsewhere this window shows the key as ⌥, for example [⌥] Split Editor Down.",
+			"at": "below",
+			"say": "Check this: the hint says Alt, while the rest of the window shows the Option symbol."
+		}
+	]
+}

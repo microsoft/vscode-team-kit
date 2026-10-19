@@ -1,0 +1,47 @@
+{
+	"name": "bugs-welcome-messages-339711-339712-339714-how-to-verify",
+	"title": "How to verify 3 Agents window welcome message fixes · Insiders from Oct 15 or newer",
+	"steps": {
+		"setup": {
+			"label": "SET UP",
+			"do": "Agents window: ⇧⌘P Preferences: Open Application Settings (JSON), the Default profile's settings.json (these settings are application-scoped).",
+			"tag2": "APPLICATION SETTINGS",
+			"look": "`\"sessions.chat.experimental.welcomePhrases\": true` `\"sessions.chat.experimental.welcomeName\": \"Test Name\"`",
+			"zoom": false
+		},
+		"b1": {
+			"label": "#339711 · 1 OF 3",
+			"do": "Set this; New Session (⌘N) twice. Test Name replaces each `${name}` with no stray `$` left.",
+			"tag2": "APPLICATION SETTINGS",
+			"look": "`\"sessions.chat.experimental.welcomeMessages\": {` `\"mode\": \"replace\",` `\"phrases\": [\"Hello ${name}\", \"Ready, ${name}?\", \"${name}, let's begin\"] }`",
+			"zoom": false
+		},
+		"b1desc": {
+			"label": "#339711 · 1 OF 3",
+			"do": "Hover the heading: its pencil → Phrases.",
+			"look": "The setting's description uses `${name}` for the name",
+			"zoom": 2
+		},
+		"b2": {
+			"label": "#339712 · 2 OF 3",
+			"do": "Set this, then reload a few times (⇧⌘P Developer: Reload Window). Each reload shows the next phrase; yours come after the 5 built-in ones. The title's `welcomeName` means `welcomeMessages` here.",
+			"tag2": "APPLICATION SETTINGS",
+			"look": "`\"sessions.chat.experimental.welcomeMessages\": {` `\"mode\": \"append\",` `\"phrases\": [\"Ready, ${name}?\", \"Let's ship it\"] }`",
+			"zoom": false
+		},
+		"b3": {
+			"label": "#339714 · 3 OF 3",
+			"do": "Set this: no welcome message, also after a reload (⇧⌘P Developer: Reload Window). The input still works.",
+			"tag2": "APPLICATION SETTINGS",
+			"look": "`\"sessions.chat.experimental.welcomeMessages\": {` `\"mode\": \"replace\",` `\"phrases\": [] }`",
+			"zoom": false
+		},
+		"cleanup": {
+			"label": "CLEANUP",
+			"do": "Remove these from Application Settings (JSON), or restore your own.",
+			"tag2": "SETTINGS",
+			"look": "`sessions.chat.experimental.welcomePhrases` `sessions.chat.experimental.welcomeName` `sessions.chat.experimental.welcomeMessages`",
+			"zoom": false
+		}
+	}
+}
