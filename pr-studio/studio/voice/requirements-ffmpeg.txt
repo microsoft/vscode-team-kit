@@ -1,0 +1,3 @@
+# ffmpeg, from pip: installed by prs doctor only when the system has no ffmpeg with the encoders pr-studio uses
+# (libx264, aac, libvpx-vp9, libopus). Pinned like requirements.txt.
+imageio-ffmpeg==0.6.0

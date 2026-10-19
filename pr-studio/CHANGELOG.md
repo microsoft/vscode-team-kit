@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.4.0 — 2026-10-19
+
+Smaller and simpler: the same videos and decks from a fraction of the instructions and the install.
+
+- **The engine is plain files** in `studio/`, changed and reviewed here like any code; `scripts/engine.pack` is gone.
+  - `setup.mjs` copies the engine into the cache and links one shared npm install for each lock file.
+  - Work lives in `~/.cache/pr-studio/work/`, outside the copies, so a newer plugin keeps it (work in old copies is moved there).
+  - Copies unused for a day, unused installs, and the render caches of work untouched for a week are pruned.
+- **Less to read:** about 2,100 words for a video and 2,400 for a deck (up to 2,900 and 3,200 with a capture of the app), from 9,200 and 8,700.
+  - The rules both skills share are written once, in `shared/`: `contract.md`, `capture.md` and `review.md`.
+  - `prs direct` writes each picked treatment's notes and fields into `scenes.js`, so the catalog is read only to re-pick (`prs catalog`; `prs catalog --sheet` draws them all).
+- **Smaller plugin and install:** 2.2 MB in the kit becomes 0.9 MB, and the npm install goes from 141 to 57 MB.
+  - The pictures of every diagram and layout are gone: `prs catalog --sheet` and `prs deck samples` draw them on demand.
+  - The 184 Fluent icons are vendored as path data, replacing the 87 MB icon package.
+  - Kokoro is installed only when the voice needs it: without an Azure Speech key, or when the key lookup fails and `prs voice` falls back to it. A system ffmpeg with the right codecs is reused. Commands install what they need on first use.
+- **Decks are about pull requests only:** 27 layouts (from 57) and three logos. A design of a deck's own is still possible; its rules live in the example design.
+- **Footage is part of the engine.** A storyboard beat with `"footage": true` gets `ui.footage`: the recordings (before and after side by side, cropped, in step) play at their cues. Stills, lint and the contact sheet show them, with no frames to splice by hand.
+  - A video made with 0.3, whose footage a script laid into the rendered frames, needs that beat turned into `ui.footage` before it is published again: `prs publish` renders the frames itself, so it stops and says how rather than deliver the video without its footage.
+- **Fewer commands.**
+  - `prs direct` checks the story first.
+  - `prs preview` renders the stills and lints.
+  - `prs publish` lints, renders and publishes.
+  - A sync-gate failure says what to fix.
+  - `prs concepts` and `prs report` are gone.
+- **Called by another skill:**
+  - A brief, such as the intent groups of Agents' `/create-code-walkthrough`, sets the order and the claims about the code, not the coverage: the why, the risk and the status still come from the PR. Viewers of walkthrough videos made from such briefs missed the why.
+  - Without subagents, the review is a labelled self-review, and a caller that records the artifacts gets the paths instead.
+- The status checklist's places to start reading light up together a quarter of the way into the beat, so a viewer can read them all once; before, the last one lit only near the end.
+
 ## 0.3.0 — 2026-10-16
 
 - Short by default: a video or a deck answers six questions (what changes, why, how it works, what it looks like or does, what could break and how it is tested, the status and where to start reading) in as little as covers them. There is no minimum; a video is at most 90 seconds with the end card, a deck at most 12 slides. The size tiers now only set the storyboard's starting beats; `prs check` fails past the cap instead of below a window, and `prs publish` won't deliver a video past it.

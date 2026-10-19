@@ -1,0 +1,95 @@
+/* The studio look: white, minimal, Microsoft palette. One look for every video. 1920x1080. */
+
+/* Aptos is read from the local Microsoft Office install at render time and never copied or shipped.
+   Without Office the stack falls back to Segoe UI, then Inter (bundled, OFL). */
+@font-face { font-family: 'Aptos'; font-weight: 400; src: url('file:///Applications/Microsoft%20Excel.app/Contents/Resources/DFonts/Aptos.ttf'), url('file:///Applications/Microsoft%20Word.app/Contents/Resources/DFonts/Aptos.ttf'), url('file:///Applications/Microsoft%20PowerPoint.app/Contents/Resources/DFonts/Aptos.ttf'); }
+@font-face { font-family: 'Aptos'; font-weight: 600; src: url('file:///Applications/Microsoft%20Excel.app/Contents/Resources/DFonts/Aptos-SemiBold.ttf'), url('file:///Applications/Microsoft%20Word.app/Contents/Resources/DFonts/Aptos-SemiBold.ttf'), url('file:///Applications/Microsoft%20PowerPoint.app/Contents/Resources/DFonts/Aptos-SemiBold.ttf'); }
+@font-face { font-family: 'Aptos'; font-weight: 700; src: url('file:///Applications/Microsoft%20Excel.app/Contents/Resources/DFonts/Aptos-Bold.ttf'), url('file:///Applications/Microsoft%20Word.app/Contents/Resources/DFonts/Aptos-Bold.ttf'), url('file:///Applications/Microsoft%20PowerPoint.app/Contents/Resources/DFonts/Aptos-Bold.ttf'); }
+@font-face { font-family: 'Inter'; font-weight: 400; src: url('../node_modules/@fontsource/inter/files/inter-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-weight: 600; src: url('../node_modules/@fontsource/inter/files/inter-latin-600-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-weight: 700; src: url('../node_modules/@fontsource/inter/files/inter-latin-700-normal.woff2') format('woff2'); }
+@font-face { font-family: 'JetBrains Mono'; font-weight: 400; src: url('../node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'JetBrains Mono'; font-weight: 600; src: url('../node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-600-normal.woff2') format('woff2'); }
+@font-face { font-family: 'JetBrains Mono'; font-weight: 700; src: url('../node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-700-normal.woff2') format('woff2'); }
+
+:root {
+	--ink: #1b1b1f;
+	--body: #5f6168;
+	--muted: #767a82;
+	--faint: #b9bcc4;
+	--line: #e3e6eb;
+	--line-strong: #d3d8e0;
+	--surface: #f5f6f8;
+	--surface-2: #fafbfc;
+	--blue: #0078d4;
+	--blue-tint: #eef4fd;
+	--green: #107c10;
+	--green-tint: #eef7ea;
+	--red: #d13438;
+	--red-tint: #fbeeed;
+	--orange: #d83b01;
+	--orange-tint: #fcf1ec;
+	--purple: #8661c5;
+	--purple-tint: #f3effa;
+	--sans: 'Aptos', 'Segoe UI', 'Inter', system-ui, sans-serif;
+	--mono: 'Menlo', 'Cascadia Mono', 'Consolas', 'JetBrains Mono', monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 1920px; height: 1080px; overflow: hidden; background: #fff; }
+body { font-family: var(--sans); color: var(--ink); -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; font-feature-settings: 'tnum' 1, 'lnum' 1; }
+#app { position: absolute; inset: 0; overflow: hidden; background: #fff; }
+
+/* Render modes: the final render captures content and captions separately; stills and lint use both. */
+body.mode-captions, body.mode-captions #app { background: transparent; }
+body.mode-captions .st-stage, body.mode-captions .st-chrome, body.mode-captions .st-progress, body.mode-captions .st-endcard { display: none !important; }
+body.mode-content .st-captions, body.mode-content .st-progress { display: none !important; }
+
+.st-abs { position: absolute; }
+.st-layer { position: absolute; inset: 0; }
+
+/* Typography */
+.st-eyebrow { font-size: 21px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--blue); white-space: nowrap; }
+.st-title { font-size: 56px; font-weight: 600; letter-spacing: -.012em; line-height: 1.12; color: var(--ink); }
+.st-title-xl { font-size: 78px; font-weight: 600; letter-spacing: -.02em; line-height: 1.08; color: var(--ink); }
+.st-sub { font-size: 27px; line-height: 1.4; color: var(--body); }
+.st-h3 { font-size: 30px; font-weight: 600; line-height: 1.25; color: var(--ink); }
+.st-h4 { font-size: 26px; font-weight: 600; line-height: 1.25; color: var(--ink); }
+.st-body { font-size: 24px; line-height: 1.42; color: var(--body); }
+.st-small { font-size: 20px; line-height: 1.4; color: var(--body); }
+.st-foot { font-size: 18px; line-height: 1.4; color: var(--muted); }
+.st-label { font-size: 17px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+.st-mono { font-family: var(--mono); }
+.st-num { font-weight: 700; letter-spacing: -.02em; line-height: 1; font-variant-numeric: tabular-nums; }
+
+/* Surfaces */
+.st-card { position: absolute; background: #fff; border: 1.5px solid var(--line); border-radius: 18px; }
+.st-card--flow { position: relative; }
+.st-tile { position: absolute; border-radius: 18px; }
+.st-tile--flow { position: relative; }
+
+/* Pills and badges */
+.st-pill { display: inline-flex; align-items: center; gap: 10px; height: 44px; padding: 0 18px; border-radius: 999px; font-size: 21px; font-weight: 600; white-space: nowrap; }
+.st-badge { display: inline-grid; place-items: center; border-radius: 50%; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; flex: none; }
+
+/* Code */
+.st-code { position: absolute; background: var(--surface-2); border: 1.5px solid var(--line); border-radius: 18px; overflow: hidden; }
+.st-code__row { position: relative; display: flex; align-items: center; font-family: var(--mono); white-space: pre; }
+.st-code__gutter { flex: none; text-align: right; color: #a3a7b0; }
+
+/* Captions */
+.st-captions { position: absolute; left: 0; right: 0; bottom: 34px; height: 76px; display: flex; justify-content: center; pointer-events: none; }
+.st-captions__pill { display: inline-flex; align-items: center; gap: 10px; height: 76px; padding: 0 34px; border-radius: 16px; background: #fff; border: 1.5px solid var(--line); box-shadow: 0 6px 22px rgba(27, 27, 31, .06); font-size: 34px; font-weight: 600; letter-spacing: -.005em; white-space: nowrap; }
+.st-captions__w { color: var(--faint); }
+.st-captions__w.is-said { color: var(--ink); }
+
+/* Chrome */
+.st-progress { position: absolute; left: 0; right: 0; bottom: 0; height: 6px; background: #eef0f3; }
+.st-progress__fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--blue); }
+
+/* Stage containers */
+.st-stage { position: absolute; inset: 0; }
+.st-world { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; }
+.st-beat { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; pointer-events: none; }
+.st-endcard { position: absolute; inset: 0; background: #fff; }
+.st-carry { position: absolute; left: 0; top: 0; transform-origin: 0 0; }

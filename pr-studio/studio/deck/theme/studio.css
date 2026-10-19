@@ -1,0 +1,87 @@
+/* The studio look for slides: the tokens of theme/studio.css (the videos), with the extras a deck needs (page size,
+   tones as classes, yellow, pill sizes). Every slide is one 1920x1080 page of a PDF instead of one frame of a video. */
+
+/* Aptos is read from the local Microsoft Office install at build time (its licence allows embedding in documents).
+   Without Office the stack falls back to Segoe UI, then Inter (bundled, OFL). */
+@font-face { font-family: 'Aptos'; font-weight: 400; src: url('file:///Applications/Microsoft%20PowerPoint.app/Contents/Resources/DFonts/Aptos.ttf'), url('file:///Applications/Microsoft%20Word.app/Contents/Resources/DFonts/Aptos.ttf'), url('file:///Applications/Microsoft%20Excel.app/Contents/Resources/DFonts/Aptos.ttf'); }
+@font-face { font-family: 'Aptos'; font-weight: 600; src: url('file:///Applications/Microsoft%20PowerPoint.app/Contents/Resources/DFonts/Aptos-SemiBold.ttf'), url('file:///Applications/Microsoft%20Word.app/Contents/Resources/DFonts/Aptos-SemiBold.ttf'), url('file:///Applications/Microsoft%20Excel.app/Contents/Resources/DFonts/Aptos-SemiBold.ttf'); }
+@font-face { font-family: 'Aptos'; font-weight: 700; src: url('file:///Applications/Microsoft%20PowerPoint.app/Contents/Resources/DFonts/Aptos-Bold.ttf'), url('file:///Applications/Microsoft%20Word.app/Contents/Resources/DFonts/Aptos-Bold.ttf'), url('file:///Applications/Microsoft%20Excel.app/Contents/Resources/DFonts/Aptos-Bold.ttf'); }
+@font-face { font-family: 'Aptos'; font-weight: 400; font-style: italic; src: url('file:///Applications/Microsoft%20PowerPoint.app/Contents/Resources/DFonts/Aptos-Italic.ttf'), url('file:///Applications/Microsoft%20Word.app/Contents/Resources/DFonts/Aptos-Italic.ttf'); }
+@font-face { font-family: 'Inter'; font-weight: 400; src: url('../../node_modules/@fontsource/inter/files/inter-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-weight: 600; src: url('../../node_modules/@fontsource/inter/files/inter-latin-600-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-weight: 700; src: url('../../node_modules/@fontsource/inter/files/inter-latin-700-normal.woff2') format('woff2'); }
+@font-face { font-family: 'JetBrains Mono'; font-weight: 400; src: url('../../node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'JetBrains Mono'; font-weight: 600; src: url('../../node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-600-normal.woff2') format('woff2'); }
+@font-face { font-family: 'JetBrains Mono'; font-weight: 700; src: url('../../node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-700-normal.woff2') format('woff2'); }
+
+:root {
+	--ink: #1b1b1f;
+	--body: #5f6168;
+	--muted: #72767e; /* the videos use #767a82 (4.31:1); a touch darker passes WCAG AA (4.56:1) for small text on a projector */
+	--faint: #b9bcc4;
+	--line: #e3e6eb;
+	--line-strong: #d3d8e0;
+	--surface: #f5f6f8;
+	--surface-2: #fafbfc;
+	--track: #eef0f3;
+	--connector: #b6c2d3;
+	--blue: #0078d4;
+	--blue-tint: #eef4fd;
+	--green: #107c10;
+	--green-tint: #eef7ea;
+	--red: #d13438;
+	--red-tint: #fbeeed;
+	--orange: #d83b01;
+	--orange-tint: #fcf1ec;
+	--purple: #8661c5;
+	--purple-tint: #f3effa;
+	--yellow: #9a6700; /* amber: GitHub's "attention" text colour, passes WCAG AA on white and on its tint */
+	--yellow-tint: #fff6d4;
+	--neutral: #5f6168;
+	--neutral-tint: #f5f6f8;
+	--sans: 'Aptos', 'Segoe UI', 'Inter', system-ui, sans-serif;
+	--mono: 'Menlo', 'Cascadia Mono', 'Consolas', 'JetBrains Mono', monospace;
+}
+
+@page { size: 1920px 1080px; margin: 0; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: #fff; }
+body { font-family: var(--sans); color: var(--ink); -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; font-feature-settings: 'tnum' 1, 'lnum' 1; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+/* Typography (same scale as pr-studio) */
+.st-eyebrow { font-size: 21px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--blue); white-space: nowrap; }
+.st-title { font-size: 56px; font-weight: 600; letter-spacing: -.012em; line-height: 1.12; color: var(--ink); }
+.st-title-xl { font-size: 78px; font-weight: 600; letter-spacing: -.02em; line-height: 1.08; color: var(--ink); }
+.st-sub { font-size: 27px; line-height: 1.4; color: var(--body); }
+.st-h3 { font-size: 30px; font-weight: 600; line-height: 1.25; color: var(--ink); }
+.st-h4 { font-size: 26px; font-weight: 600; line-height: 1.25; color: var(--ink); }
+.st-body { font-size: 24px; line-height: 1.42; color: var(--body); }
+.st-small { font-size: 20px; line-height: 1.4; color: var(--body); }
+.st-foot { font-size: 18px; line-height: 1.4; color: var(--muted); }
+.st-label { font-size: 17px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+.st-mono { font-family: var(--mono); }
+.st-num { font-weight: 700; letter-spacing: -.02em; line-height: 1; font-variant-numeric: tabular-nums; }
+strong { font-weight: 600; color: var(--ink); }
+code { font-family: var(--mono); font-size: .86em; background: var(--surface); border: 1.5px solid var(--line); border-radius: 8px; padding: 0 .3em; color: var(--ink); white-space: nowrap; }
+
+/* Surfaces */
+.st-card { background: #fff; border: 1.5px solid var(--line); border-radius: 18px; }
+.st-tile { border-radius: 18px; }
+
+/* Pills and badges */
+.st-pill { display: inline-flex; align-items: center; gap: 10px; height: 44px; padding: 0 18px; border-radius: 999px; font-size: 21px; font-weight: 600; white-space: nowrap; }
+.st-pill--s { height: 36px; padding: 0 14px; font-size: 18px; gap: 8px; }
+.st-pill--l { height: 54px; padding: 0 22px; font-size: 24px; gap: 12px; }
+.st-badge { display: inline-grid; place-items: center; border-radius: 50%; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; flex: none; }
+
+/* Tones: .t-blue etc. set --fg/--tint for any component */
+.t-blue { --fg: var(--blue); --tint: var(--blue-tint); }
+.t-green { --fg: var(--green); --tint: var(--green-tint); }
+.t-red { --fg: var(--red); --tint: var(--red-tint); }
+.t-orange { --fg: var(--orange); --tint: var(--orange-tint); }
+.t-purple { --fg: var(--purple); --tint: var(--purple-tint); }
+.t-yellow { --fg: var(--yellow); --tint: var(--yellow-tint); }
+.t-neutral { --fg: var(--body); --tint: var(--surface); }
+
+.ic { display: inline-block; flex: none; line-height: 0; }
+.ic svg { display: block; width: 100%; height: 100%; }

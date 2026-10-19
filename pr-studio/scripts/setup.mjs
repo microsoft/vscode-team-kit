@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 // Gets the pr-studio engine ready and prints its folder as the last line: STUDIO=<folder>.
 //
-// The engine ships with this plugin, packed into engine.pack next to this script (made by `npm run plugin` in
-// https://github.com/federicobrancasi/pr-studio, where this script's source and tests are too). The first run unpacks
-// it into ~/.cache/pr-studio/engine/<hash of the pack>/ and installs its npm packages there; later runs find that folder
-// ready and return at once. An updated engine gets a new folder, and only the newest three copies are kept (finished
-// videos and decks are delivered to ~/Downloads, outside them). Built-in Node modules only: this runs before anything
-// is installed. PRS_HOME moves ~/.cache/pr-studio.
+// The engine is the studio/ folder of this plugin. The first run of a version copies it into
+// ~/.cache/pr-studio/engine/<hash of its files>/ and links its npm packages, installed once per package-lock.json into
+// ~/.cache/pr-studio/deps/<hash>/; later runs find the copy ready and return at once. Videos and decks are made in
+// ~/.cache/pr-studio/work/ (each copy's videos/ and decks/ link there), so an engine update keeps them. Render caches of
+// work untouched for a week, engine copies not used for a day and packages no copy uses are removed (finished videos
+// and decks are delivered to ~/Downloads, outside the cache). Built-in Node modules only: this runs before anything is
+// installed. PRS_HOME moves ~/.cache/pr-studio.
 //
 // Usage: node setup.mjs
 
@@ -18,71 +19,60 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 /** The engine that ships with the plugin. */
-export const SOURCE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'engine.pack');
+export const SOURCE = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'studio');
 
-/** Written last, once the copy and the install succeeded: the hash of the engine it holds. */
+/** Written last, once a copy (or an install) succeeded: its hash. */
 const READY_FILE = '.setup-ready';
 
-/** How many engine copies to keep, and how long a copy that was used stays whatever the count. */
-const KEEP = 3;
-const RECENT_MS = 24 * 60 * 60 * 1000;
+/** An engine copy not used for this long (set up, or run: prs marks its copy) is removed; render caches of work untouched
+ * for this long too. */
+const COPY_MS = 24 * 60 * 60 * 1000;
+const CACHE_MS = 7 * 24 * 60 * 60 * 1000;
 
-/** Where settings, the history and the engine copies live. */
+/** A video or deck in an older engine copy changed this recently may still be in use by a session of that engine: it
+ * stays where it is until it is idle. */
+const IDLE_MS = 60 * 60 * 1000;
+
+/** The folders of a video or deck that can be made again from its sources. */
+const CACHES = ['build/cache', 'build/frames', 'build/footage'];
+
+/** What the engine copies leave out. */
+const SKIP = new Set(['node_modules', '.DS_Store', '__pycache__', 'out', 'videos', 'decks']);
+
+/** Where settings, the history, the work and the engine copies live. */
 export function stateDir(env = process.env, home = os.homedir()) {
 	return env.PRS_HOME ? path.resolve(env.PRS_HOME) : path.join(home, '.cache', 'pr-studio');
 }
 
-/**
- * The files of a pack, as [{ path, data }]. A pack is text: comment lines (#) at the top, then for each file a header
- * line `==> <path>  <text|base64> <bytes>`, exactly that many bytes, and a newline. Binary files are in base64, wrapped.
- */
-export function readPack(buffer) {
-	const files = [];
-	let at = 0;
-	const line = () => {
-		const end = buffer.indexOf(10, at);
-		const text = buffer.toString('utf8', at, end < 0 ? buffer.length : end);
-		at = end < 0 ? buffer.length : end + 1;
-		return text;
+/** The engine's files, as sorted relative paths with '/'. */
+export function engineFiles(dir) {
+	const out = [];
+	const walk = rel => {
+		for (const entry of fs.readdirSync(path.join(dir, rel), { withFileTypes: true })) {
+			if (SKIP.has(entry.name)) {
+				continue;
+			}
+			const child = rel ? `${rel}/${entry.name}` : entry.name;
+			if (entry.isDirectory()) {
+				walk(child);
+			} else if (entry.isFile()) {
+				out.push(child);
+			}
+		}
 	};
-	while (at < buffer.length) {
-		const head = line();
-		if (head.startsWith('#') || (!files.length && !head.startsWith('==> '))) {
-			continue;
-		}
-		const m = /^==> (?<path>\S+) {2}(?<kind>text|base64) (?<bytes>\d+)$/.exec(head);
-		if (!m) {
-			throw new Error(`not a pack: unexpected line "${head.slice(0, 80)}"`);
-		}
-		const rel = m.groups.path;
-		if (path.isAbsolute(rel) || rel.split('/').some(part => part === '..' || part === '')) {
-			throw new Error(`not a pack: unsafe path "${rel}"`);
-		}
-		const bytes = Number(m.groups.bytes);
-		const body = buffer.subarray(at, at + bytes);
-		if (body.length !== bytes || buffer[at + bytes] !== 10) {
-			throw new Error(`not a pack: ${rel} is cut short`);
-		}
-		at += bytes + 1;
-		files.push({ path: rel, data: m.groups.kind === 'base64' ? Buffer.from(body.toString('ascii').replace(/\s+/g, ''), 'base64') : Buffer.from(body) });
-	}
-	return files;
+	walk('');
+	return out.sort();
 }
 
-/** Writes the files of a pack under `dir`. */
-export function unpack(buffer, dir) {
-	const files = readPack(buffer);
+/** A short hash of files under `dir` (their paths and contents): a new engine gets a new folder. */
+export function filesHash(dir, files) {
+	const h = crypto.createHash('sha256');
 	for (const f of files) {
-		const out = path.join(dir, ...f.path.split('/'));
-		fs.mkdirSync(path.dirname(out), { recursive: true });
-		fs.writeFileSync(out, f.data);
+		h.update(`${f}\0`);
+		h.update(fs.readFileSync(path.join(dir, f)));
+		h.update('\0');
 	}
-	return files.length;
-}
-
-/** A short hash of the pack: a new engine gets a new folder. */
-export function packHash(buffer) {
-	return crypto.createHash('sha256').update(buffer).digest('hex').slice(0, 12);
+	return h.digest('hex').slice(0, 12);
 }
 
 /** 'ready', 'missing', or 'incomplete' (a folder without the ready marker for this hash). */
@@ -109,34 +99,220 @@ export function stalePartials(dir, isRunning = isProcessRunning) {
 		.map(m => path.join(parent, m[0]));
 }
 
-/** When a copy was last used: its setup, or the newest change to a video or deck made in it (one level into each). */
-export function lastUsed(dir) {
-	let latest = fs.statSync(path.join(dir, READY_FILE)).mtimeMs;
-	for (const work of ['videos', 'decks']) {
-		const root = path.join(dir, work);
-		for (const slug of fs.existsSync(root) ? fs.readdirSync(root) : []) {
-			const folder = path.join(root, slug);
-			for (const name of ['', ...(fs.statSync(folder).isDirectory() ? fs.readdirSync(folder) : [])]) {
-				latest = Math.max(latest, fs.statSync(path.join(folder, name)).mtimeMs);
+/** Builds `dir` with `make(partial)` next to it and moves it into place at the end, so an interrupted run never leaves
+ * a folder that looks ready. Another run may finish first: then its folder is kept. */
+function build(dir, hash, make) {
+	if (copyState(dir, hash) === 'ready') {
+		return;
+	}
+	for (const stale of stalePartials(dir)) {
+		fs.rmSync(stale, { recursive: true, force: true });
+	}
+	const partial = `${dir}.partial-${process.pid}`;
+	fs.rmSync(partial, { recursive: true, force: true });
+	fs.mkdirSync(partial, { recursive: true });
+	try {
+		make(partial);
+		fs.writeFileSync(path.join(partial, READY_FILE), `${hash}\n`);
+	} catch (error) {
+		fs.rmSync(partial, { recursive: true, force: true });
+		throw error;
+	}
+	if (copyState(dir, hash) === 'ready') {
+		fs.rmSync(partial, { recursive: true, force: true });
+		return;
+	}
+	fs.rmSync(dir, { recursive: true, force: true });
+	fs.renameSync(partial, dir);
+}
+
+/** The engine's npm packages, installed once per package-lock.json (which pins every one of them): their folder. */
+export function ensureDeps(state, source = SOURCE) {
+	const files = ['package.json', 'package-lock.json'];
+	const hash = filesHash(source, ['package-lock.json']);
+	const dir = path.join(state, 'deps', hash);
+	// Marked ready but without its packages (removed by hand, or by a run of another version meanwhile): install again.
+	if (copyState(dir, hash) === 'ready' && !fs.existsSync(path.join(dir, 'node_modules'))) {
+		fs.rmSync(path.join(dir, READY_FILE), { force: true });
+	}
+	if (copyState(dir, hash) !== 'ready') {
+		console.error(`Installing the pr-studio packages (${hash}) in ${dir}: first time for these versions only...`);
+	}
+	build(dir, hash, partial => {
+		for (const f of files) {
+			fs.copyFileSync(path.join(source, f), path.join(partial, f));
+		}
+		run('npm', ['ci', '--no-audit', '--no-fund', '--loglevel=error'], partial);
+	});
+	return dir;
+}
+
+/** The videos and decks made inside an engine copy before the work moved out: `<copy>/videos/<slug>` in a real folder,
+ * not a link. Hidden files are not work. */
+function legacyWork(copy) {
+	const out = [];
+	for (const kind of ['videos', 'decks']) {
+		const legacy = path.join(copy, kind);
+		let isFolder = false;
+		try {
+			isFolder = fs.lstatSync(legacy).isDirectory();
+		} catch {
+			// No such folder.
+		}
+		if (isFolder) {
+			out.push(...fs.readdirSync(legacy).filter(slug => !slug.startsWith('.')).map(slug => ({ kind, slug, from: path.join(legacy, slug) })));
+		}
+	}
+	return out;
+}
+
+/** `to`, or the first free `<to>~<copy>`, `<to>~<copy>-2`... */
+function freeName(to, copy) {
+	if (!fs.existsSync(to)) {
+		return to;
+	}
+	for (let n = 1; ; n++) {
+		const candidate = `${to}~${copy}${n > 1 ? `-${n}` : ''}`;
+		if (!fs.existsSync(candidate)) {
+			return candidate;
+		}
+	}
+}
+
+/** Moves the videos and decks made inside older engine copies (before the work moved out) into `work`. A slug found in
+ * several copies keeps its plain name for its fullest version (a storyboard or a deck, not only a fetched PR), then its
+ * newest; the others are kept beside it as `<slug>~<copy>`: nothing made is lost. A slug changed in the last hour waits:
+ * a session of that engine may still be making it. */
+export function migrateWork(state, now = Date.now(), idle = IDLE_MS) {
+	const root = path.join(state, 'engine');
+	const groups = new Map();
+	for (const copy of fs.existsSync(root) ? fs.readdirSync(root).sort() : []) {
+		for (const item of legacyWork(path.join(root, copy))) {
+			const key = `${item.kind}/${item.slug}`;
+			groups.set(key, [...(groups.get(key) ?? []), { ...item, copy }]);
+		}
+	}
+	const moved = [];
+	for (const items of groups.values()) {
+		let ranked;
+		try {
+			ranked = items.map(item => ({ ...item, changed: lastChange(item.from), made: isMade(item) }));
+		} catch (error) {
+			// Another run moved one first.
+			if (error.code === 'ENOENT') {
+				continue;
+			}
+			throw error;
+		}
+		if (ranked.some(item => now - item.changed < idle)) {
+			continue;
+		}
+		ranked.sort((a, b) => Number(b.made) - Number(a.made) || b.changed - a.changed);
+		for (const { kind, slug, from, copy } of ranked) {
+			try {
+				fs.mkdirSync(path.join(state, 'work', kind), { recursive: true });
+				const to = freeName(path.join(state, 'work', kind, slug), copy);
+				fs.renameSync(from, to);
+				moved.push(to);
+			} catch (error) {
+				if (error.code !== 'ENOENT') {
+					throw error;
+				}
+			}
+		}
+	}
+	return moved;
+}
+
+/** Whether a video or deck folder holds work, not only a fetched PR. */
+function isMade({ kind, from }) {
+	return fs.existsSync(path.join(from, kind === 'videos' ? 'storyboard.json' : 'deck.mjs'));
+}
+
+/** When a file or folder last changed: its newest entry, looking two levels in (a video's sources, and build/). Entries
+ * that go away meanwhile (a render renaming its files) don't count. */
+function lastChange(p) {
+	const st = fs.lstatSync(p);
+	let latest = st.mtimeMs;
+	if (!st.isDirectory()) {
+		return latest;
+	}
+	const stat = file => {
+		try {
+			return fs.lstatSync(file);
+		} catch {
+			return null;
+		}
+	};
+	for (const name of fs.readdirSync(p)) {
+		const child = path.join(p, name);
+		const cst = stat(child);
+		if (!cst) {
+			continue;
+		}
+		latest = Math.max(latest, cst.mtimeMs);
+		if (cst.isDirectory()) {
+			try {
+				for (const inner of fs.readdirSync(child)) {
+					latest = Math.max(latest, stat(path.join(child, inner))?.mtimeMs ?? 0);
+				}
+			} catch {
+				// It went away.
 			}
 		}
 	}
 	return latest;
 }
 
-/**
- * The engine copies to remove: every ready copy but the newest `keep` (by when they were last used), never `current`,
- * and never one used in the last day: another session may still be making a video or a deck in it.
- */
-export function oldCopies(root, current, keep = KEEP, now = Date.now()) {
+/** The render caches of work untouched for `age`: folders to remove. */
+export function staleCaches(state, now = Date.now(), age = CACHE_MS) {
+	const out = [];
+	for (const kind of ['videos', 'decks']) {
+		const root = path.join(state, 'work', kind);
+		for (const slug of fs.existsSync(root) ? fs.readdirSync(root) : []) {
+			const dir = path.join(root, slug);
+			try {
+				if (!fs.statSync(dir).isDirectory() || now - lastChange(dir) < age) {
+					continue;
+				}
+			} catch {
+				// It went away.
+				continue;
+			}
+			out.push(...CACHES.map(c => path.join(dir, c)).filter(c => fs.existsSync(c)));
+		}
+	}
+	return out;
+}
+
+/** The engine copies to remove: every ready copy but `current` that was not used in the last day (another session
+ * may still be making a video or a deck with it) and holds no work of its own that is still to move out. */
+export function oldCopies(root, current, now = Date.now(), age = COPY_MS) {
 	if (!fs.existsSync(root)) {
 		return [];
 	}
-	const copies = fs.readdirSync(root)
+	return fs.readdirSync(root)
 		.filter(name => !name.includes('.partial-') && fs.existsSync(path.join(root, name, READY_FILE)))
-		.map(name => ({ dir: path.join(root, name), used: lastUsed(path.join(root, name)) }))
-		.sort((a, b) => b.used - a.used);
-	return copies.slice(keep).filter(c => c.dir !== current && now - c.used > RECENT_MS).map(c => c.dir);
+		.map(name => path.join(root, name))
+		.filter(dir => dir !== current && now - fs.statSync(path.join(dir, READY_FILE)).mtimeMs > age && !legacyWork(dir).length);
+}
+
+/** The package installs no engine copy links to, and that no run set up in the last day (one may be linking it). */
+export function unusedDeps(state, now = Date.now(), age = COPY_MS) {
+	const used = new Set();
+	const root = path.join(state, 'engine');
+	for (const name of fs.existsSync(root) ? fs.readdirSync(root) : []) {
+		try {
+			used.add(path.dirname(fs.readlinkSync(path.join(root, name, 'node_modules'))));
+		} catch {
+			// A copy from before the shared packages, or a partial one.
+		}
+	}
+	const deps = path.join(state, 'deps');
+	return (fs.existsSync(deps) ? fs.readdirSync(deps) : [])
+		.filter(name => !name.includes('.partial-'))
+		.map(name => path.join(deps, name))
+		.filter(dir => !used.has(dir) && !(fs.existsSync(path.join(dir, READY_FILE)) && now - fs.statSync(path.join(dir, READY_FILE)).mtimeMs < age));
 }
 
 function isProcessRunning(pid) {
@@ -148,18 +324,29 @@ function isProcessRunning(pid) {
 	}
 }
 
+/** Points the link `at` to `target`, replacing an old link in one step (a session may be using it). */
+export function link(target, at) {
+	try {
+		if (fs.readlinkSync(at) === target) {
+			return;
+		}
+	} catch {
+		// Not a link yet.
+	}
+	const temp = `${at}.link-${process.pid}`;
+	fs.rmSync(temp, { force: true });
+	fs.symlinkSync(target, temp, 'dir');
+	try {
+		fs.renameSync(temp, at);
+	} catch (error) {
+		fs.rmSync(temp, { force: true });
+		throw error;
+	}
+}
+
 function fail(message) {
 	console.error(`setup: ${message}`);
 	process.exit(1);
-}
-
-function done(dir) {
-	// Mark the copy as used now, so the newest copies are the ones kept.
-	const marker = path.join(dir, READY_FILE);
-	const now = new Date();
-	fs.utimesSync(marker, now, now);
-	console.log(`STUDIO=${dir}`);
-	process.exit(0);
 }
 
 function run(command, args, cwd) {
@@ -170,6 +357,25 @@ function run(command, args, cwd) {
 	}
 }
 
+/** Removes what the cache no longer needs; never the current copy, its packages, or any video or deck source. */
+function tidy(state, current) {
+	for (const moved of migrateWork(state)) {
+		console.error(`Moved ${moved} out of an older engine copy`);
+	}
+	for (const old of oldCopies(path.join(state, 'engine'), current)) {
+		fs.rmSync(old, { recursive: true, force: true });
+		console.error(`Removed an older engine copy: ${old}`);
+	}
+	for (const deps of unusedDeps(state)) {
+		fs.rmSync(deps, { recursive: true, force: true });
+		console.error(`Removed packages no engine copy uses: ${deps}`);
+	}
+	for (const cache of staleCaches(state)) {
+		fs.rmSync(cache, { recursive: true, force: true });
+		console.error(`Removed a render cache untouched for a week: ${cache}`);
+	}
+}
+
 function main() {
 	if (process.platform === 'win32') {
 		fail('pr-studio runs on macOS and Linux for now');
@@ -177,46 +383,65 @@ function main() {
 	if (Number(process.versions.node.split('.')[0]) < 20) {
 		fail(`pr-studio needs Node.js 20 or newer; this is ${process.version}`);
 	}
-	if (!fs.existsSync(SOURCE)) {
+	if (!fs.existsSync(path.join(SOURCE, 'cli', 'prs.mjs'))) {
 		fail(`the engine is missing from the plugin (${SOURCE})`);
 	}
-
-	const pack = fs.readFileSync(SOURCE);
-	const hash = packHash(pack);
-	const root = path.join(stateDir(), 'engine');
-	const dir = path.join(root, hash);
-	if (copyState(dir, hash) === 'ready') {
-		done(dir);
+	const state = stateDir();
+	const files = engineFiles(SOURCE);
+	const hash = filesHash(SOURCE, files);
+	const dir = path.join(state, 'engine', hash);
+	// Twice at most: the setup of another version may remove an old copy of this one while this run picks it up.
+	for (let attempt = 1; ; attempt++) {
+		try {
+			ready(state, dir, hash, files);
+			break;
+		} catch (error) {
+			if (error.code !== 'ENOENT' || attempt > 1) {
+				fail(error.message);
+			}
+		}
 	}
-
-	for (const stale of stalePartials(dir)) {
-		fs.rmSync(stale, { recursive: true, force: true });
-	}
-	// Build the copy next to its final place and move it there at the end, so an interrupted run never leaves a folder
-	// that looks ready.
-	const partial = `${dir}.partial-${process.pid}`;
-	console.error(`Setting up the pr-studio engine (${hash}) in ${dir}: first time for this version only...`);
 	try {
-		unpack(pack, partial);
-		run('npm', ['ci', '--no-audit', '--no-fund', '--loglevel=error'], partial);
-		fs.writeFileSync(path.join(partial, READY_FILE), `${hash}\n`);
+		tidy(state, dir);
 	} catch (error) {
-		fs.rmSync(partial, { recursive: true, force: true });
-		fail(error.message);
+		console.error(`setup: could not tidy the cache (${error.message}); the engine is ready`);
 	}
+	console.log(`STUDIO=${dir}`);
+}
 
-	if (copyState(dir, hash) === 'ready') {
-		// Another run finished first.
-		fs.rmSync(partial, { recursive: true, force: true });
-		done(dir);
+/** Makes the copy `dir` ready, with its packages and work folders, and marks both as in use now, before the cache is
+ * tidied, so no run removes them while this session uses them. */
+function ready(state, dir, hash, files) {
+	if (copyState(dir, hash) !== 'ready') {
+		const deps = ensureDeps(state);
+		console.error(`Setting up the pr-studio engine (${hash}) in ${dir}...`);
+		build(dir, hash, partial => {
+			for (const f of files) {
+				const out = path.join(partial, ...f.split('/'));
+				fs.mkdirSync(path.dirname(out), { recursive: true });
+				fs.copyFileSync(path.join(SOURCE, ...f.split('/')), out);
+			}
+			fs.symlinkSync(path.join(deps, 'node_modules'), path.join(partial, 'node_modules'), 'dir');
+			for (const kind of ['videos', 'decks']) {
+				fs.symlinkSync(path.join(state, 'work', kind), path.join(partial, kind), 'dir');
+			}
+		});
 	}
-	fs.rmSync(dir, { recursive: true, force: true });
-	fs.renameSync(partial, dir);
-	for (const old of oldCopies(root, dir)) {
-		fs.rmSync(old, { recursive: true, force: true });
-		console.error(`Removed an older engine copy: ${old}`);
+	const now = new Date();
+	fs.utimesSync(path.join(dir, READY_FILE), now, now);
+	// A ready copy whose packages or work folders went meanwhile gets them back.
+	if (!fs.existsSync(path.join(dir, 'node_modules'))) {
+		link(path.join(ensureDeps(state), 'node_modules'), path.join(dir, 'node_modules'));
 	}
-	done(dir);
+	const modules = fs.readlinkSync(path.join(dir, 'node_modules'));
+	if (fs.existsSync(path.join(path.dirname(modules), READY_FILE))) {
+		fs.utimesSync(path.join(path.dirname(modules), READY_FILE), now, now);
+	}
+	for (const kind of ['videos', 'decks']) {
+		fs.mkdirSync(path.join(state, 'work', kind), { recursive: true });
+	}
+	// Scripts kept with the work (a capture script in footage/ or assets/) find the engine's packages.
+	link(modules, path.join(state, 'work', 'node_modules'));
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

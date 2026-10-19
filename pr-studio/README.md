@@ -1,8 +1,8 @@
 # pr-studio
 
-Explainer videos and slide decks of pull requests, in one white Microsoft look, made in chat by the model you pick. Self-contained: the engine ships with the plugin.
+Explainer videos and slide decks of pull requests, in one white Microsoft look, made in chat by the model you pick. Self-contained: the engine ships with the plugin as plain files.
 
-> **Experimental:** on first use the skills install the engine's npm packages and a browser into `~/.cache/pr-studio/` (about 300 MB); videos also install a Python voice environment, the Kokoro voice and Whisper (about 400 MB more).
+> **Experimental:** on first use, the commands install the engine's npm packages (about 60 MB) and a browser into `~/.cache/pr-studio/`. Videos also install a Python environment with Whisper, plus the offline Kokoro voice when the voice needs it (no Azure Speech key).
 
 ## Skills
 
@@ -13,13 +13,18 @@ Explainer videos and slide decks of pull requests, in one white Microsoft look, 
 
 ## How It Works
 
-1. **Get the engine** — `scripts/setup.mjs` unpacks `scripts/engine.pack` (the engine) into `~/.cache/pr-studio/engine/<hash>/`, installs its packages there and prints the folder. It runs once per engine version; later runs return at once. Work in progress (`videos/<slug>/`, `decks/<slug>/`) lives in that copy; the three newest copies are kept, and any copy used in the last day, so a newer plugin never removes another session's work; delivered files in `~/Downloads/` are never touched.
-2. **Fetch the PR** — the description, commits, diff and the changed files at the head commit.
-3. **Live UI** — when the PR changes something visible, the agent runs the app with the change in a throwaway profile and drives it with Playwright (it comes with the engine): a recording laid into the video's frames before publishing, a screenshot of each state for the deck. When the PR changes how something behaves, it records the same steps in a build without the change too, and the two play side by side.
-4. **Video** — the agent writes the narration with evidence for every claim: six answers (what changes, why, how it works, what it looks like or does, what could break and how it is tested, the status and where to start reading) and nothing else, in at most 90 seconds, numbers and names on screen rather than in the voice. The engine voices and times it, the agent fills a diagram per beat from a catalog of 24 (all on one picture, `catalog.png`), then the engine checks every frame (layout, provenance of every word, captions) and renders. Every string on screen is verified against the PR.
-5. **Deck** — `prs deck new --pr` starts the deck from the PR's real data (title card, and the status with the PR's QR code); the agent writes as few slides as give the same six answers (at most 12), picking a layout for each from 57 (all on one picture, `samples.png`); `prs deck build` checks words per slide, overflow, sources, and every code line and path against the PR.
-6. **Review** — a reviewer subagent (`reviewer.md` in each skill) checks accuracy against the diff, that all six answers are there and nothing else (a cut test on every sentence and slide), craft, and the footage or screenshots of the app, and must sign off.
-7. **Deliver** — videos land in `~/Downloads/pr-videos/<slug>/`, decks in `~/Downloads/pr-decks/<slug>/`; the mp4 or PDF and a contact sheet are recorded as chat artifacts.
+1. **Get the engine** — `scripts/setup.mjs` copies `studio/` into `~/.cache/pr-studio/engine/<hash>/`, links one shared npm install for each lock file, and prints the folder.
+   - Work in progress (`videos/<slug>/`, `decks/<slug>/`) lives in `~/.cache/pr-studio/work/`, outside the copies, so a newer plugin keeps it.
+   - Copies unused for a day, unused installs, and the render caches of work untouched for a week are pruned.
+   - Delivered files in `~/Downloads/` are never touched.
+2. **Fetch the PR** — the description, commits, review discussion, diff and the changed files at the head commit.
+3. **Live UI** — when the PR changes something visible, the agent drives a build of the app with Playwright, in a throwaway profile. It records the interaction for the video, side by side with a build without the change when the behaviour changes, and saves a screenshot of each state for the deck.
+4. **Video** — the agent writes the narration, with evidence for every claim: the six answers (what changes, why, how it works, what it looks like or does, what could break and how it is tested, the status and where to start reading) and nothing else, in at most 90 seconds.
+   - `prs direct` picks one of 24 diagram treatments for each beat, different from recent videos, and scaffolds the scenes.
+   - The engine voices and times the narration, checks every frame (layout, where every word comes from, captions), renders, and checks the audio against the captions.
+5. **Deck** — `prs deck new --pr` starts from the PR's real data: the title card, and the status with the PR's QR code. The agent writes as few slides as give the same six answers (at most 12), from 27 layouts. `prs deck build` checks words per slide, overflow, sources, and every code line and path against the PR.
+6. **Review** — a reviewer subagent ([shared/review.md](shared/review.md)) checks accuracy against the diff, the six answers, a cut test on every sentence and slide, craft, and the real app, and must sign off. A host or calling skill without subagents gets a labelled self-review.
+7. **Deliver** — videos land in `~/Downloads/pr-videos/<slug>/` and decks in `~/Downloads/pr-decks/<slug>/`. The mp4 or PDF and a contact sheet are recorded as chat artifacts, or returned to the calling skill.
 
 ## Plugin Structure
 
@@ -29,11 +34,16 @@ pr-studio/
 ├── CHANGELOG.md
 ├── README.md
 ├── scripts/
-│   ├── setup.mjs              unpack the engine into the cache, install it, print its folder
-│   └── engine.pack            the engine (CLI, video engine, theme, diagrams, voice, deck kit), packed; generated
-└── skills/
-    ├── generate-presentation/ SKILL.md, guide.md, layouts.md, samples.png, reviewer.md
-    └── generate-video/        SKILL.md, guide.md, catalog.md, catalog.png, reviewer.md
+│   ├── setup.mjs              copy the engine into the cache, install it, print its folder
+│   └── setup.test.mjs         its tests (the kit's npm test)
+├── shared/                    read by both skills
+│   ├── contract.md            what every video and deck answers, and the rules for facts
+│   ├── capture.md             the real app, driven with Playwright
+│   └── review.md              the reviewer, and the self-review
+├── skills/
+│   ├── generate-presentation/ SKILL.md, layouts.md
+│   └── generate-video/        SKILL.md
+└── studio/                    the engine: CLI, video engine, diagrams, theme, deck kit, voice, tests
 ```
 
 ## Requirements
@@ -45,10 +55,20 @@ pr-studio/
 
 ## Settings
 
-`~/.cache/pr-studio/config.json` (written by `prs doctor`): the voice (`voice.provider`, `voice.mai` for MAI-Voice-2 through your Azure resource, else the offline Kokoro voice; `voice.pace`, how much faster than its own pace it speaks, 1.1 by default, 1 for its own) and where videos are delivered. `PRS_HOME` moves the whole folder. The history of published videos lives there too, so each new video looks different from the last ones.
+`~/.cache/pr-studio/config.json`:
+- **The voice:** `voice.provider`, or `voice.mai` for MAI-Voice-2 through your Azure resource; otherwise the offline Kokoro voice.
+- **Its pace:** `voice.pace` sets how much faster than its own pace it speaks (1.1 by default, 1 for its own).
+- **Delivery:** where videos and decks are delivered.
+
+`PRS_HOME` moves the settings, the work and the history of published videos, which keeps each new video looking different from the last ones. `prs doctor` checks the machine and says which voice is used.
 
 ## Developing the engine
 
-The engine's source is [pr-studio](https://github.com/federicobrancasi/pr-studio) (MIT). Change it there, run its tests (`npm test`), then rebuild this plugin's generated files from it: `npm run plugin -- <path to this folder>` writes `scripts/engine.pack`, `scripts/setup.mjs`, `catalog.png` with `catalog.md`, and `samples.png`. The pack holds every engine file whole as text (the four sample pictures in base64), so a change shows up as an ordinary diff. The skills' text (`SKILL.md`, the guides, the reviewers) is written here.
+The engine is the plain files in `studio/`: change them here, like any code.
+- After a change, `node scripts/setup.mjs` makes a fresh copy in the cache. Run `npm test` in that copy (the `STUDIO=` folder) for the engine's tests.
+- `prs smoke` makes a short video end to end.
+- The setup's own tests run in the kit's `npm test`.
 
-The engine keeps its own `package.json` (inside the pack) instead of the team kit's root one: its packages (a browser driver, esbuild, shiki, icons, fonts) are large and only this plugin needs them, so they are installed into the engine's cache folder on first use.
+The engine started as [pr-studio](https://github.com/federicobrancasi/pr-studio) (MIT). That repository's `npm run plugin` built the old `engine.pack` and no longer applies here.
+
+The engine keeps its own `package.json` instead of the kit's root one, as an exception to the kit's convention. Its packages (a browser driver, esbuild, shiki, fonts) are large and only this plugin needs them, so `setup.mjs` installs them into the cache on first use rather than for every kit user.
