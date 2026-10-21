@@ -1,0 +1,9 @@
+# The offline voice, Kokoro: installed by prs doctor only when no Azure Speech resource is set up for MAI-Voice-2 (or
+# with prs doctor --kokoro). On top of requirements.txt, pinned the same way.
+attrs==26.1.0
+cloudpickle==3.1.2
+dlinfo==2.0.0
+espeakng-loader==0.2.4
+joblib==1.6.0
+kokoro-onnx==0.6.1
+phonemizer==3.4.0
