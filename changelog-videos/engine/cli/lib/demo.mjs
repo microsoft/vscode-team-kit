@@ -307,6 +307,27 @@ function ignoreLaunchNoise() {
 	});
 }
 
+/**
+ * Whether VS Code's windows are invisible while it is driven and recorded (on a Mac, unless PRS_SHOW_WINDOW=1): the
+ * recording is the page's own screencast and its pointer is drawn in the page, so nothing needs to be on screen, and
+ * the user can't click into a window by accident. On Linux, recordings run on a virtual display already.
+ */
+export function hiddenWindows(platform = process.platform, env = process.env) {
+	return platform === 'darwin' && env.PRS_SHOW_WINDOW !== '1';
+}
+
+/**
+ * Makes a page behave as if its window had the focus, whatever the OS window does (as headless Chrome does): with
+ * invisible windows, nothing on screen has the focus, and VS Code closes pickers when its window loses it. The CDP
+ * session is kept for the page's lifetime: detaching it would end the emulation.
+ */
+async function emulateFocus(page) {
+	const cdp = await page.context().newCDPSession(page);
+	await cdp.send('Emulation.setFocusEmulationEnabled', { enabled: true });
+	focusSessions.set(page, cdp);
+}
+const focusSessions = new WeakMap();
+
 export async function openVSCode({ files = {}, settings = {}, signedIn = process.platform === 'darwin', log = console.log, failureShot = null } = {}) {
 	const spec = launchSpec(vscodePath());
 	const exe = spec.exe;
@@ -405,13 +426,55 @@ export async function openVSCode({ files = {}, settings = {}, signedIn = process
 			const main = mainLogTail(data);
 			throw new LaunchError(error, exe, [main && `VS Code's main log (end):\n${main}`, shot && `The display: ${shot}`].filter(Boolean).join('\n\n'));
 		}
+		if (hiddenWindows()) {
+			await app.evaluate(({ app: electronApp, BrowserWindow }) => {
+				const hide = w => {
+					w.setOpacity(0);
+					w.setIgnoreMouseEvents(true);
+					// Never focused, so it never loses the focus either: VS Code closes pickers on a blur.
+					w.setFocusable(false);
+					w.webContents.setBackgroundThrottling(false);
+					// VS Code focuses its window (a link it handles, a dialog it closes), which would make it the active app.
+					w.focus = () => { };
+					w.show = () => w.showInactive();
+				};
+				electronApp.focus = () => { };
+				// Nor can the page's own window.focus() make it the active app, so the user's typing stays in their own
+				// app; it leaves the Dock too.
+				electronApp.setActivationPolicy('prohibited');
+				BrowserWindow.getAllWindows().forEach(hide);
+				electronApp.on('browser-window-created', (_event, w) => hide(w));
+				// If it became the active app before that, hiding it gives the focus back; once it is hidden, its windows
+				// are shown again without activating it, as a hidden window doesn't paint.
+				globalThis.prsYieldFocus = () => {
+					electronApp.hide();
+					const started = Date.now();
+					const showAgain = () => {
+						if (electronApp.isHidden() || Date.now() - started > 3000) {
+							BrowserWindow.getAllWindows().forEach(w => w.showInactive());
+						} else {
+							setTimeout(showAgain, 50);
+						}
+					};
+					setTimeout(showAgain, 50);
+				};
+				electronApp.on('did-become-active', () => globalThis.prsYieldFocus());
+			});
+		}
 		const page = await app.firstWindow({ timeout: LAUNCH_TIMEOUT });
 		await app.evaluate(({ BrowserWindow }, s) => {
 			const w = BrowserWindow.getAllWindows()[0];
 			w.setPosition(40, 40);
 			w.setContentSize(s.width, s.height);
-		}, SIZE);
+			// It became the active app before it could be told not to: give the focus back.
+			if (s.hidden && BrowserWindow.getFocusedWindow()) {
+				globalThis.prsYieldFocus();
+			}
+		}, { ...SIZE, hidden: hiddenWindows() });
 		await page.waitForSelector('.monaco-workbench', { timeout: LAUNCH_TIMEOUT });
+		if (hiddenWindows()) {
+			await emulateFocus(page);
+		}
 		if (signedIn) {
 			const verdict = await checkSession(page, spec);
 			if (verdict === 'invalid') {
@@ -425,7 +488,7 @@ export async function openVSCode({ files = {}, settings = {}, signedIn = process
 				return openVSCode({ files, settings, signedIn: false, log, failureShot });
 			}
 		}
-		log(`VS Code up (${signedIn ? `signed in: a copy of the ${spec.profile} profile` : 'signed out'})`);
+		log(`VS Code up (${signedIn ? `signed in: a copy of the ${spec.profile} profile` : 'signed out'}${hiddenWindows() ? '; its windows are invisible: PRS_SHOW_WINDOW=1 shows them' : ''})`);
 		return {
 			app, page, workspace, signedIn,
 			async close() {
@@ -1033,6 +1096,9 @@ export async function demo(slug, id, { signedIn = process.platform === 'darwin' 
 		await page.keyboard.press('Enter');
 		const agents = await opened;
 		await agents.waitForSelector('.monaco-workbench', { timeout: 60_000 });
+		if (hiddenWindows()) {
+			await emulateFocus(agents);
+		}
 		await app.evaluate(({ BrowserWindow }, s) => {
 			const w = BrowserWindow.getAllWindows().reduce((a, b) => (a.id > b.id ? a : b));
 			w.setPosition(40, 40);

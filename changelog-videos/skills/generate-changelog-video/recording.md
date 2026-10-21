@@ -1,6 +1,6 @@
 # Recording a chapter
 
-`videos/<slug>/demos/<id>.mjs` (an ES module, named after its chapter: `c2.mjs`). `prs demo <id> --slug <slug>` starts VS Code in a throwaway profile with a small workspace, runs `setup()`, then records the window while the default export runs, and writes `build/demos/<id>/`: `demo.json`, `clip.mp4`, `contact.png` (stills with each mark's box) and `screen.txt`.
+`videos/<slug>/demos/<id>.mjs` (an ES module, named after its chapter: `c2.mjs`). `prs demo <id> --slug <slug>` starts VS Code in a throwaway profile with a small workspace (its windows invisible on a Mac: the recording is of the page, not the screen), runs `setup()`, then records the window while the default export runs, and writes `build/demos/<id>/`: `demo.json`, `clip.mp4`, `contact.png` (stills with each mark's box) and `screen.txt`.
 
 ```js
 export const files = { 'README.md': '# My project\n' };          // the workspace (optional)

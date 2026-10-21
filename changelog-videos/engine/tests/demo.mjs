@@ -1,10 +1,10 @@
-// prs demo on Linux: the environment VS Code gets inside a sandbox (gh-aw's agent firewall).
+// prs demo: the environment VS Code gets inside a sandbox (gh-aw's agent firewall) on Linux, and its windows on a Mac.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fontConfig, fontProblems, prepareLinuxEnv } from '../cli/lib/demo.mjs';
+import { fontConfig, fontProblems, hiddenWindows, prepareLinuxEnv } from '../cli/lib/demo.mjs';
 
 test('VS Code gets its own runtime dir, a font config, and the system libraries instead of the sandbox copies', () => {
 	const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'prs-demo-test-'));
@@ -68,4 +68,10 @@ test('the fonts VS Code renders with are checked on Linux only', () => {
 		2,
 		[],
 	]);
+});
+
+test('on a Mac, VS Code\'s windows are invisible unless PRS_SHOW_WINDOW=1; Linux records on a virtual display', () => {
+	assert.deepStrictEqual(
+		[hiddenWindows('darwin', {}), hiddenWindows('darwin', { PRS_SHOW_WINDOW: '1' }), hiddenWindows('linux', {})],
+		[true, false, false]);
 });
