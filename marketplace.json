@@ -162,6 +162,16 @@
       }
     },
     {
+      "name": "test-videos",
+      "source": "./test-videos/",
+      "description": "Short narrated \"how to test\" videos for VS Code test plan items and fixed bugs, recorded in real VS Code Insiders with every step checked in the app and what's wrong flagged where it happens. macOS.",
+      "version": "0.2.0",
+      "categories": ["workflow"],
+      "status": "experimental",
+      "maintainers": ["federicobrancasi"],
+      "keywords": ["video", "testing", "test-plan-item", "verification", "endgame", "insiders", "playwright"]
+    },
+    {
       "name": "pr-studio",
       "source": "./pr-studio/",
       "description": "Explainer videos and slide decks of pull requests, in one white Microsoft look, made in chat by the model you pick. Self-contained.",

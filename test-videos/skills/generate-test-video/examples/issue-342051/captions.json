@@ -1,0 +1,30 @@
+{
+	"name": "issue-342051-how-to-verify",
+	"title": "How to verify #342051 · Open links from Quick Open · Insiders from Oct 17 or newer",
+	"steps": {
+		"setup": {
+			"label": "SET UP",
+			"do": "Serve any folder (a 404 page is fine): `python3 -m http.server 8642 --bind 127.0.0.1`. Open `README.md`.",
+			"tag2": "USER SETTINGS",
+			"look": "`\"workbench.browser.openLocalhostLinks\": true`",
+			"zoom": 1.5
+		},
+		"open": {
+			"label": "STEP 1 OF 4",
+			"do": "⌘P (Ctrl+P), paste a file link to a line, e.g. `file:///…/src/greet.ts#L3`, then Enter.",
+			"look": "Placeholder: “…or paste a link”; an Open Link row. `greet.ts` opens here, on line 3."
+		},
+		"side": {
+			"label": "STEP 2 OF 4",
+			"do": "In `README.md`: ⌘P, paste the same link, ⌥Enter (Alt+Enter on Windows/Linux).",
+			"look": "`greet.ts` opens beside it, on line 3; `README.md` stays visible.",
+			"zoom": 1.5
+		},
+		"handlers": {
+			"label": "STEP 3 OF 4",
+			"do": "From `README.md`: ⌘P, paste `http://127.0.0.1:8642/review.html?pr=342081#changes`, click the side button.",
+			"look": "With `workbench.browser.openLocalhostLinks` on, it opens in the integrated browser beside `README.md`.",
+			"zoom": false
+		}
+	}
+}

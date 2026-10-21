@@ -1,0 +1,7 @@
+{
+	"setup": "In the Agents window, turn on welcome phrases and set a welcome name, in your application settings.",
+	"b1": "First, put the name placeholder in three phrases in replace mode. Each new session shows the next phrase, with the name filled in.",
+	"b2": "Second, switch to append mode, then reload a few times. Each reload shows the next phrase: two built-in ones, then your two.",
+	"b3": "Last, set replace mode with an empty list. The welcome message disappears, and stays gone after a reload. The input still works.",
+	"cleanup": "When you're done, remove these settings, or restore your own."
+}

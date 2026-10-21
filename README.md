@@ -59,6 +59,12 @@ Install any plugin directly in VS Code:
 | [dap-cli](https://github.com/roblourens/dap-cli) ↗ | DAP debugger controls — breakpoints, stepping, stack and variable inspection, and launch configuration |
 | [debug](debug/) | Hypothesis-driven temporary instrumentation and local structured runtime evidence, with mandatory human reproduction and cleanup gates |
 
+### Test — show testers how to verify a change
+
+| Plugin | What it does |
+|---|---|
+| [test-videos](test-videos/) | `/test-videos:generate-test-video <TPI or issues>` records a short narrated "how to test" video in real VS Code Insiders, checks every step in the app, pauses on what's wrong, and opens with a verdict (verified, issues, partial…) |
+
 ### Explain — show what a change does
 
 | Plugin | What it does |

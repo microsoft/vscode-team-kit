@@ -1,0 +1,6 @@
+{
+	"setup": "Open a folder, start a local web server, and turn the setting on.",
+	"open": "Paste a file link into Quick Open: it offers to open it. Press Enter: the file opens here, on line three.",
+	"side": "From the README, paste the same link and press Option Enter: it opens beside it, and the README stays.",
+	"handlers": "For a localhost link, with the shared setting on, the side button opens it in the integrated browser, next to the README."
+}
