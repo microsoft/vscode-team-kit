@@ -53,7 +53,7 @@ changelog-videos/
 - macOS or Linux, with VS Code Insiders (the project downloads the build it needs when the installed one doesn't have the picks)
 - Node.js 20+, Python 3.10–3.13
 - `gh`, signed in to an account that can read the changelog report; otherwise pass the report as a file
-- To record chat and the Agents window: a Mac with a signed-in Insiders. A build of main runs as Code OSS, signed in only if its own profile is; signed out, those chapters are drawn
+- To record chat and the Agents window: a Mac with a signed-in Insiders (the recordings use a copy of your sign-in). When it isn't signed in, the skill tells you and asks you to sign in; if you'd rather not, those chapters are drawn. A build of main runs as Code OSS, signed in only if its own profile is
 
 ## Settings
 

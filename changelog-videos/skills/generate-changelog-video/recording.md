@@ -73,7 +73,7 @@ export default async function demo({ page, moveTo, click, mark, step, cue }) {
 
 Its arrows: `"focus": [{ "part": "tooltip", "row": "nested" }, { "part": "nested", "row": "click", "at": "One click" }]`, and `"proof": "New Nested Session"`. Session rows are `.monaco-list-row` (their actions show on hover); the chat inputs' placeholders are "Chat with Copilot" (a session) and "Pitch your idea" (a new one); the slash menu is `.suggest-widget`.
 
-Signed out (Linux, CI, or a profile whose session expired: `prs demo` prints which), there is no chat and no agent session, and `openAgentsWindow()` stops: draw those chapters. A build of main runs as Code OSS, signed in only when its own profile (`~/.vscode-oss-dev`) is: say so in your summary.
+Signed out (Linux, CI, or VS Code not signed in: `prs demo check` says which, and how to sign in), there is no chat and no agent session, and `openAgentsWindow()` stops: ask the user to sign in (SKILL.md, step 5), or draw those chapters. A build of main runs as Code OSS, signed in only when its own profile (`~/.vscode-oss-dev`) is: say so in your summary.
 
 ## Rules
 

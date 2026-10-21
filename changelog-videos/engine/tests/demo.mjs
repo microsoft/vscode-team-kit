@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fontConfig, fontProblems, hiddenWindows, prepareLinuxEnv } from '../cli/lib/demo.mjs';
+import { fontConfig, fontProblems, hiddenWindows, prepareLinuxEnv, removeStaleProfiles, signInAdvice, signInState } from '../cli/lib/demo.mjs';
 
 test('VS Code gets its own runtime dir, a font config, and the system libraries instead of the sandbox copies', () => {
 	const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'prs-demo-test-'));
@@ -74,4 +74,38 @@ test('on a Mac, VS Code\'s windows are invisible unless PRS_SHOW_WINDOW=1; Linux
 	assert.deepStrictEqual(
 		[hiddenWindows('darwin', {}), hiddenWindows('darwin', { PRS_SHOW_WINDOW: '1' }), hiddenWindows('linux', {})],
 		[true, false, false]);
+});
+
+test('the sign-in state of a build, and what to tell the user when it can\'t record chat or the Agents window', () => {
+	const insiders = { profile: 'Code - Insiders', args: [] };
+	const main = { profile: 'Code OSS', args: ['/builds/vscode-1964d141f'] };
+	assert.deepStrictEqual([
+		[signInState(), signInState({ profile: false }), signInState({ expired: true, signInButton: true }), signInState({ signInButton: true })],
+		signInAdvice('signed-in', insiders),
+		signInAdvice('signed-out', insiders),
+		signInAdvice('expired', main),
+		signInAdvice('no-profile', insiders),
+	], [
+		['signed-in', 'no-profile', 'expired', 'signed-out'],
+		null,
+		'VS Code Insiders isn\'t signed in to GitHub, so chat and the Agents window can\'t be recorded. Sign in to GitHub in VS Code Insiders (the Accounts menu), then run prs demo check again',
+		'Code OSS\'s GitHub sign-in has expired, so chat and the Agents window can\'t be recorded. Sign in to GitHub in that build (start it with /builds/vscode-1964d141f/scripts/code.sh), then run prs demo check again',
+		'VS Code Insiders was never started on this Mac, so chat and the Agents window can\'t be recorded. Sign in to GitHub in VS Code Insiders (the Accounts menu), then run prs demo check again',
+	]);
+});
+
+test('throwaway profiles that interrupted runs left behind (a copy of the user\'s sign-in) go after 6 hours; others stay', () => {
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'prs-stale-test-'));
+	try {
+		const now = Date.now();
+		for (const [name, hoursAgo] of [['prs-demo-old', 7], ['prs-demo-running', 1], ['not-ours', 30]]) {
+			fs.mkdirSync(path.join(dir, name, 'user-data'), { recursive: true });
+			const t = new Date(now - hoursAgo * 3600 * 1000);
+			fs.utimesSync(path.join(dir, name), t, t);
+		}
+		removeStaleProfiles(dir, now);
+		assert.deepStrictEqual(fs.readdirSync(dir).sort(), ['not-ours', 'prs-demo-running']);
+	} finally {
+		fs.rmSync(dir, { recursive: true, force: true });
+	}
 });

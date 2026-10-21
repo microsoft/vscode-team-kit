@@ -328,9 +328,10 @@ async function emulateFocus(page) {
 }
 const focusSessions = new WeakMap();
 
-export async function openVSCode({ files = {}, settings = {}, signedIn = process.platform === 'darwin', log = console.log, failureShot = null } = {}) {
+export async function openVSCode({ files = {}, settings = {}, signedIn = process.platform === 'darwin', log = console.log, failureShot = null, signIn = 'signed-out' } = {}) {
 	const spec = launchSpec(vscodePath());
 	const exe = spec.exe;
+	removeStaleProfiles();
 	const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'prs-demo-'));
 	let app, xserver;
 	const cleanup = () => {
@@ -359,12 +360,17 @@ export async function openVSCode({ files = {}, settings = {}, signedIn = process
 			fs.mkdirSync(path.join(home, 'Library'), { recursive: true });
 			fs.symlinkSync(path.join(os.homedir(), 'Library/Keychains'), path.join(home, 'Library/Keychains'));
 		}
+		if (signedIn && (process.platform !== 'darwin' || !fs.existsSync(spec.state))) {
+			// The build was never started on this Mac (or this isn't a Mac): nothing to sign in with.
+			signedIn = false;
+			signIn = process.platform === 'darwin' ? 'no-profile' : 'signed-out';
+			if (signIn === 'no-profile') {
+				log(`${signInAdvice(signIn, spec)}: recording signed out`);
+			}
+		}
 		if (signedIn) {
 			// Signed in: a copy of the signed-in state of the same build's own profile (its keychain entry decrypts it).
 			const state = spec.state;
-			if (process.platform !== 'darwin' || !fs.existsSync(state)) {
-				throw new Error(`A signed-in demo needs a signed-in ${spec.profile} profile on this Mac (${state})`);
-			}
 			const copy = path.join(data, 'User/globalStorage/state.vscdb');
 			execFileSync('sqlite3', [state, `.backup "${copy}"`]);
 			// A clean demo: none of the recent folders or recently used commands.
@@ -476,21 +482,22 @@ export async function openVSCode({ files = {}, settings = {}, signedIn = process
 			await emulateFocus(page);
 		}
 		if (signedIn) {
-			const verdict = await checkSession(page, spec);
-			if (verdict === 'invalid') {
-				// The profile's GitHub session no longer works (signed in long ago, or revoked): Copilot asks to sign in, in
-				// a modal that would cover the recording. Start again signed out (sign in once in that app to fix it).
-				log(`The ${spec.profile} profile's GitHub session is invalid (Copilot asks to sign in): recording signed out. Sign in once in ${spec.profile} to record signed in.`);
+			const state = await sessionState(page, spec);
+			if (state !== 'signed-in') {
+				// Expired (Copilot asks to sign in again, in a modal that would cover the recording) or never signed in:
+				// start again signed out, and say how to sign in.
+				log(`${signInAdvice(state, spec)}: recording signed out`);
 				await app.close().catch(() => { });
 				cleanup();
 				process.off('SIGINT', onSignal);
 				process.off('SIGTERM', onSignal);
-				return openVSCode({ files, settings, signedIn: false, log, failureShot });
+				return openVSCode({ files, settings, signedIn: false, log, failureShot, signIn: state });
 			}
+			signIn = state;
 		}
 		log(`VS Code up (${signedIn ? `signed in: a copy of the ${spec.profile} profile` : 'signed out'}${hiddenWindows() ? '; its windows are invisible: PRS_SHOW_WINDOW=1 shows them' : ''})`);
 		return {
-			app, page, workspace, signedIn,
+			app, page, workspace, signedIn, signIn, spec,
 			async close() {
 				await app.close().catch(() => { });
 				cleanup();
@@ -507,36 +514,83 @@ export async function openVSCode({ files = {}, settings = {}, signedIn = process
 }
 
 /**
- * Whether a copied profile's GitHub session still works: 'valid', or 'invalid' when Copilot asks to sign in again (a
- * modal) or says the token is invalid. Remembered per profile until its state changes (a sign-in) or for a day.
+ * Whether a build can record chat and the Agents window here: 'signed-in'; 'expired' when Copilot asks to sign in
+ * again or says the token is invalid; 'signed-out' when the title bar keeps its Sign In button (never signed in); or
+ * 'no-profile' when the build was never started on this Mac.
  */
-async function checkSession(page, spec) {
+export function signInState({ profile = true, expired = false, signInButton = false } = {}) {
+	return !profile ? 'no-profile' : expired ? 'expired' : signInButton ? 'signed-out' : 'signed-in';
+}
+
+/** What to tell the user when a build isn't signed in (null when it is): why, and how to sign in. */
+export function signInAdvice(state, spec) {
+	const app = spec.profile === 'Code - Insiders' ? 'VS Code Insiders' : spec.profile;
+	const why = { 'no-profile': `${app} was never started on this Mac`, 'signed-out': `${app} isn't signed in to GitHub`, expired: `${app}'s GitHub sign-in has expired` }[state];
+	if (!why) {
+		return null;
+	}
+	const where = spec.args?.[0] ? `in that build (start it with ${path.join(spec.args[0], 'scripts', 'code.sh')})` : `in ${app} (the Accounts menu)`;
+	return `${why}, so chat and the Agents window can't be recorded. Sign in to GitHub ${where}, then run prs demo check again`;
+}
+
+/** The Agents window can't be recorded signed out: why, and what to do. */
+function agentsSignInError(vscode) {
+	const advice = signInAdvice(vscode.signIn, vscode.spec);
+	return new Error(`The Agents window needs a GitHub sign-in, and VS Code runs signed out here${advice ? ` (${advice})` : ''}: when someone is watching, ask them to sign in and record again; otherwise draw this chapter (a scene)`);
+}
+
+/**
+ * Removes throwaway profiles that interrupted runs left in `dir` (they hold a copy of the user's sign-in): any older
+ * than 6 hours, which no recording lasts.
+ */
+export function removeStaleProfiles(dir = os.tmpdir(), now = Date.now()) {
+	for (const name of fs.readdirSync(dir)) {
+		const profile = path.join(dir, name);
+		try {
+			if (name.startsWith('prs-demo-') && now - fs.statSync(profile).mtimeMs > 6 * 3600 * 1000) {
+				fs.rmSync(profile, { recursive: true, force: true });
+			}
+		} catch {
+			// Removed meanwhile, or not ours to remove.
+		}
+	}
+}
+
+/**
+ * The sign-in state of a copied profile, from what its window shows over about 12 s (VS Code shows the Sign In button
+ * until the account resolves, so only one that stays counts). Remembered per profile: a sign-in for a day, anything
+ * else until the profile changes (someone signs in).
+ */
+async function sessionState(page, spec) {
 	const cacheFile = path.join(CACHE, 'sessions.json');
 	const cache = fs.existsSync(cacheFile) ? readJson(cacheFile) : {};
 	const mtime = fs.statSync(spec.state).mtimeMs;
 	const known = cache[spec.state];
-	if (known && (known.verdict === 'invalid' ? known.mtime === mtime : Date.now() - known.at < 24 * 3600 * 1000)) {
-		if (known.verdict === 'invalid') {
-			return 'invalid';
-		}
-		return 'valid';
+	if (known?.state && (known.state === 'signed-in' ? Date.now() - known.at < 24 * 3600 * 1000 : known.mtime === mtime)) {
+		return known.state;
 	}
-	const signs = [page.getByText('Sign in to use GitHub Copilot'), page.getByText(/GitHub token is invalid/)];
-	let verdict = 'valid';
-	for (let i = 0; i < 24 && verdict === 'valid'; i++) {
-		for (const sign of signs) {
+	const expiredSigns = [page.getByText('Sign in to use GitHub Copilot'), page.getByText(/GitHub token is invalid/)];
+	const button = page.locator('.titlebar [role="button"][aria-label="Sign In"]');
+	let state = 'signed-in';
+	let shown = 0;
+	for (let i = 0; i < 24 && state === 'signed-in'; i++) {
+		for (const sign of expiredSigns) {
 			if (await sign.first().isVisible().catch(() => false)) {
-				verdict = 'invalid';
+				state = signInState({ expired: true });
 			}
 		}
-		if (verdict === 'valid') {
+		shown = await button.first().isVisible().catch(() => false) ? shown + 1 : 0;
+		if (shown >= 4) {
+			state = signInState({ signInButton: true });
+		}
+		if (state === 'signed-in') {
 			await sleep(500);
 		}
 	}
-	cache[spec.state] = { verdict, mtime, at: Date.now() };
+	cache[spec.state] = { state, mtime, at: Date.now() };
 	fs.mkdirSync(path.dirname(cacheFile), { recursive: true });
 	fs.writeFileSync(cacheFile, JSON.stringify(cache, null, '\t'));
-	return verdict;
+	return state;
 }
 
 /** VS Code started, but renders with the wrong fonts (Linux): a recording would look broken. */
@@ -1000,6 +1054,8 @@ export async function demoCheck() {
 	try {
 		build = buildInfo();
 		const vscode = await openVSCode({ files: { 'README.md': '# Check\n' }, log: () => { }, failureShot: base + '.png' });
+		const signIn = vscode.signIn;
+		const advice = signInAdvice(signIn, vscode.spec);
 		let fonts;
 		try {
 			if (process.platform !== 'darwin') {
@@ -1015,8 +1071,11 @@ export async function demoCheck() {
 		if (problems.length) {
 			throw new FontError(problems, fonts);
 		}
-		writeJson(base + '.json', { ok: true, build, fonts, seconds, at: new Date().toISOString() });
+		writeJson(base + '.json', { ok: true, build, fonts, seconds, signIn, at: new Date().toISOString() });
 		console.log(`demos work here: ${build.name ?? 'VS Code'} ${build.version ?? ''} started in ${seconds} s, its UI in ${fonts.ui}, its code in ${fonts.mono} (${base}.png)`);
+		console.log(signIn === 'signed-in'
+			? 'signed in to GitHub: chat and the Agents window can be recorded'
+			: advice ? `NOT SIGNED IN: ${advice}` : 'signed out (recordings here are): chat and the Agents window are drawn');
 		return true;
 	} catch (error) {
 		fs.writeFileSync(base + '.log', error.log ?? String(error.stack ?? error));
@@ -1085,6 +1144,9 @@ export async function demo(slug, id, { signedIn = process.platform === 'darwin' 
 		if (win.recording) {
 			throw new Error('Open the Agents window in setup(), before the recording starts: the recording is of one window');
 		}
+		if (!vscode.signedIn) {
+			throw agentsSignInError(vscode);
+		}
 		const opened = app.waitForEvent('window', { timeout: 30_000 });
 		const main = helpers(page, app);
 		await main.palette('Open Agents Window');
@@ -1107,7 +1169,7 @@ export async function demo(slug, id, { signedIn = process.platform === 'darwin' 
 		await sleep(3000);
 		// Signed out, the Agents window is a sign-in dialog over everything: nothing in it can be recorded.
 		if (await agents.getByText('Sign in to use Agents', { exact: true }).isVisible().catch(() => false)) {
-			throw new Error('The Agents window needs a sign-in, and this build runs signed out here: draw this chapter (a scene) instead of recording it');
+			throw agentsSignInError(vscode);
 		}
 		hookTyping(agents);
 		win.page = agents;
