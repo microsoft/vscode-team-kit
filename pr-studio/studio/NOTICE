@@ -1,8 +1,8 @@
 pr-studio
 =========
 
-Third-party software and assets used by this project. Packages are installed from npm or PyPI and models are
-downloaded by `prs doctor`; none of them is stored in this repository except where noted.
+Third-party software and assets used by this project. The commands install the packages from npm or PyPI, and
+download the models, on first use; none of them is stored in this repository except where noted.
 
 Bundled into rendered videos
 - Inter (fallback typeface), SIL Open Font License 1.1, via @fontsource/inter.
@@ -18,6 +18,8 @@ Used at build time
 - faster-whisper (MIT) and the Whisper small.en model (MIT, OpenAI) for word timing and the sync gate.
 - Kokoro-82M (Apache-2.0, hexgrad) via kokoro-onnx (MIT), the offline narration voice.
 - MAI-Voice-2 through Azure AI Speech, when you configure your own Azure resource.
+- VS Code Insiders builds, downloaded from update.code.visualstudio.com by `prs app` into the cache, to film a change
+  in the real app.
 
 Not distributed
 - Aptos is read in place from a local Microsoft Office installation when present; it is never copied into this

@@ -69,6 +69,6 @@ The engine is the plain files in `studio/`: change them here, like any code.
 - `prs smoke` makes a short video end to end.
 - The setup's own tests run in the kit's `npm test`.
 
-The engine started as [pr-studio](https://github.com/federicobrancasi/pr-studio) (MIT). That repository's `npm run plugin` built the old `engine.pack` and no longer applies here.
+The engine started as [pr-studio](https://github.com/federicobrancasi/pr-studio); it is developed here now, under this repository's license. Third-party software and assets are listed in [studio/NOTICE](studio/NOTICE).
 
 The engine keeps its own `package.json` instead of the kit's root one, as an exception to the kit's convention. Its packages (a browser driver, esbuild, shiki, fonts) are large and only this plugin needs them, so `setup.mjs` installs them into the cache on first use rather than for every kit user.
