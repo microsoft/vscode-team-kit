@@ -28,7 +28,7 @@ numpy==2.4.6
 onnxruntime==1.30.0
 packaging==26.3
 phonemizer==3.4.0
-pillow==11.3.0
+pillow==13.0.0
 protobuf==7.36.2
 pycparser==3.0
 PyYAML==6.0.3
