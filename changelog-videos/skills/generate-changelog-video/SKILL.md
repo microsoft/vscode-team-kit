@@ -25,7 +25,7 @@ About 20–40 minutes. Post a one-line update after each step. Read [recording.m
 3. **What each chapter shows.** For each, in this order:
    - **Record it** (a demo): VS Code doing the change, driven like a user. Most changes can be: the Command Palette, quick picks, menus, hovers, dialogs, `vscode://` links, editors, terminals, settings, and signed in, chat and the Agents window. Record the change itself (the menu open, the dialog up, the text pasted), not its Settings row, unless the change is the setting.
    - **Draw it** (a scene) when a recording can't show it: it needs an enterprise policy, another OS, the network, Stable, or a sign-in the build doesn't have. A change with UI is never a card: take the closest scene.
-   - **A card** only when nothing changes on screen.
+   - **A card** only when nothing changes on screen (a fix that leaves the UI as it was). Something removed from a menu, a picker or a view is a change on screen: show where it was, now without it (the picker searched for it, with no match), with the Before row naming it.
 
    Then the parts its arrows point at: up to three, one at a time, in the order the narration names them.
 4. **Narration** (`storyboard.json`): beats `intro`, `c1` … `c5`, `outro`, about **150 words** in all. Intro: `Today's VS Code changelog: the top five changes from the last day.` Each chapter: 20–30 words starting `One.` … `Five.`: the change for users, then one detail, naming in order what its arrows point at, as the UI labels it. Outro: `That's today's changelog. The full list is in the changelog channel.` Then `prs voice <slug>`: from here the narration is final, and recordings follow its pace.
@@ -39,7 +39,7 @@ About 20–40 minutes. Post a one-line update after each step. Read [recording.m
 
 **A fresh pair of eyes checks every sheet.** Start a subagent with the sheet paths, the checklist and `facts.md`, and ask it to list every wrong frame: it hasn't seen your work, so it judges what is on screen. Without subagents, open every sheet yourself at full size, and say the review was your own. A frame is wrong when:
 
-- the UI is not the one the PR changes (another UI, or a drawing of a UI that doesn't exist);
+- the UI is not the one the PR changes (another UI, a drawing of a UI that doesn't exist, or a card when something changes on screen, a removal included);
 - a ring is not on what its row names, is on something not there yet, or its arrow comes before its part;
 - the narration names a label, option or value that doesn't show then, or shows in other words (a build can word it differently than the PR);
 - next to a recording, the strip says what the recording doesn't show;
