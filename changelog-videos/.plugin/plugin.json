@@ -1,0 +1,10 @@
+{
+  "name": "changelog-videos",
+  "version": "0.1.0",
+  "description": "The daily VS Code changelog video: about a minute on the top five picks of the changelog report, each recorded in VS Code itself (the Agents window included) or drawn when it can't be, with every string checked against its PR and every frame reviewed. macOS and Linux.",
+  "license": "MIT",
+  "categories": ["workflow"],
+  "status": "experimental",
+  "maintainers": ["federicobrancasi"],
+  "keywords": ["video", "changelog", "release-notes", "insiders", "agents-window", "playwright", "narration"]
+}

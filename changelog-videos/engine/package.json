@@ -1,0 +1,24 @@
+{
+  "name": "changelog-videos-engine",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The engine of the changelog-videos plugin: the daily VS Code changelog video, recorded in VS Code with Playwright.",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "prs": "cli/prs.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@fontsource/inter": "^5.3.0",
+    "@fontsource/jetbrains-mono": "^5.3.0",
+    "esbuild": "^0.28.2",
+    "playwright-core": "^1.63.0"
+  },
+  "scripts": {
+    "prs": "node cli/prs.mjs",
+    "test": "node --test tests/*.mjs"
+  }
+}

@@ -65,6 +65,12 @@ Install any plugin directly in VS Code:
 |---|---|
 | [test-videos](test-videos/) | `/test-videos:generate-test-video <TPI or issues>` records a short narrated "how to test" video in real VS Code Insiders, checks every step in the app, pauses on what's wrong, and opens with a verdict (verified, issues, partial…) |
 
+### Explain — show what a change does
+
+| Plugin | What it does |
+|---|---|
+| [changelog-videos](changelog-videos/) | `/changelog-videos:generate-changelog-video [date]` makes the daily VS Code changelog video: about a minute on the top five picks of the changelog report, each recorded in VS Code (the Agents window included) or drawn when it can't be, with arrows to what changed, checked against each PR and reviewed before it's delivered |
+
 ## How we use these
 
 Every plugin here runs in our daily workflow. A few patterns that emerged:
