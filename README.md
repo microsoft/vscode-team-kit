@@ -65,6 +65,12 @@ Install any plugin directly in VS Code:
 |---|---|
 | [test-videos](test-videos/) | `/test-videos:generate-test-video <TPI or issues>` records a short narrated "how to test" video in real VS Code Insiders, checks every step in the app, pauses on what's wrong, and opens with a verdict (verified, issues, partial…) |
 
+### Explain — show what a change does
+
+| Plugin | What it does |
+|---|---|
+| [pr-studio](pr-studio/) | `/pr-studio:generate-video <PR>` makes a short narrated explainer video of a pull request, checked against the diff and reviewed before it's delivered; `/pr-studio:generate-presentation <PR>` makes a slide deck of it in the same look, with every code line checked against the PR |
+
 ## How we use these
 
 Every plugin here runs in our daily workflow. A few patterns that emerged:

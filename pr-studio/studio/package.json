@@ -1,0 +1,29 @@
+{
+  "name": "pr-studio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The engine of the pr-studio plugin: explainer videos of pull requests and slide decks in one white Microsoft look.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Federico Brancasi",
+  "bin": {
+    "prs": "cli/prs.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@fontsource/inter": "^5.3.0",
+    "@fontsource/jetbrains-mono": "^5.3.0",
+    "esbuild": "^0.28.2",
+    "jsqr": "^1.4.0",
+    "playwright-core": "^1.63.0",
+    "pngjs": "^7.0.0",
+    "qrcode": "^1.5.4",
+    "shiki": "^4.5.0"
+  },
+  "scripts": {
+    "prs": "node cli/prs.mjs",
+    "test": "node --test tests/*.mjs"
+  }
+}

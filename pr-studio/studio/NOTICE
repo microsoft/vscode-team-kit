@@ -1,0 +1,37 @@
+pr-studio
+=========
+
+Third-party software and assets used by this project. The commands install the packages from npm or PyPI, and
+download the models, on first use; none of them is stored in this repository except where noted.
+
+Bundled into rendered videos
+- Inter (fallback typeface), SIL Open Font License 1.1, via @fontsource/inter.
+- JetBrains Mono (code typeface where Menlo, Cascadia Mono and Consolas are missing, e.g. Linux), SIL Open Font
+  License 1.1, via @fontsource/jetbrains-mono.
+- Fluent UI System Icons, MIT License, Microsoft Corporation: the icons pr-studio draws are copied into theme/icons.js.
+- Shiki (syntax colors, VS Code Light+ theme), MIT License.
+- qrcode (end card QR code), MIT License.
+
+Used at build time
+- esbuild (MIT), Playwright (Apache-2.0) with Chrome for Testing, jsQR (Apache-2.0), pngjs (MIT), FFmpeg (LGPL/GPL,
+  via imageio-ffmpeg, BSD-2-Clause wrapper).
+- faster-whisper (MIT) and the Whisper small.en model (MIT, OpenAI) for word timing and the sync gate.
+- Kokoro-82M (Apache-2.0, hexgrad) via kokoro-onnx (MIT), the offline narration voice.
+- MAI-Voice-2 through Azure AI Speech, when you configure your own Azure resource.
+- VS Code Insiders builds, downloaded from update.code.visualstudio.com by `prs app` into the cache, to film a change
+  in the real app.
+
+Not distributed
+- Aptos is read in place from a local Microsoft Office installation when present; it is never copied into this
+  repository or its outputs. Without Office, videos use Segoe UI or Inter.
+
+Microsoft, the Microsoft logo, Visual Studio Code and VS Code are trademarks of Microsoft Corporation. The end card
+and title frame show the Microsoft logo; use the videos within the scope your organization allows.
+
+The catalog stills (the pictures of the diagram treatments) are rendered from made-up demo data.
+
+Slide decks (deck/)
+- Brand marks in deck/theme/logos/ come from Simple Icons (CC0-1.0, https://simpleicons.org), except `vscode` (the
+  Visual Studio Code logo, from microsoft/vscode, MIT). The marks stay their owners' trademarks: use them only to name
+  a company or where a link goes.
+- The layout samples (deck/samples/) are made-up demo data about a fictional company (Contoso).
