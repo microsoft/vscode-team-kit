@@ -587,13 +587,19 @@ function helpers(page, app) {
 		pickerItem: label => page.locator('.quick-input-widget .monaco-list-row').filter({ visible: true }).filter({ hasText: label }).first(),
 		/**
 		 * Opens the Settings editor on one setting (searched by its ID) and returns its row, found by its ID (data-key):
-		 * never by its wording, which the build may say differently than the PR.
+		 * never by its wording, which the build may say differently than the PR. With the Settings editor already open
+		 * (from setup(), or a step before), it searches in it: the Command Palette doesn't open over it.
 		 */
 		async setting(id) {
-			await run('Preferences: Open Settings (UI)');
-			const editor = page.locator('.settings-editor');
-			await editor.waitFor({ state: 'visible', timeout: 15_000 });
-			await sleep(600);
+			const editor = page.locator('.settings-editor').filter({ visible: true }).first();
+			if (await editor.count()) {
+				await click(editor.locator('.settings-header .search-container .suggest-input-container').first());
+				await page.keyboard.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A');
+			} else {
+				await run('Preferences: Open Settings (UI)');
+				await editor.waitFor({ state: 'visible', timeout: 15_000 });
+				await sleep(600);
+			}
 			await page.keyboard.type(id, { delay: 25 });
 			const row = editor.locator(`.setting-item-contents[data-key="${id}"]`).first();
 			await row.waitFor({ state: 'visible', timeout: 15_000 });

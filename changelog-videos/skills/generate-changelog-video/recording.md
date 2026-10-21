@@ -15,7 +15,7 @@ export default async function demo(ctx) { }                       // recorded
 |--------|--------------|
 | `run('Category: Title')` | runs a command from the Command Palette, typed as a user would |
 | `palette(text)` | opens the Command Palette and types, without Enter; `picker()`, `pickerItem(label)`: the open quick pick and a row of it |
-| `setting(id)` | opens the Settings editor on one setting; returns its row (found by ID, not wording) |
+| `setting(id)` | opens the Settings editor on one setting (searches in it when it's open); returns its row (found by ID, not wording); its checkbox is `row.locator('.monaco-custom-toggle')` |
 | `openUrl(url)` | opens a `vscode-insiders://` link (`scheme`) in the window, as if clicked on a web page |
 | `terminal(command)` | opens a terminal (its prompt shows no user or machine name) and runs a command |
 | `chat.input()`, `chat.send(text)`, `chat.reply()` | the chat input of this window; send a prompt; wait for the reply |
