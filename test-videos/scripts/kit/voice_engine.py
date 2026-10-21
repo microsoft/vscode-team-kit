@@ -266,4 +266,3 @@ def heard_report(model: WhisperModel, wav: Path, spoken: str) -> str:
 			skipped.append(f'"{said}"')
 	parts = ([f"heard differently: {'; '.join(wrong[:6])}"] if wrong else []) + ([f"missing: {'; '.join(skipped[:4])}"] if skipped else [])
 	return '  '.join(parts) if parts else 'as written'
-
