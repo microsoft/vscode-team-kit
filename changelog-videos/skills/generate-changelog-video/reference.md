@@ -42,7 +42,7 @@ A recorded chapter with three arrows (Oct 19, c4; [example/digest.json](example/
 }
 ```
 
-- **headline**: what changed for users, under 52 characters. **eyebrow** (optional): where.
+- **headline**: what changed for users, under 52 characters. **eyebrow** (optional): where, up to 26 characters.
 - **before** (only a before the diff shows) and **now**: `at` (when the head appears; for now, the phrase that states the change) and `rows`; optionally `head`, `icon`, `tone`, `pulseAt`, `dim: false`. Rows: `id`, `text` (about 30 characters; `sub` for a second line), `style` (`chip`: a dark button with `icon`, `"github"` for the GitHub mark; `button`: a blue button), `icon`, `mono`, `kbd` (a shortcut), `toggle` (`on`, `off`, `flip`), `tone` (`orange`: a warning; `blue`), `changed: false` (a Now row that is not new), `at`.
 - **setting** (optional): `{ name, state, at, toggle }`, a setting card under the strip. A toggle that flips, or Before and Now toggles that differ, say a default changed: only when the PR changes one (the check looks).
 - The strip must fit 675 px: about 7 rows with heads (the check measures it).

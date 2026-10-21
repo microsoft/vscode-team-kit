@@ -1030,6 +1030,10 @@ export async function checkDigest(slug) {
 		if ((ch.headline ?? '').length > 52) {
 			problems.push(`${id}: the headline is ${ch.headline.length} characters; keep it under 52 (one line)`);
 		}
+		// The eyebrow is one line of capitals over the strip: longer, it runs into the recording beside it.
+		if ((ch.eyebrow ?? '').length > 26) {
+			problems.push(`${id}: the eyebrow is ${ch.eyebrow.length} characters; keep it to 26 (one line over the strip)`);
+		}
 		for (const r of [...(ch.before?.rows ?? []), ...(ch.now?.rows ?? [])]) {
 			if (String(r.text ?? '').length > 30 && r.tone !== 'orange') {
 				problems.push(`${id}: the row "${r.text}" is long (${r.text.length} characters; about 30 fit, or use sub for a second line)`);
