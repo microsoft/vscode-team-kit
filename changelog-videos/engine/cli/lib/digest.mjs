@@ -1265,7 +1265,7 @@ export const REVIEW_CHECKLIST = [
 	'Each ring sits on exactly what its row names, while that is on screen: no ring on empty space, on another part, or on something not there yet.',
 	'What is said at each moment is what is on screen then: every label, option or value the narration names shows, in the build\'s words (a recorded build can word it differently than the PR: then the narration says what it shows, or leaves it out).',
 	'Next to a recording, the strip says what the recording shows (the build recorded can word it differently than the PR).',
-	'Nothing is cut off or overlapping; the text is readable; the headline, the strip and the narration say the same thing.',
+	'What each arrow points at and the strip are whole, uncovered and readable (the zoom may crop the UI around a part, and an arrow\'s line may cross text on its way: that is how the video looks); the headline, the strip and the narration say the same thing.',
 ];
 
 export async function renderDigest(slug, { workers = 3 } = {}) {

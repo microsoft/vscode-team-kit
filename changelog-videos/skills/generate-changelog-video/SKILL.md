@@ -43,7 +43,7 @@ About 20–40 minutes. Post a one-line update after each step. Read [recording.m
 - a ring is not on what its row names, is on something not there yet, or its arrow comes before its part;
 - the narration names a label, option or value that doesn't show then, or shows in other words (a build can word it differently than the PR);
 - next to a recording, the strip says what the recording doesn't show;
-- something is cut off, overlapping or unreadable.
+- what an arrow points at, or the strip, is cut off, covered or unreadable. Not wrong: the zoom cropping the UI around a part, and an arrow's line crossing text on its way (that's how the video looks).
 
 Fix, `prs digest check`, `prs digest review`, and have the new sheets checked: two rounds at most. Note in `notes.md` what each found.
 

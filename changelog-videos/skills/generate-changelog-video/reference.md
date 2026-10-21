@@ -52,7 +52,7 @@ A recorded chapter with three arrows (Oct 19, c4; [example/digest.json](example/
 - **clip** (demos, optional): `start` / `end` trim the recording; a demo paced with `cue()` needs neither.
 - **recap**: the outro's line, `{ before, now, mono }`; `before: null` shows "New".
 
-The camera moves in on the first arrow's part, and on to a later one out of view: nothing to set.
+The camera moves in on the first arrow's part, and on to a later one out of view. To keep more of the UI in view (a whole setting), point the first arrow at a bigger mark: the row, not a word of it.
 
 ## Scenes
 
