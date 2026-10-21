@@ -853,6 +853,30 @@ export function unshownParts(ch, demo, corpus) {
 		.filter(part => proofText(part).length >= 3 && inProof(corpus, part) && !seen.includes(proofText(part)));
 }
 
+/**
+ * What is wrong with a demo of a removal, or null: `text` must be what the PR's diff takes out (on a removed line, and
+ * on no added one: a rename is not a removal), and no mark of the recording may show it (what the demo typed aside).
+ */
+export function removalProblem(text, diff, demo) {
+	const t = proofText(text);
+	if (t.length < 6) {
+		return `"${text}" is too short to name what was removed: 6 characters or more`;
+	}
+	const lines = String(diff ?? '').split('\n');
+	const side = sign => proofText(lines.filter(l => l.startsWith(sign) && !l.startsWith(sign.repeat(3))).map(l => l.slice(1)).join('\n'));
+	if (!side('-').includes(t)) {
+		return `"${text}" is not text the PR's diff removes`;
+	}
+	if (side('+').includes(t)) {
+		return `the PR's diff adds "${text}" too: a rename or a move is not a removal (prove the new name with "proof")`;
+	}
+	let shown = proofText(Object.values(demo?.marks ?? {}).flatMap(m => [...(m.texts ?? []), m.text ?? '']).join('\n'));
+	for (const typed of demo?.typed ?? []) {
+		shown = shown.split(proofText(typed)).join(' ');
+	}
+	return shown.includes(t) ? `the recording still shows "${text}": a removal shows where it was, now without it` : null;
+}
+
 /** A PR's diff, or null when it wasn't downloaded. */
 function prDiff(prSlug) {
 	const file = path.join(videoDir(prSlug), 'pr.diff');
@@ -1035,12 +1059,20 @@ export async function checkDigest(slug) {
 						problems.push(`${id}: the focus "${e.part}" is on screen under 1 s at a time in demo ${v.demo}: hold it longer (sleep) in the demo`);
 					}
 				}
-				// The demo shows the PR's UI: text from the PR, in a focus mark, while it is on screen.
+				// The demo shows the PR's UI: text from the PR, in a focus mark, while it is on screen. A removal instead
+				// names what the PR takes out, and the recording shows where it was, without it.
 				const proofs = [].concat(ch.proof ?? []);
+				const removed = [].concat(ch.removed ?? []);
 				const shown = proofText(entries.flatMap(e => [...(demo.marks[e.part]?.texts ?? []), demo.marks[e.part]?.text ?? '']).join('\n'));
 				const names = entries.map(e => `"${e.part}"`).join(', ');
-				if (!proofs.length) {
-					problems.push(`${id}: a demo needs "proof": text from #${pick.number} that its focus mark shows (a label, a setting's description, a command)`);
+				if (!proofs.length && !removed.length) {
+					problems.push(`${id}: a demo needs "proof": text from #${pick.number} that its focus mark shows (a label, a setting's description, a command); for a removal, "removed": what the PR takes out, which the recording shows gone`);
+				}
+				for (const r of removed) {
+					const problem = removalProblem(r, prDiff(pick.slug), demo);
+					if (problem) {
+						problems.push(`${id}: ${problem}`);
+					}
 				}
 				for (const proof of proofs) {
 					if (proofText(proof).length < 10) {

@@ -1,7 +1,7 @@
 // The changelog digest: its times (phrases of the narration, demo marks, steps) and the strip's height.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { changesADefault, unshownParts, valueChanges, fitZoom, focusShows, iconsOf, inProof, loadSceneDocs, orderStrip, planFocus, proofCorpus, resolveTime, resolveTimes, seenWindows, steadyFrom, stripHeight } from '../cli/lib/digest.mjs';
+import { changesADefault, unshownParts, valueChanges, fitZoom, focusShows, iconsOf, inProof, loadSceneDocs, orderStrip, planFocus, proofCorpus, removalProblem, resolveTime, resolveTimes, seenWindows, steadyFrom, stripHeight } from '../cli/lib/digest.mjs';
 
 // A chapter that starts 10 s into the video: "Five. VS Code links can now add a plugin marketplace."
 const words = ['Five.', 'VS', 'Code', 'links', 'can', 'now', 'add', 'a', 'plugin', 'marketplace.']
@@ -254,6 +254,35 @@ test('a demo chapter\'s Now rows say what the recording shows, not words of the 
 	const ch = { now: { rows: [{ id: 'new', text: 'Fusion' }, { id: 'tiers', text: 'Lite · Balance · Max', changed: false }, { id: 'on', text: 'On in Insiders' }] } };
 	// "On in Insiders" isn't the PR's text (a summary): only the PR's words are held to the recording.
 	assert.deepStrictEqual(unshownParts(ch, demo, corpus), ['Lite', 'Balance']);
+});
+
+test('a removal is what the PR\'s diff takes out, and no mark of the recording shows it (what the demo typed aside)', () => {
+	const diff = [
+		'--- a/package.json',
+		'+++ b/package.json',
+		'@@ -1,5 +1,4 @@',
+		' "tools": [',
+		'-  { "name": "run_vscode_command", "displayName": "Run VS Code Command" },',
+		'   { "name": "run_in_terminal", "displayName": "Run in Terminal" },',
+		'-  { "displayName": "Old Tool Name" },',
+		'+  { "displayName": "Old Tool Name (renamed)" },',
+	].join('\n');
+	const list = { marks: { list: { texts: ['Run in Terminal', 'No matching tools'] } } };
+	assert.deepStrictEqual([
+		removalProblem('Run VS Code Command', diff, list),
+		removalProblem('Run VS Code Command', diff, { marks: { input: { texts: ['Run VS Code Command'] } }, typed: ['Run VS Code Command'] }),
+		removalProblem('Run VS Code Command', diff, { marks: { list: { texts: ['Run VS Code Command'] } } }),
+		removalProblem('Run in Terminal', diff, list),
+		removalProblem('Old Tool Name', diff, list),
+		removalProblem('Run', diff, list),
+	], [
+		null,
+		null,
+		'the recording still shows "Run VS Code Command": a removal shows where it was, now without it',
+		'"Run in Terminal" is not text the PR\'s diff removes',
+		'the PR\'s diff adds "Old Tool Name" too: a rename or a move is not a removal (prove the new name with "proof")',
+		'"Run" is too short to name what was removed: 6 characters or more',
+	]);
 });
 
 test('the strip comes in top to bottom: Before ahead of Now, even when the narration names it after', () => {

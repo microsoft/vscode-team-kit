@@ -77,7 +77,7 @@ Signed out (Linux, CI, or a profile whose session expired: `prs demo` prints whi
 
 ## Rules
 
-- The proof is the PR's text that one of the marks shows (a label, a description), never text the demo typed.
+- The proof is the PR's text that one of the marks shows (a label, a description), never text the demo typed. A removal has none: mark where it was (the list, searched for it) and name it in `removed` ([reference.md](reference.md)).
 - Never change anything outside the throwaway profile: cancel install and sign-in dialogs; don't sign in, push or install.
 - On Linux, `prs demo` stops when VS Code renders with the wrong fonts: never work around it.
 - Shortcuts: next to a recording, write one as the recording shows it (Ctrl+T on Linux, ⌘T on a Mac).

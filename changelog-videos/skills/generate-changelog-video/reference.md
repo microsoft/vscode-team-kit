@@ -49,6 +49,7 @@ A recorded chapter with three arrows (Oct 19, c4; [example/digest.json](example/
 - **visual**: `{ "demo": "c4" }` or `{ "scene": { "name": "…", "params": { … } } }` (times in params too).
 - **focus** (not on a card): up to three arrows, one at a time, `{ "part", "row", "at" }`: from the strip row `row` to `part` (a demo's mark or a scene's part), from the phrase `at`, while the part is on screen and still, at least a second each (the check says when one can't). Its color is its row's: grey from a Before row, blue from a button, orange from a warning, else green. Without `row`, an arrow starts from the first green Now row; without `at`, once its row is in and its part is on screen.
 - **proof** (demos): the PR's text one of the arrows' marks shows on screen.
+- **removed** (a demo of a removal, in place of proof): the label the PR's diff takes out. The check makes sure no mark of the recording shows it: the recording shows where it was, now without it (the picker searched for it).
 - **clip** (demos, optional): `start` / `end` trim the recording; a demo paced with `cue()` needs neither.
 - **recap**: the outro's line, `{ before, now, mono }`; `before: null` shows "New".
 
