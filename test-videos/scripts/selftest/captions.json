@@ -1,0 +1,8 @@
+{
+	"name": "selftest-how-to-test",
+	"title": "test-videos self-test · Insiders",
+	"steps": {
+		"open": { "label": "STEP 1 OF 2", "do": "Press `⌘P`, paste `notes.md`, then ↵.", "look": "The `notes.md` tab opens." },
+		"click": { "label": "STEP 2 OF 2", "do": "Click `README.md` in the Explorer.", "look": "Its tab opens.", "zoom": 1.5 }
+	}
+}
