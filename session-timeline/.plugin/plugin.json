@@ -1,0 +1,10 @@
+{
+  "name": "session-timeline",
+  "version": "0.1.5",
+  "description": "Inspect the current Copilot session as a live, searchable timeline canvas.",
+  "license": "MIT",
+  "categories": ["debugging"],
+  "status": "experimental",
+  "keywords": ["canvas", "session", "timeline", "debugging", "copilot"],
+  "extensions": "extensions/"
+}

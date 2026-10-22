@@ -37,6 +37,15 @@
   ],
   "plugins": [
     {
+      "name": "session-timeline",
+      "source": "./session-timeline/",
+      "description": "Inspect the current Copilot session as a live, searchable timeline canvas.",
+      "version": "0.1.5",
+      "categories": ["debugging"],
+      "status": "experimental",
+      "keywords": ["canvas", "session", "timeline", "debugging", "copilot"]
+    },
+    {
       "name": "handy-commands",
       "source": "./handy-commands/",
       "description": "Helpful slash commands for common development workflows.",

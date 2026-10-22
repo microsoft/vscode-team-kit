@@ -1,0 +1,43 @@
+- generic [active] [ref=e1]:
+  - link "Skip to timeline" [ref=e2] [cursor=pointer]:
+    - /url: "#events"
+  - banner [ref=e3]:
+    - heading "Session timeline" [level=1] [ref=e5]
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - text: Search
+        - searchbox "Search" [ref=e8]
+      - button "Refresh" [ref=e9] [cursor=pointer]
+      - link "Export events" [ref=e10] [cursor=pointer]:
+        - /url: /api/raw
+      - button "Text view" [ref=e11] [cursor=pointer]
+      - button "Help" [ref=e12] [cursor=pointer]
+    - generic [ref=e13]:
+      - group "Show events" [ref=e14]:
+        - generic [ref=e16]:
+          - checkbox "System" [checked] [ref=e17]
+          - text: System
+        - generic [ref=e18]:
+          - checkbox "User" [checked] [ref=e19]
+          - text: User
+        - generic [ref=e20]:
+          - checkbox "Assistant" [checked] [ref=e21]
+          - text: Assistant
+        - generic [ref=e22]:
+          - checkbox "Tool" [checked] [ref=e23]
+          - text: Tool
+        - generic [ref=e24]:
+          - checkbox "Subagent" [checked] [ref=e25]
+          - text: Subagent
+      - generic [ref=e26]:
+        - checkbox "Follow latest" [ref=e27]
+        - text: Follow latest
+      - generic [ref=e28]:
+        - checkbox "Announce updates" [checked] [ref=e29]
+        - text: Announce updates
+    - status [ref=e30]: Loading session history...
+  - generic [ref=e31]:
+    - navigation "User requests" [ref=e32]:
+      - heading "Requests" [level=2] [ref=e33]
+      - list
+    - main "Session timeline" [ref=e34]
