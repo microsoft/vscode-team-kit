@@ -3,7 +3,7 @@
 # unpinned install broke the cloud runner. Update all pins together (with requirements-kokoro.txt).
 anyio==4.15.1
 av==18.1.0
-certifi==2026.7.22
+certifi==2026.10.19
 cffi==2.1.1
 click==8.5.0
 ctranslate2==4.8.2
