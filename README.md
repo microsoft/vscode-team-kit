@@ -58,6 +58,7 @@ Install any plugin directly in VS Code:
 |---|---|
 | [dap-cli](https://github.com/roblourens/dap-cli) ↗ | DAP debugger controls — breakpoints, stepping, stack and variable inspection, and launch configuration |
 | [debug](debug/) | Hypothesis-driven temporary instrumentation and local structured runtime evidence, with mandatory human reproduction and cleanup gates |
+| [session-timeline](session-timeline/) | Live session timeline canvas with nested tool/subagent activity, prompt inspection, filters, and search |
 
 ### Test — show testers how to verify a change
 

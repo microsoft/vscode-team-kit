@@ -1,0 +1,44 @@
+<!doctype html>
+<!-- Copyright (c) Microsoft Corporation. Licensed under the MIT license. -->
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Session timeline</title>
+	<link rel="stylesheet" href="/timeline.css">
+	<script type="module" src="/timeline.mjs"></script>
+</head>
+<body>
+	<a class="skip" href="#events">Skip to timeline</a>
+	<header class="toolbar">
+		<div class="heading"><h1>Session timeline</h1><span id="session"></span></div>
+		<div class="controls">
+			<label class="search">Find <input id="search" type="search" maxlength="2000" placeholder="Find in timeline" autocomplete="off"></label>
+			<span id="find-count" role="status">0 matches</span>
+			<button id="find-prev" type="button" aria-label="Previous match" disabled>Previous</button>
+			<button id="find-next" type="button" aria-label="Next match" disabled>Next</button>
+			<button id="refresh" type="button">Refresh</button>
+			<button id="collapse" type="button" disabled>Collapse all</button>
+			<a class="button" href="/api/raw" download="session-events.jsonl">Export events</a>
+			<button id="text" type="button">Text view</button>
+			<button id="help" type="button">Help</button>
+		</div>
+		<div class="options">
+			<fieldset id="filters"><legend>Show events</legend></fieldset>
+			<label><input id="follow" type="checkbox"> Follow latest</label>
+			<label><input id="announcements" type="checkbox" checked> Announce updates</label>
+		</div>
+		<p id="status" role="status" aria-live="polite">Loading session history...</p>
+		<p id="error" role="alert" hidden></p>
+	</header>
+	<div class="layout">
+		<nav id="request-nav" aria-label="User requests"><h2>Requests</h2><ol id="requests"></ol></nav>
+		<main id="events" tabindex="-1" aria-label="Session timeline"></main>
+	</div>
+	<dialog id="dialog" aria-labelledby="dialog-title">
+		<h2 id="dialog-title"></h2>
+		<pre id="dialog-content" tabindex="0"></pre>
+		<form method="dialog"><button>Close</button></form>
+	</dialog>
+</body>
+</html>
