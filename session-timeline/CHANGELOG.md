@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.10
+
+- Remove generated Playwright MCP snapshots from the plugin.
+
 ## 0.1.9
 
 - Embed the session timeline screencast as an inline animated GIF, retaining the MP4 download.
