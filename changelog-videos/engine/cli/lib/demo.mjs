@@ -21,9 +21,11 @@
 //
 // The build: the project's when prs digest new built VS Code from main for it (picks.json), or PRS_VSCODE (the
 // executable: code-insiders on Linux; or VS Code built from source by prs build), or on macOS
-// /Applications/Visual Studio Code - Insiders.app. Signed out on Linux (CI: no keychain); on macOS always signed
-// in, with a copy of the signed-in profile of the same build (Insiders, or Code OSS for a source build) and the login
-// keychain (a signed-out window there asks for the keychain and starts without the account).
+// /Applications/Visual Studio Code - Insiders.app. Signed in when it can be, with a copy of the signed-in profile of
+// the same build (Insiders, or Code OSS for a source build): on macOS with the login keychain (a signed-out window
+// there asks for the keychain and starts without the account); on Linux when that profile keeps its secrets with
+// Electron's basic encryption ("password-store": "basic" in its argv.json), which a copy started with
+// --password-store=basic reads. Signed out otherwise (CI: no profile).
 // Writes videos/<slug>/build/demos/<id>/: frames/ (30 fps, 2560x1440), demo.json, clip.mp4, contact.png, screen.txt
 // (the text on screen at the end).
 import fs from 'node:fs';
@@ -56,11 +58,12 @@ export function isSourceBuild(p) {
 }
 
 /**
- * How to start a build: its executable, the arguments before VS Code's own, its environment, and the signed-in state
- * a demo copies on a Mac: the profile of the same build (its keychain entry decrypts it). Code OSS: ~/.vscode-oss-dev.
+ * How to start a build: its executable, the arguments before VS Code's own, its environment, the signed-in state a
+ * demo copies (the state of the same build's own profile: on macOS its keychain entry decrypts it, on Linux Electron's
+ * basic encryption when the build's argv.json asks for it), and that argv.json. A source build runs as code-oss-dev.
  */
 function launchSpec(p) {
-	const support = name => path.join(os.homedir(), 'Library/Application Support', name, 'User/globalStorage/state.vscdb');
+	const support = name => path.join(userDataRoot(), name, 'User/globalStorage/state.vscdb');
 	if (isSourceBuild(p)) {
 		const product = readJson(path.join(p, 'product.json'));
 		const exe = process.platform === 'darwin'
@@ -69,12 +72,42 @@ function launchSpec(p) {
 		return {
 			exe, args: [p, '--disable-extension=vscode.vscode-api-tests'],
 			env: { NODE_ENV: 'development', VSCODE_DEV: '1', VSCODE_CLI: '1' },
-			profile: 'Code OSS', state: path.join(os.homedir(), '.vscode-oss-dev', 'User/globalStorage/state.vscdb'),
+			profile: 'Code OSS', state: support('code-oss-dev'), argv: path.join(os.homedir(), '.vscode-oss-dev', 'argv.json'),
 		};
 	}
 	const { quality } = buildInfo(p);
 	const profile = quality === 'insider' ? 'Code - Insiders' : quality === 'exploration' ? 'Code - Exploration' : 'Code';
-	return { exe: p, args: [], env: {}, profile, state: support(profile) };
+	const dataFolder = { insider: '.vscode-insiders', exploration: '.vscode-exploration' }[quality] ?? '.vscode';
+	return { exe: p, args: [], env: {}, profile, state: support(profile), argv: path.join(os.homedir(), dataFolder, 'argv.json') };
+}
+
+/** Where VS Code keeps its profiles on this OS, as VS Code itself works it out (getDefaultUserDataPath). */
+export function userDataRoot(platform = process.platform, env = process.env, home = os.homedir()) {
+	return platform === 'darwin' ? path.join(home, 'Library/Application Support') : env.XDG_CONFIG_HOME || path.join(home, '.config');
+}
+
+/** Whether a VS Code argv.json (JSON with comments) keeps secrets with Electron's basic encryption. */
+export function usesBasicPasswordStore(argvFile) {
+	try {
+		return /^\s*"password-store"\s*:\s*"basic"/m.test(fs.readFileSync(argvFile, 'utf8'));
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * Whether a copy of a build's signed-in profile can be recorded with here: 'ok'; 'no-profile' when the build was never
+ * started here; 'no-basic-store' on Linux when its profile keeps its secrets in the OS keyring, which no copy can read;
+ * 'unsupported' elsewhere (Windows keeps the GitHub session outside the profile).
+ */
+export function signInSource(spec, platform = process.platform) {
+	if (platform !== 'darwin' && platform !== 'linux') {
+		return 'unsupported';
+	}
+	if (!fs.existsSync(spec.state)) {
+		return 'no-profile';
+	}
+	return platform === 'linux' && !usesBasicPasswordStore(spec.argv) ? 'no-basic-store' : 'ok';
 }
 
 /** The build's version and commit, from its product.json and package.json. */
@@ -328,7 +361,7 @@ async function emulateFocus(page) {
 }
 const focusSessions = new WeakMap();
 
-export async function openVSCode({ files = {}, settings = {}, signedIn = process.platform === 'darwin', log = console.log, failureShot = null, signIn = 'signed-out' } = {}) {
+export async function openVSCode({ files = {}, settings = {}, signedIn = process.platform !== 'win32', log = console.log, failureShot = null, signIn = 'signed-out' } = {}) {
 	const spec = launchSpec(vscodePath());
 	const exe = spec.exe;
 	removeStaleProfiles();
@@ -360,16 +393,21 @@ export async function openVSCode({ files = {}, settings = {}, signedIn = process
 			fs.mkdirSync(path.join(home, 'Library'), { recursive: true });
 			fs.symlinkSync(path.join(os.homedir(), 'Library/Keychains'), path.join(home, 'Library/Keychains'));
 		}
-		if (signedIn && (process.platform !== 'darwin' || !fs.existsSync(spec.state))) {
-			// The build was never started on this Mac (or this isn't a Mac): nothing to sign in with.
-			signedIn = false;
-			signIn = process.platform === 'darwin' ? 'no-profile' : 'signed-out';
-			if (signIn === 'no-profile') {
-				log(`${signInAdvice(signIn, spec)}: recording signed out`);
+		if (signedIn) {
+			const source = signInSource(spec);
+			if (source !== 'ok') {
+				// Nothing to sign in with: the build was never started here, or (Linux) its sign-in is in the OS keyring.
+				// On Linux a missing profile is the usual case (CI), so it says nothing.
+				signedIn = false;
+				signIn = source === 'unsupported' || (source === 'no-profile' && process.platform !== 'darwin') ? 'signed-out' : source;
+				if (signIn !== 'signed-out') {
+					log(`${signInAdvice(signIn, spec)}: recording signed out`);
+				}
 			}
 		}
 		if (signedIn) {
-			// Signed in: a copy of the signed-in state of the same build's own profile (its keychain entry decrypts it).
+			// Signed in: a copy of the signed-in state of the same build's own profile (on macOS its keychain entry
+			// decrypts it; on Linux it's in Electron's basic encryption, and this copy starts with --password-store=basic).
 			const state = spec.state;
 			const copy = path.join(data, 'User/globalStorage/state.vscdb');
 			execFileSync('sqlite3', [state, `.backup "${copy}"`]);
@@ -516,20 +554,28 @@ export async function openVSCode({ files = {}, settings = {}, signedIn = process
 /**
  * Whether a build can record chat and the Agents window here: 'signed-in'; 'expired' when Copilot asks to sign in
  * again or says the token is invalid; 'signed-out' when the title bar keeps its Sign In button (never signed in); or
- * 'no-profile' when the build was never started on this Mac.
+ * 'no-profile' when the build was never started here.
  */
 export function signInState({ profile = true, expired = false, signInButton = false } = {}) {
 	return !profile ? 'no-profile' : expired ? 'expired' : signInButton ? 'signed-out' : 'signed-in';
 }
 
 /** What to tell the user when a build isn't signed in (null when it is): why, and how to sign in. */
-export function signInAdvice(state, spec) {
+export function signInAdvice(state, spec, platform = process.platform) {
 	const app = spec.profile === 'Code - Insiders' ? 'VS Code Insiders' : spec.profile;
-	const why = { 'no-profile': `${app} was never started on this Mac`, 'signed-out': `${app} isn't signed in to GitHub`, expired: `${app}'s GitHub sign-in has expired` }[state];
+	const why = {
+		'no-profile': `${app} was never started on this ${platform === 'darwin' ? 'Mac' : 'machine'}`,
+		'no-basic-store': `${app} keeps its GitHub sign-in in the system keyring, which a copy of its profile can't read`,
+		'signed-out': `${app} isn't signed in to GitHub`,
+		expired: `${app}'s GitHub sign-in has expired`,
+	}[state];
 	if (!why) {
 		return null;
 	}
 	const where = spec.args?.[0] ? `in that build (start it with ${path.join(spec.args[0], 'scripts', 'code.sh')})` : `in ${app} (the Accounts menu)`;
+	if (state === 'no-basic-store') {
+		return `${why}, so chat and the Agents window can't be recorded. Add "password-store": "basic" to ${spec.argv}, sign in to GitHub again ${where}, then run prs demo check again`;
+	}
 	return `${why}, so chat and the Agents window can't be recorded. Sign in to GitHub ${where}, then run prs demo check again`;
 }
 
@@ -1085,7 +1131,7 @@ export async function demoCheck() {
 	}
 }
 
-export async function demo(slug, id, { signedIn = process.platform === 'darwin' } = {}) {
+export async function demo(slug, id, { signedIn = process.platform !== 'win32' } = {}) {
 	const script = path.join(videoDir(slug), 'demos', `${id}.mjs`);
 	if (!fs.existsSync(script)) {
 		throw new Error(`No demo script: ${script}`);
