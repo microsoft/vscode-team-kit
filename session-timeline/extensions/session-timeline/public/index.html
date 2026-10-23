@@ -14,9 +14,9 @@
 		<div class="heading"><h1>Session timeline</h1><span id="session"></span></div>
 		<div class="controls">
 			<label class="search">Find <input id="search" type="search" maxlength="2000" placeholder="Find in timeline" autocomplete="off"></label>
-			<span id="find-count" role="status">0 matches</span>
-			<button id="find-prev" type="button" aria-label="Previous match" disabled>Previous</button>
-			<button id="find-next" type="button" aria-label="Next match" disabled>Next</button>
+			<span id="find-count" role="status">0 of 0</span>
+			<button id="find-prev" type="button" aria-label="Previous match" title="Previous match (Shift+Enter)" disabled>&#8593;</button>
+			<button id="find-next" type="button" aria-label="Next match" title="Next match (Enter)" disabled>&#8595;</button>
 			<button id="refresh" type="button">Refresh</button>
 			<button id="collapse" type="button" disabled>Collapse all</button>
 			<a class="button" href="/api/raw" download="session-events.jsonl">Export events</a>

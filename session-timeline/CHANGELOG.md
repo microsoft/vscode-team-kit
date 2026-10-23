@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.1.10
+
+- Remove generated Playwright MCP snapshots from the plugin.
+
+## 0.1.9
+
+- Embed the session timeline screencast as an inline animated GIF, retaining the MP4 download.
+
+## 0.1.8
+
+- Add a 10-second session timeline screencast linked from the README.
+
+## 0.1.7
+
+- Document VS Code and VS Code Insiders install buttons and `/plugin` installation commands.
+
+## 0.1.6
+
+- Combine completion status and duration in one pill and include argument/result sizes.
+- Truncate tool previews with CSS ellipses and expose their full text in tooltips.
+- Place user section pills inline with the title and timestamp.
+- Add arrow Find controls and automatic navigation after query changes; preserve match counts and selection across background updates.
+
 ## 0.1.5
 
 - Include the date in user-request timestamps.
