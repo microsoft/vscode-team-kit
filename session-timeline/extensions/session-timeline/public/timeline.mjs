@@ -15,6 +15,9 @@ let findQuery = '';
 let findTimer;
 let findVersion = 0;
 let pendingRender = false;
+let finding = false;
+let jumpAfterFind = false;
+let findAnchor;
 const findWorker = new Worker('/find-worker.mjs', { type: 'module' });
 let view = { query: '', categories: [...categories], expanded: [], follow: false, announcements: true };
 const headerObserver = new ResizeObserver(() => updateStickyHeaders());
@@ -146,23 +149,30 @@ function updateFind() {
 	if (matchIndex >= matches.length) {
 		matchIndex = matches.length - 1;
 	}
-	$('find-count').textContent = matchIndex >= 0 ? `${matchIndex + 1} of ${matches.length}` : `${matches.length} matches`;
-	$('find-next').disabled = $('find-prev').disabled = matches.length === 0;
+	$('find-count').textContent = `${matchIndex + 1} of ${matches.length}`;
+	$('find-next').disabled = $('find-prev').disabled = finding || matches.length === 0;
 }
 
-function scheduleFind() {
+function scheduleFind(jump = false) {
 	clearTimeout(findTimer);
 	const id = ++findVersion;
 	findWorker.postMessage({ type: 'cancel' });
-	matches = [];
-	matchIndex = -1;
-	updateFind();
-	$('events').querySelector('mark.current-match')?.classList.remove('current-match');
+	if (!finding) {
+		findAnchor = matches[matchIndex];
+	}
+	jumpAfterFind ||= jump;
+	finding = !!view.query;
+	$('find-count').setAttribute('aria-busy', String(finding));
 	if (!view.query) {
 		findQuery = '';
+		matches = [];
+		matchIndex = -1;
+		finding = false;
+		jumpAfterFind = false;
+		updateFind();
 		return;
 	}
-	$('find-count').textContent = 'Searching...';
+	$('find-next').disabled = $('find-prev').disabled = true;
 	findTimer = setTimeout(() => {
 		findWorker.postMessage({ type: 'find', query: view.query, id });
 	}, 200);
@@ -174,20 +184,41 @@ findWorker.onmessage = ({ data }) => {
 	}
 	findQuery = data.query;
 	matches = data.matches;
-	matchIndex = -1;
-	updateFind();
+	finding = false;
+	$('find-count').setAttribute('aria-busy', 'false');
+	matchIndex = findAnchor ? matches.findIndex(match => match.id === findAnchor.id && match.section === findAnchor.section && match.occurrence === findAnchor.occurrence) : -1;
+	const jump = jumpAfterFind;
+	jumpAfterFind = false;
+	if (jump && matches.length) {
+		// Retain the current location when refining a query, otherwise use the first match.
+		if (matchIndex >= 0) {
+			matchIndex--;
+		}
+		moveMatch(1);
+	} else {
+		if (matchIndex >= 0) {
+			showMatch(false);
+		}
+		updateFind();
+	}
 };
 findWorker.onerror = event => {
 	clearTimeout(findTimer);
-	$('find-count').textContent = 'Find failed';
+	finding = false;
+	$('find-count').setAttribute('aria-busy', 'false');
+	updateFind();
 	showError(new Error(`Background Find failed: ${event.message}`));
 };
 
 function moveMatch(direction) {
-	if (!matches.length) {
+	if (finding || !matches.length) {
 		return;
 	}
 	matchIndex = matchIndex < 0 ? (direction > 0 ? 0 : matches.length - 1) : (matchIndex + direction + matches.length) % matches.length;
+	showMatch(true);
+}
+
+function showMatch(scroll) {
 	const match = matches[matchIndex];
 	const details = $(`details-${encodeURIComponent(match.id)}`);
 	const toggle = details.parentElement.querySelector(':scope > .event-header .event-toggle');
@@ -210,7 +241,9 @@ function moveMatch(direction) {
 	updateFind();
 	updateStickyHeaders();
 	const offset = parseFloat(details.style.getPropertyValue('--sticky-height')) || 0;
-	window.scrollTo(0, window.scrollY + mark.getBoundingClientRect().top - offset - 4);
+	if (scroll) {
+		window.scrollTo(0, window.scrollY + mark.getBoundingClientRect().top - offset - 4);
+	}
 }
 
 function textView() {
@@ -261,13 +294,13 @@ function render() {
 			if (event.category === 'user') {
 				const time = element('time', 'event-time', new Date(event.timestamp).toLocaleString());
 				time.dateTime = event.timestamp;
-				titleLine.append(time);
+				header.append(time);
 			}
 			toggle.append(titleLine);
 			if (event.status) {
-				titleLine.append(element('span', 'status-pill', event.status));
+				titleLine.append(element('span', 'status-pill', `${event.status}${event.duration !== undefined ? ` ${event.duration.toLocaleString()}ms` : ''}`));
 			}
-			const metadata = [event.duration !== undefined ? `${event.duration.toLocaleString()} ms` : '', event.agentId ? `Agent ${event.agentId}` : ''].filter(Boolean).join(' · ');
+			const metadata = event.agentId ? `Agent ${event.agentId}` : '';
 			if (metadata) {
 				titleLine.append(element('span', 'meta', metadata));
 			}
@@ -279,6 +312,9 @@ function render() {
 			header.append(toggle);
 			if (preview) {
 				const previewNode = element('div', 'summary', preview);
+				if (event.category === 'tool') {
+					previewNode.title = preview;
+				}
 				previewNode.addEventListener('click', () => toggle.click());
 				header.append(previewNode);
 			}
@@ -348,6 +384,9 @@ function render() {
 			if (outline.childNodes.length) {
 				header.append(outline);
 			}
+			if (event.category === 'user') {
+				header.append(header.querySelector('time'));
+			}
 			article.append(header, content);
 			if (children.has(event.id)) {
 				const nested = element('div', 'children');
@@ -416,16 +455,15 @@ $('filters').addEventListener('change', () => {
 });
 $('search').addEventListener('input', () => {
 	view.query = $('search').value;
-	matchIndex = -1;
 	save();
-	scheduleFind();
+	scheduleFind(true);
 });
 $('find-next').addEventListener('click', () => moveMatch(1));
 $('find-prev').addEventListener('click', () => moveMatch(-1));
 $('search').addEventListener('keydown', event => {
-	if (event.key === 'Enter') {
+	if (['Enter', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
 		event.preventDefault();
-		moveMatch(event.shiftKey ? -1 : 1);
+		moveMatch(event.key === 'ArrowUp' || (event.key === 'Enter' && event.shiftKey) ? -1 : 1);
 	}
 });
 window.addEventListener('scroll', updateActiveRequest, { passive: true });

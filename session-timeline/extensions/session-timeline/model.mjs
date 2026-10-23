@@ -31,7 +31,7 @@ export function sectionOutlines(sections) {
 		groups.set(label, group);
 	}
 	return [...groups.values()].map(group => {
-		if (['Content', 'Response'].includes(group.label)) {
+		if (['Content', 'Response', 'Arguments', 'Result'].includes(group.label)) {
 			const bytes = new TextEncoder().encode(sections[group.index].content).byteLength;
 			const size = bytes < 1000 ? `${bytes}B` : `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(bytes / 1000)}kB`;
 			return { ...group, text: `${group.label} ${size}` };
@@ -61,7 +61,6 @@ function section(label, value) {
 }
 
 function toolSummary(value) {
-	const compact = item => item.slice(0, 300);
 	const args = typeof value === 'string' ? (() => {
 		try {
 			return JSON.parse(value);
@@ -70,13 +69,12 @@ function toolSummary(value) {
 		}
 	})() : value;
 	if (!args || typeof args !== 'object' || Array.isArray(args)) {
-		return typeof args === 'string' ? compact(args) : '';
+		return typeof args === 'string' ? args : '';
 	}
 	const preferred = ['description', 'path', 'filePath', 'file', 'uri', 'url', 'query', 'command', 'pattern', 'symbol'];
 	const entries = preferred
 		.map(name => [name, args[name]])
 		.filter(([, item]) => typeof item === 'string' && item.trim())
-		.map(([name, item]) => [name, compact(item)])
 		.slice(0, 4);
 	if (!entries.length) {
 		return '';
