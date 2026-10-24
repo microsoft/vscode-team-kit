@@ -12,7 +12,7 @@ ctranslate2==4.8.2
 dlinfo==2.0.0
 espeakng-loader==0.2.4
 faster-whisper==1.2.1
-filelock==4.0.3
+filelock==4.2.1
 flatbuffers==25.12.19
 fsspec==2026.9.0
 h11==0.16.0
