@@ -269,6 +269,7 @@ stimuli:
     prompt: Review my PR with multiple models
     tags:
       category: trigger
+      focus: routing
       expected: ignore
       confidence: high
       rationale: Review, not planning — should trigger council-review

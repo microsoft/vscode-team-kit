@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.0.5 (2026-09-22)
+
+- Distinguish council planning from review requests and council review from planning requests
+- Tag the routing cases for focused evaluation
+
 ## 2.0.4 (2026-09-22)
 
 - Run council Vally evaluations with GPT-6 Luna and allow council-review for generic review requests
