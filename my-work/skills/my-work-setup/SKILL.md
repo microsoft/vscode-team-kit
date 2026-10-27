@@ -7,7 +7,7 @@ description: Set up the My Work canvas and the my-issues index for a new user, o
 
 My Work combines a canvas (the `my-issues-triage` canvas, titled "My Work"), the **my-issues** skill and one daily automation that refreshes a local index of the user's issues and hands the day's triage to a reused triage chat. Walk the user through the steps below, checking what already exists first, and confirm before creating anything that runs on a schedule.
 
-Paths: `<board>` is `<COPILOT_HOME>/project-boards` (default `~/.copilot/project-boards`). `<scripts>` is the absolute path of the my-issues skill's `scripts/` folder (a sibling of this skill's folder: `../my-issues/scripts`).
+Paths: `<scripts>` is the absolute path of the my-issues skill's `scripts/` folder (a sibling of this skill's folder: `../my-issues/scripts`). **First run `python3 "<scripts>/my_issues.py" paths`** and use the `board`, `configFile`, `rulesFile`, `memoryFile` and `dataDir` it prints for every file you read or write. They honour `COPILOT_HOME`; never assume `~/.copilot` or `Path.home()`. Below, `<board>` means that `board` path.
 
 ## 1. Prerequisites
 

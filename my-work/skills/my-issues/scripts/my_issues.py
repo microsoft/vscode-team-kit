@@ -1047,11 +1047,19 @@ def main():
     op.add_argument("--informed", action="store_true", help="second-round verdict after seeing Sweeper's claims")
     jp = sub.add_parser("judge-prompt"); jp.add_argument("issues", nargs="+")
     jp.add_argument("--informed", action="store_true", help="second round: include the blind verdict and Sweeper's claims")
+    sub.add_parser("paths", help="where My Work keeps its files (honours COPILOT_HOME); use these, never assume ~/.copilot")
     fc = sub.add_parser("find-clones", help="local clones used by Agents window sessions, by GitHub repository")
     fc.add_argument("--repo", help="only this owner/repo")
     a = p.parse_args()
     if a.cmd == "find-clones":
         return cmd_find_clones(a)
+    if a.cmd == "paths":
+        from my_work_config import CONFIG_FILE, COPILOT_HOME, CFG
+        print(json.dumps({"copilotHome": COPILOT_HOME, "board": BOARD, "configFile": CONFIG_FILE,
+                          "configExists": os.path.exists(CONFIG_FILE), "indexExists": os.path.exists(INDEX),
+                          "scripts": os.path.dirname(SCRIPT_PATH), "rulesFile": RULES_FILE, "memoryFile": MEMORY_FILE,
+                          "dataDir": os.path.expanduser(CFG.get("dataDir") or "~/.agents/data/my-work")}, indent=1))
+        return
     if a.cmd == "implement" and not a.readiness:
         a.readiness = ["implement"]
     idx = load(INDEX)
