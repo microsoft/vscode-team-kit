@@ -39,7 +39,9 @@ RULES_FILE = CFG["rulesFile"]
 SWEEPER_REPO = os.path.expanduser(CFG["sweeperRepo"] or "")
 # Sweeper only publishes records for microsoft/vscode.
 SWEEPER_SCOPE = "microsoft/vscode"
-REPO_CLONE = CFG["repoPaths"].get(PLAN_REPO) or f"<your local clone of {PLAN_REPO}>"
+_clone = CFG["repoPaths"].get(PLAN_REPO)
+# Missing defaults are ignored, so judges are told to ask instead of reading a path that isn't there.
+REPO_CLONE = _clone if _clone and os.path.isdir(os.path.expanduser(_clone)) else f"<your local clone of {PLAN_REPO} (ask the user where it is)>"
 
 _login = None
 

@@ -2,7 +2,7 @@
 // Users override any field in <COPILOT_HOME>/project-boards/my-work.config.json; everything else
 // falls back to defaults that suit the VS Code team. Never put team-private details in the defaults:
 // this package is public.
-import { readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -62,9 +62,14 @@ export function expandHome(p) {
 	return typeof p === 'string' && p.startsWith('~') ? path.join(os.homedir(), p.slice(1)) : p;
 }
 
-/** Display form of a repository's local clone for prompts, or null when none is configured. */
+/** Configured local clones that exist on this machine (missing defaults are ignored). */
+function clones() {
+	return Object.entries(config().repoPaths).filter(([, p]) => p && existsSync(expandHome(p)));
+}
+
+/** Display form of a repository's local clone for prompts, or null when none exists. */
 export function repoPath(repo) {
-	return config().repoPaths[repo] || null;
+	return clones().find(([r]) => r === repo)?.[1] || null;
 }
 
 export function dataDir() {
@@ -73,7 +78,7 @@ export function dataDir() {
 
 /** Prompt text telling the chat where a repository lives locally. */
 export function repoHint(repo = config().planRepo) {
-	const paths = Object.entries(config().repoPaths).map(([r, p]) => `${r} → ${p}`).join(', ');
+	const paths = clones().map(([r, p]) => `${r} → ${p}`).join(', ');
 	return paths ? `local clones: ${paths}` : `no local clones are configured; ask before cloning ${repo}`;
 }
 

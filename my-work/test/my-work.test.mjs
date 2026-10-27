@@ -14,10 +14,11 @@ const board = path.join(home, 'project-boards');
 mkdirSync(board, { recursive: true });
 writeFileSync(path.join(board, 'my-work.config.json'), JSON.stringify({
 	dataDir: path.join(home, 'data'),
-	repoPaths: { 'octo/app': '~/src/app' },
+	repoPaths: { 'octo/app': path.join(home, 'src', 'app'), 'octo/missing': '~/no/such/clone' },
 	msrc: { fixWorkflow: 'Use the secure-fix skill in the private fork.' },
 }));
 process.env.COPILOT_HOME = home;
+mkdirSync(path.join(home, 'src', 'app'), { recursive: true });
 test.after(() => rmSync(home, { recursive: true, force: true }));
 
 const ext = new URL('../com.github.copilot/extensions/my-work/', import.meta.url);
@@ -31,7 +32,9 @@ const workSessions = await import(new URL('lib/workSessions.mjs', ext));
 test('config overlays the user file on the defaults', () => {
 	const c = config.config();
 	assert.equal(c.planRepo, 'microsoft/vscode');
-	assert.deepEqual(c.repoPaths, { 'microsoft/vscode': '~/work/vscode', 'octo/app': '~/src/app' });
+	assert.equal(c.repoPaths['octo/app'], path.join(home, 'src', 'app'));
+	assert.equal(config.repoPath('octo/app'), path.join(home, 'src', 'app'));
+	assert.equal(config.repoPath('octo/missing'), null, 'clones that do not exist are ignored');
 	assert.equal(c.msrc.enabled, true);
 	assert.equal(config.dataDir(), path.join(home, 'data'));
 	assert.equal(existsSync(config.SCRIPT), true, 'helper script resolves inside the plugin');
@@ -81,7 +84,8 @@ test('prompts use the config, not one person\'s setup', () => {
 		prompts.issueRulesPrompt({ items: [] }),
 		prompts.workSessionPrompt({ key: 'octo/app#7', title: 't', url: 'u' }),
 	].join('\n').replaceAll(os.homedir(), '~');
-	assert.match(texts, /octo\/app → ~\/src\/app/);
+	assert.ok(texts.includes(`octo/app → ${path.join(home, 'src', 'app')}`.replaceAll(os.homedir(), '~')));
+	assert.doesNotMatch(texts, /octo\/missing/);
 	assert.ok(texts.includes(config.SCRIPT.replaceAll(os.homedir(), '~')), 'refers to the bundled helper script');
 	assert.doesNotMatch(texts, /sandy081|\.agents\/skills|rules? \d/);
 	const security = prompts.msrcItemSessionPrompt({ incidentId: '1', link: 'l', title: 't', description: 'd' });

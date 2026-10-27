@@ -18,8 +18,12 @@ Check each and tell the user what is missing:
 | GitHub CLI, signed in | `gh auth status` | The index, notifications and My Work searches all use `gh`. The github-inbox plugin's inbox-install-gh-cli skill can install it. |
 | Python 3.9+ and Node 22+ | `python3 --version`, `node --version` | |
 | Agents window with canvas support | the `my-issues-triage` canvas is listed | VS Code Insiders. Session features read the Agents window's local session store (best effort). |
-| Local clone for fix sessions | e.g. `~/work/vscode` | Optional; without it, Start session asks where the repository is. |
-| Sweeper state clone (optional) | `git -C ~/work/vscodesweeper-state rev-parse origin/state` | Only for microsoft/vscode. `git clone https://github.com/egamma/vscodesweeper-state ~/work/vscodesweeper-state`. Without it, Cleanup proposals and Implement stay empty; everything else works. |
+| Local clone for fix sessions | see below | Optional. |
+| Sweeper state clone | see below | Optional, microsoft/vscode only. |
+
+**Repository clone (never clone it for the user).** Ask where their existing clone of the plan repository (default `microsoft/vscode`) lives, suggesting `~/work/vscode` if `git -C ~/work/vscode remote get-url origin` points at it. Record the path in `repoPaths` (step 2). If they have none, leave it out (configured paths that don't exist are ignored): fix and investigation sessions then ask where the repository is instead of guessing.
+
+**Sweeper clone.** Check `git -C ~/work/vscodesweeper-state rev-parse origin/state`. If it's missing, explain that it powers the Cleanup proposals and the Implement view (without it everything else works), and offer to clone it. Only after the user agrees, run `git clone --single-branch --branch state https://github.com/egamma/vscodesweeper-state ~/work/vscodesweeper-state` (public, read-only use; the indexer only fetches it), or into a path they choose and record it as `sweeperRepo`.
 
 ## 2. Configuration (`<board>/my-work.config.json`)
 
