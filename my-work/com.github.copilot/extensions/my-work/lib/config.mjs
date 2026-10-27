@@ -28,8 +28,8 @@ export const DEFAULTS = Object.freeze({
 	rulesFile: path.join(COPILOT_HOME, 'github-inbox-rules.md'),
 	// Private My Work data: pinned sessions, MSRC items, the My Work chat link.
 	dataDir: '~/.agents/data/my-work',
-	// Skill to use for bug fix sessions (omit if you do not have one).
-	fixSkill: 'fix-vscode-bug',
+	// Skill fix sessions use for bugs, e.g. a personal "fix-vscode-bug" skill; empty = none.
+	fixSkill: '',
 	msrc: {
 		enabled: true,
 		// How to set up a private security fix, e.g. "use the <your-skill> skill (private repo <x>, branch <y>)".

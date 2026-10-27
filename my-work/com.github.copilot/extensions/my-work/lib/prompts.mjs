@@ -1,7 +1,7 @@
 import { config, repoHint, scriptCommand } from './config.mjs';
 
 function fixSkillHint() {
-	return config().fixSkill ? `(use the ${config().fixSkill} skill for bugs)` : '(reproduce bugs first)';
+	return config().fixSkill ? ` (use the ${config().fixSkill} skill for bugs)` : '';
 }
 
 function one(text) {
@@ -31,7 +31,7 @@ export function implementPrompt({ issue, review, readiness }) {
 		`- Type ${readiness?.itemType ?? '?'}, severity ${issue.sweeper?.severity ?? 'none'}, area ${issue.area}`,
 		r['Change summary'] ? `- Sweeper's change summary: ${one(r['Change summary'])}` : '',
 		r['Best solution'] ? `- Sweeper's suggested solution: ${one(r['Best solution'])}` : '',
-		'- Instructions: read the issue and its latest comments, reproduce, implement the fix with a regression test '
+		'- Instructions: read the issue and its latest comments, reproduce, implement the fix with a regression test'
 		+ `${fixSkillHint()}, and do not push, open a PR, or comment on GitHub without asking me first.`,
 		`After the session is created, run \`${scriptCommand()} record ${issue.key} --decision fixing --note "<session link>"\`, then call the my-issues-triage canvas action refresh and reply with the session link.`,
 	].filter(Boolean).join('\n');

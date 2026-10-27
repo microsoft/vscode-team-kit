@@ -15,7 +15,7 @@ Check each and tell the user what is missing:
 
 | Need | Check | Notes |
 |---|---|---|
-| GitHub CLI, signed in | `gh auth status` | The index, notifications and My Work searches all use `gh`. The github-inbox plugin's inbox-install-gh-cli skill can install it. |
+| GitHub CLI, signed in | `gh auth status` | The index, notifications and My Work searches all use `gh`. |
 | Python 3.9+ and Node 22+ | `python3 --version`, `node --version` | |
 | Agents window with canvas support | the `my-issues-triage` canvas is listed | VS Code Insiders. Session features read the Agents window's local session store (best effort). |
 | Local clone for fix sessions | see below | Optional. |
@@ -37,7 +37,7 @@ All fields are optional. Ask only about values that differ from the defaults, th
   "sweeperRepo": "~/work/vscodesweeper-state",
   "rulesFile": "~/.copilot/github-inbox-rules.md",
   "dataDir": "~/.agents/data/my-work",
-  "fixSkill": "fix-vscode-bug",
+  "fixSkill": "",
   "login": null,
   "msrc": { "enabled": true, "fixWorkflow": "" }
 }
@@ -47,7 +47,7 @@ All fields are optional. Ask only about values that differ from the defaults, th
 - `planRepo`: its open milestones define My Work's *current* and *next* groups.
 - `repoPaths`: local clones used for fix sessions and read-only investigations.
 - `rulesFile`: the user's inbox rules, shared with the github-inbox plugin. If it doesn't exist, offer a starter file with sections **Auto-dismiss rules**, **Routing** (who owns which areas, with GitHub logins) and **Triage**; rules are numbered so the panel can cite them.
-- `fixSkill`: the skill fix sessions use for bugs; set it to `""` if the user has none.
+- `fixSkill`: a skill fix sessions should use for bugs (for example a personal `fix-vscode-bug` skill). Check which skills the user has and suggest one; leave it empty if there is none. Without it, sessions are told to reproduce first and add a regression test.
 - `msrc.fixWorkflow`: how this user sets up a private security fix (for example which private repository, branch or skill to use). It stays in the local config; never put it in a shared repository. Set `msrc.enabled` to false to hide MSRC items.
 
 ## 3. Feature areas (optional)

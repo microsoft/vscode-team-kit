@@ -274,7 +274,8 @@ def chat_prompt(date, refreshed_at, notifications):
     return (
         f"Daily triage for {date}: GitHub notifications ({n} unread) and my issue queue "
         f"(issue index refreshed {refreshed_at}).\n\n"
-        "Part 1 – Notifications. Fetch my unread GitHub notifications (inbox-list-notifications skill) and triage them "
+        "Part 1 – Notifications. Fetch my unread GitHub notifications (`gh api notifications`, or the github-inbox plugin's "
+        "inbox-list-notifications skill if it is installed) and triage them "
         f"following my inbox rules ({RULES_FILE}; if it does not exist, use judgement and ask before dismissing). "
         "Read the latest comments of each before classifying, and use the my-issues skill "
         f"(`{SCRIPT_CMD} proposal`) for my assigned issues. Present them grouped as: Needs my action, Auto-dismiss "
