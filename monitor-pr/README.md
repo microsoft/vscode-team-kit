@@ -19,7 +19,7 @@ Monitor a pull request until CI finishes and Copilot's code review arrives — w
 
 ```text
 monitor-pr/
-├── .plugin/plugin.json
+├── plugin.json
 ├── README.md
 └── skills/
     └── monitor-pr/

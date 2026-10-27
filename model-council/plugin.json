@@ -1,0 +1,8 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "model-council",
+  "version": "3.0.0",
+  "description": "Multi-model council for code review and planning — model-pinned subagents independently review or plan, then findings are synthesized by consensus.",
+  "license": "MIT",
+  "keywords": ["review", "code-review", "planning", "agents", "multi-model", "quality"]
+}

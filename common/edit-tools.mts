@@ -1,79 +1,30 @@
 /**
- * Describes the built-in file-editing tools and provides helpers for
- * pre-tool-use hooks to introspect their inputs.
- *
- * Usage in a hook script:
- *
- *   import { extractEditInputs } from '<team-kit>/common/edit-tools.mts';
- *
- *   const event = JSON.parse(await readStdin());
- *   const edits = extractEditInputs(event.tool_name, event.tool_input);
- *   // edits is an array of { filePath, oldString, newString } (or patches)
+ * Normalize native Copilot tool events and file edits for command hooks.
+ * See https://docs.github.com/en/copilot/reference/hooks-reference.
  */
-
-// ---------------------------------------------------------------------------
-// Tool names
-// ---------------------------------------------------------------------------
-
-export const EDIT_TOOL_NAMES = [
-  'create_file',
-  'replace_string_in_file',
-  'multi_replace_string_in_file',
-  'apply_patch',
-  // Copilot CLI edit tools
-  'create',
-  'edit',
-] as const;
-
+export const EDIT_TOOL_NAMES = ['create', 'edit', 'apply_patch'] as const;
 export type EditToolName = (typeof EDIT_TOOL_NAMES)[number];
 
 export function isEditTool(toolName: string): toolName is EditToolName {
   return (EDIT_TOOL_NAMES as readonly string[]).includes(toolName);
 }
 
-// ---------------------------------------------------------------------------
-// Tool input shapes (as provided in tool_input on stdin)
-// ---------------------------------------------------------------------------
-
-export interface CreateFileInput {
-  filePath: string;
-  content: string;
-  explanation?: string;
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-export interface ReplaceStringInput {
-  filePath: string;
-  oldString: string;
-  newString: string;
-  explanation?: string;
+export function parseToolEvent(input: string): {
+  toolName: string;
+  toolArgs: Record<string, unknown>;
+  cwd: string;
+} {
+  const event: unknown = JSON.parse(input);
+  if (!isObject(event) || typeof event.toolName !== 'string' || !event.toolName
+    || !isObject(event.toolArgs) || typeof event.cwd !== 'string' || !event.cwd) {
+    throw new Error('Expected a Copilot tool event with toolName, object toolArgs, and cwd.');
+  }
+  return { toolName: event.toolName, toolArgs: event.toolArgs, cwd: event.cwd };
 }
-
-export interface MultiReplaceStringInput {
-  explanation?: string;
-  replacements: ReplaceStringInput[];
-}
-
-export interface ApplyPatchInput {
-  input: string;
-  explanation?: string;
-}
-
-// Copilot CLI tool shapes
-
-export interface CliCreateInput {
-  path: string;
-  file_text: string;
-}
-
-export interface CliEditInput {
-  path: string;
-  old_str: string;
-  new_str: string;
-}
-
-// ---------------------------------------------------------------------------
-// Normalised output
-// ---------------------------------------------------------------------------
 
 export interface StringEdit {
   type: 'string';
@@ -92,162 +43,56 @@ export interface PatchEdit {
 
 export type EditInput = StringEdit | PatchEdit;
 
-// ---------------------------------------------------------------------------
-// V4A patch parser (extracts per-file entries)
-// ---------------------------------------------------------------------------
-
-const FILE_HEADER_RE =
-  /^\*{3}\s+(?:Add|Update|Delete)\s+File:\s+(.+)$/;
+function requiredString(input: Record<string, unknown>, key: string): string {
+  const value = input[key];
+  if (typeof value !== 'string') {
+    throw new Error(`Expected edit argument "${key}" to be a string.`);
+  }
+  return value;
+}
 
 function parsePatchFiles(patch: string): PatchEdit[] {
-  const lines = patch.split('\n');
   const edits: PatchEdit[] = [];
-  let currentFile: string | undefined;
-  let currentLines: string[] = [];
-
-  function flush() {
-    if (currentFile !== undefined) {
-      const removed: string[] = [];
-      const added: string[] = [];
-      for (const l of currentLines) {
-        if (l.startsWith('-')) {
-          removed.push(l.slice(1));
-        } else if (l.startsWith('+')) {
-          added.push(l.slice(1));
-        }
-      }
-      edits.push({
-        type: 'patch',
-        filePath: currentFile,
-        patch: currentLines.join('\n'),
-        oldString: removed.join('\n'),
-        newString: added.join('\n'),
-      });
+  let current: PatchEdit | undefined;
+  for (const line of patch.split('\n')) {
+    const header = /^\*{3} (?:Add|Update|Delete) File: (.+)$/.exec(line);
+    if (header) {
+      current = {
+        type: 'patch', filePath: header[1].trim(), patch: line,
+        oldString: '', newString: '',
+      };
+      edits.push(current);
+    } else if (current) {
+      current.patch += `\n${line}`;
+      if (line.startsWith('-')) current.oldString += `${line.slice(1)}\n`;
+      if (line.startsWith('+')) current.newString += `${line.slice(1)}\n`;
     }
   }
-
-  for (const line of lines) {
-    const m = FILE_HEADER_RE.exec(line);
-    if (m) {
-      flush();
-      currentFile = m[1].trim();
-      currentLines = [line];
-    } else if (currentFile !== undefined) {
-      currentLines.push(line);
-    }
+  for (const edit of edits) {
+    edit.oldString = edit.oldString.replace(/\n$/, '');
+    edit.newString = edit.newString.replace(/\n$/, '');
   }
-  flush();
+  if (edits.length === 0) throw new Error('Expected apply_patch input to contain file headers.');
   return edits;
 }
 
-// ---------------------------------------------------------------------------
-// Main extraction function
-// ---------------------------------------------------------------------------
-
-/**
- * Given a tool name and its raw input object (from `event.tool_input`),
- * returns a normalised array of edits the tool will perform.
- *
- * Returns an empty array if the tool is not a recognised edit tool.
- */
-export function extractEditInputs(
-  toolName: string,
-  toolInput: unknown,
-): EditInput[] {
-  if (!toolInput || typeof toolInput !== 'object') {
-    return [];
+/** Unknown tools are ignored; malformed arguments for supported edits fail explicitly. */
+export function extractEditInputs(toolName: string, toolInput: unknown): EditInput[] {
+  if (!isEditTool(toolName)) return [];
+  if (!isObject(toolInput)) throw new Error(`Expected object arguments for ${toolName}.`);
+  if (toolName === 'apply_patch') {
+    return parsePatchFiles(requiredString(toolInput, 'input'));
   }
-
-  switch (toolName) {
-    case 'create_file': {
-      const input = toolInput as CreateFileInput;
-      if (!input.filePath) return [];
-      return [
-        {
-          type: 'string',
-          filePath: input.filePath,
-          oldString: '',
-          newString: input.content ?? '',
-        },
-      ];
-    }
-
-    case 'replace_string_in_file': {
-      const input = toolInput as ReplaceStringInput;
-      if (!input.filePath) return [];
-      return [
-        {
-          type: 'string',
-          filePath: input.filePath,
-          oldString: input.oldString ?? '',
-          newString: input.newString ?? '',
-        },
-      ];
-    }
-
-    case 'multi_replace_string_in_file': {
-      const input = toolInput as MultiReplaceStringInput;
-      if (!Array.isArray(input.replacements)) return [];
-      return input.replacements
-        .filter((r) => r.filePath)
-        .map((r) => ({
-          type: 'string' as const,
-          filePath: r.filePath,
-          oldString: r.oldString ?? '',
-          newString: r.newString ?? '',
-        }));
-    }
-
-    case 'apply_patch': {
-      const input = toolInput as ApplyPatchInput;
-      if (typeof input.input !== 'string') return [];
-      return parsePatchFiles(input.input);
-    }
-
-    // Copilot CLI tools
-    case 'create': {
-      const input = toolInput as CliCreateInput;
-      if (!input.path) return [];
-      return [
-        {
-          type: 'string',
-          filePath: input.path,
-          oldString: '',
-          newString: input.file_text ?? '',
-        },
-      ];
-    }
-
-    case 'edit': {
-      const input = toolInput as CliEditInput;
-      if (!input.path) return [];
-      return [
-        {
-          type: 'string',
-          filePath: input.path,
-          oldString: input.old_str ?? '',
-          newString: input.new_str ?? '',
-        },
-      ];
-    }
-
-    default:
-      return [];
-  }
+  const filePath = requiredString(toolInput, 'path');
+  if (!filePath.trim()) throw new Error('Expected a nonempty edit path.');
+  return [{
+    type: 'string',
+    filePath,
+    oldString: toolName === 'edit' ? requiredString(toolInput, 'old_str') : '',
+    newString: requiredString(toolInput, toolName === 'edit' ? 'new_str' : 'file_text'),
+  }];
 }
 
-// ---------------------------------------------------------------------------
-// Convenience: collect unique file paths from edits
-// ---------------------------------------------------------------------------
-
 export function editedFilePaths(edits: EditInput[]): string[] {
-  const seen = new Set<string>();
-  const result: string[] = [];
-  for (const e of edits) {
-    if (!seen.has(e.filePath)) {
-      seen.add(e.filePath);
-      result.push(e.filePath);
-    }
-  }
-  return result;
+  return [...new Set(edits.map(edit => edit.filePath))];
 }

@@ -2,7 +2,7 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createTimelineModel, selectEvents, sectionOutlines } from '../extensions/session-timeline/model.mjs';
+import { createTimelineModel, selectEvents, sectionOutlines } from '../com.github.copilot/extensions/session-timeline/model.mjs';
 
 export function record(id, type, data, agentId) {
 	return { id, type, data, parentId: null, timestamp: '2026-10-21T12:00:00.000Z', ...(agentId ? { agentId } : {}) };

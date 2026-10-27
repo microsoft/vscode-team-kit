@@ -20,9 +20,10 @@ Reviews and addresses all outstanding PR review comments on the current branch. 
 
 ```
 handy-commands/
-├── .plugin/plugin.json
-└── commands/
-    ├── commit-and-pr.md
-    ├── fix-issue.md
-    └── pr-comments.md
+├── plugin.json
+└── com.github.copilot/
+    └── commands/
+        ├── commit-and-pr.md
+        ├── fix-issue.md
+        └── pr-comments.md
 ```

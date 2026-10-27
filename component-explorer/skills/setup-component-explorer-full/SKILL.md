@@ -68,15 +68,16 @@ Create a configuration file for the CLI/daemon/MCP features (place next to the V
 }
 ```
 
-## Step 4: Configure VS Code — MCP Server
+## Step 4: Configure Copilot — MCP Server
 
-Create or update `.vscode/mcp.json` to add the component explorer MCP server. This enables AI agents to take screenshots, compare fixtures, and interact with components:
+Create or update `.mcp.json` at the workspace root to add the component explorer MCP server. Merge into existing `mcpServers` without replacing other servers. This enables Copilot harness sessions to take screenshots, compare fixtures, and interact with components:
 
 ```json
 {
-  "servers": {
+  "mcpServers": {
     "component-explorer": {
       "type": "stdio",
+      "tools": ["*"],
       "command": "npm",
       "args": [
         "exec",
@@ -93,6 +94,8 @@ Create or update `.vscode/mcp.json` to add the component explorer MCP server. Th
 ```
 
 Adjust the `-p` path to point to the `component-explorer.json` location relative to cwd.
+
+`tools: ["*"]` enables every tool from this server; narrow the list if the project needs fewer capabilities. Start a new Copilot session and use `/mcp show component-explorer` to verify that the server starts and provides the expected tools. See [GitHub's MCP configuration guidance](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers).
 
 ## Step 5: Configure VS Code — Component Explorer Server Task
 

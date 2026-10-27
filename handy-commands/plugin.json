@@ -1,10 +1,8 @@
 {
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "handy-commands",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Helpful slash commands for common development workflows.",
   "license": "MIT",
-  "categories": ["workflow"],
-  "status": "stable",
-  "maintainers": ["connor4312"],
   "keywords": ["commands", "workflow", "pr", "git"]
 }

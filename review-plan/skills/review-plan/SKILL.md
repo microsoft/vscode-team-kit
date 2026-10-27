@@ -26,7 +26,7 @@ Pick 2–4 areas based on the plan's complexity and risk profile.
 
 ### 1 — Scope
 
-- Look for a plan in session memory at `/memories/session/plan.md` first.
+- Look for `plan.md` in the runtime-provided session folder first. Use file tools to read it; do not use Local harness virtual memory paths.
 - If no session plan exists, check for a plan file the user points to, or a plan visible in the conversation context.
 - If there is nothing to review, ask the user to run the Plan agent first or point at a plan file.
 
@@ -34,7 +34,7 @@ Pick 2–4 areas based on the plan's complexity and risk profile.
 
 Launch 2–5 parallel subagents using the area prompts below. Each subagent works in isolation — do not share one area's findings with another before synthesis.
 
-Each gets a self-contained prompt with its area, the plan location, and the return format. Subagents read the full plan from session memory themselves. Subagents may surface findings their area doesn't explicitly list — don't constrain them to only the listed focus items.
+Each gets a self-contained prompt with its area, the absolute plan location, and the return format. Subagents read the full plan using file tools themselves. Subagents may surface findings their area doesn't explicitly list — don't constrain them to only the listed focus items.
 
 ### 3 — Synthesize
 
@@ -47,14 +47,14 @@ When all subagents return:
 
 ### 4 — Save Findings
 
-Always save the synthesized findings to session memory at `/memories/session/plan-review.md`. This makes them available for follow-up turns, plan revision, and cross-referencing during implementation.
+Save the synthesized findings as `plan-review.md` in the runtime-provided session folder using file tools. If no session folder is provided, ask the user for a destination. This makes findings available for follow-up turns, plan revision, and cross-referencing during implementation.
 
 ### 5 — Revise or Report
 
 - **Review-only**: if the user said "only review", "just review", or "read-only", stop after reporting.
 - **Default (review-and-revise)**:
   1. For each actionable finding, propose a specific revision to the plan — what to add, remove, reorder, or clarify.
-  2. Apply revisions to the plan in session memory (`/memories/session/plan.md`), preserving the plan's existing structure.
+  2. Apply revisions to the resolved plan file, preserving the plan's existing structure.
   3. After revising, re-read the updated plan to confirm the revisions are coherent.
   4. Report what was revised and any remaining items that need the user's input or a decision.
 
@@ -72,7 +72,7 @@ Each subagent gets this prompt with `{AREA}` and `{FOCUS}` filled in from the Re
 You are a focused plan-review subagent. Your area is: {AREA}
 
 ## Where to find the plan
-The plan is in session memory at `/memories/session/plan.md`. Read it with your memory tools first. Then explore the codebase to validate the plan's assumptions — check that referenced files, functions, and patterns actually exist.
+The plan is at `<absolute plan path resolved during scoping>`. Read it with file tools first. Then explore the codebase to validate the plan's assumptions — check that referenced files, functions, and patterns actually exist.
 
 Focus on: {FOCUS}
 

@@ -1,142 +1,66 @@
-import { deepStrictEqual, strictEqual } from 'node:assert';
+import { deepStrictEqual, strictEqual, throws } from 'node:assert';
 import { describe, it } from 'node:test';
-import {
-  extractEditInputs,
-  isEditTool
-} from './edit-tools.mts';
+import { editedFilePaths, extractEditInputs, isEditTool, parseToolEvent } from './edit-tools.mts';
 
-describe('isEditTool', () => {
-  it('returns true for known edit tools', () => {
-    strictEqual(isEditTool('replace_string_in_file'), true);
-    strictEqual(isEditTool('multi_replace_string_in_file'), true);
-    strictEqual(isEditTool('apply_patch'), true);
+describe('native Copilot tool events', () => {
+  it('reads camelCase arguments and the execution directory', () => {
+    deepStrictEqual(parseToolEvent(JSON.stringify({
+      toolName: 'edit', toolArgs: { path: 'src/index.ts' }, cwd: '/workspace',
+    })), { toolName: 'edit', toolArgs: { path: 'src/index.ts' }, cwd: '/workspace' });
   });
 
-  it('returns false for other tools', () => {
-    strictEqual(isEditTool('read_file'), false);
-    strictEqual(isEditTool(''), false);
+  it('rejects Local events and malformed payloads explicitly', () => {
+    for (const input of [
+      'not-json', '{}', 'null', '[]',
+      '{"tool_name":"edit","tool_input":{},"cwd":"/workspace"}',
+      '{"toolName":"edit","toolArgs":null,"cwd":"/workspace"}',
+      '{"toolName":"edit","toolArgs":[],"cwd":"/workspace"}',
+      '{"toolName":"edit","toolArgs":"{}","cwd":"/workspace"}',
+      '{"toolName":"edit","toolArgs":{}}',
+    ]) throws(() => parseToolEvent(input));
   });
 });
 
-describe('extractEditInputs', () => {
-  it('returns empty for null/undefined input', () => {
-    deepStrictEqual(extractEditInputs('replace_string_in_file', null), []);
-    deepStrictEqual(extractEditInputs('replace_string_in_file', undefined), []);
-    deepStrictEqual(extractEditInputs('replace_string_in_file', 'string'), []);
+describe('native Copilot file edits', () => {
+  it('recognizes native tools, not Local or Claude aliases', () => {
+    for (const tool of ['create', 'edit', 'apply_patch']) strictEqual(isEditTool(tool), true);
+    for (const tool of ['create_file', 'replace_string_in_file', 'multi_replace_string_in_file', 'Edit', 'Write', 'view']) {
+      strictEqual(isEditTool(tool), false);
+      deepStrictEqual(extractEditInputs(tool, {}), []);
+    }
   });
 
-  it('returns empty for unknown tool', () => {
-    deepStrictEqual(extractEditInputs('read_file', { filePath: '/a' }), []);
+  it('extracts create and edit text including intentional empty strings', () => {
+    deepStrictEqual(extractEditInputs('create', { path: '/new.ts', file_text: 'const x = 1;' }), [
+      { type: 'string', filePath: '/new.ts', oldString: '', newString: 'const x = 1;' },
+    ]);
+    deepStrictEqual(extractEditInputs('edit', { path: '/old.ts', old_str: 'old', new_str: '' }), [
+      { type: 'string', filePath: '/old.ts', oldString: 'old', newString: '' },
+    ]);
   });
 
-  describe('replace_string_in_file', () => {
-    it('extracts a single edit', () => {
-      const input = {
-        filePath: '/src/index.ts',
-        oldString: 'foo',
-        newString: 'bar',
-      };
-      deepStrictEqual(extractEditInputs('replace_string_in_file', input), [
-        { type: 'string', filePath: '/src/index.ts', oldString: 'foo', newString: 'bar' },
-      ]);
-    });
-
-    it('returns empty when filePath is missing', () => {
-      deepStrictEqual(
-        extractEditInputs('replace_string_in_file', { oldString: 'a', newString: 'b' }),
-        [],
-      );
-    });
-
-    it('defaults missing oldString/newString to empty string', () => {
-      const result = extractEditInputs('replace_string_in_file', { filePath: '/f' });
-      deepStrictEqual(result, [
-        { type: 'string', filePath: '/f', oldString: '', newString: '' },
-      ]);
-    });
+  it('rejects malformed supported edits rather than skipping enforcement', () => {
+    for (const input of [undefined, null, 'string', [], {}, { path: '' }, { path: 5 }, { path: '/f', file_text: 5 }]) {
+      throws(() => extractEditInputs('create', input));
+    }
+    throws(() => extractEditInputs('edit', { path: '/f', new_str: 'text' }));
+    throws(() => extractEditInputs('edit', { path: '/f', old_str: 'text' }));
+    throws(() => extractEditInputs('apply_patch', { input: 5 }));
+    throws(() => extractEditInputs('apply_patch', { input: 'not a patch' }));
   });
 
-  describe('multi_replace_string_in_file', () => {
-    it('extracts multiple edits', () => {
-      const input = {
-        explanation: 'rename vars',
-        replacements: [
-          { filePath: '/a.ts', oldString: 'x', newString: 'y' },
-          { filePath: '/b.ts', oldString: 'p', newString: 'q' },
-        ],
-      };
-      deepStrictEqual(extractEditInputs('multi_replace_string_in_file', input), [
-        { type: 'string', filePath: '/a.ts', oldString: 'x', newString: 'y' },
-        { type: 'string', filePath: '/b.ts', oldString: 'p', newString: 'q' },
-      ]);
-    });
-
-    it('returns empty when replacements is not an array', () => {
-      deepStrictEqual(
-        extractEditInputs('multi_replace_string_in_file', { replacements: 'bad' }),
-        [],
-      );
-    });
-
-    it('skips entries without filePath', () => {
-      const input = {
-        replacements: [
-          { filePath: '/a.ts', oldString: 'x', newString: 'y' },
-          { oldString: 'p', newString: 'q' },
-        ],
-      };
-      deepStrictEqual(extractEditInputs('multi_replace_string_in_file', input), [
-        { type: 'string', filePath: '/a.ts', oldString: 'x', newString: 'y' },
-      ]);
-    });
-  });
-
-  describe('apply_patch', () => {
-    it('parses a single-file patch', () => {
-      const patch = [
-        '*** Begin Patch',
-        '*** Update File: /src/index.ts',
-        '@@ context line',
-        '- old line',
-        '+ new line',
-        '*** End Patch',
-      ].join('\n');
-      const result = extractEditInputs('apply_patch', { input: patch });
-      strictEqual(result.length, 1);
-      strictEqual(result[0].type, 'patch');
-      strictEqual(result[0].filePath, '/src/index.ts');
-      strictEqual(result[0].oldString, ' old line');
-      strictEqual(result[0].newString, ' new line');
-    });
-
-    it('parses a multi-file patch', () => {
-      const patch = [
-        '*** Begin Patch',
-        '*** Update File: /a.ts',
-        '@@ context',
-        '- old',
-        '+ new',
-        '*** Add File: /b.ts',
-        '+ content',
-        '*** Delete File: /c.ts',
-        '*** End Patch',
-      ].join('\n');
-      const result = extractEditInputs('apply_patch', { input: patch });
-      strictEqual(result.length, 3);
-      deepStrictEqual(
-        result.map((e) => e.filePath),
-        ['/a.ts', '/b.ts', '/c.ts'],
-      );
-      strictEqual((result[0] as any).oldString, ' old');
-      strictEqual((result[0] as any).newString, ' new');
-      strictEqual((result[1] as any).oldString, '');
-      strictEqual((result[1] as any).newString, ' content');
-      strictEqual((result[2] as any).oldString, '');
-      strictEqual((result[2] as any).newString, '');
-    });
-
-    it('returns empty when input is not a string', () => {
-      deepStrictEqual(extractEditInputs('apply_patch', { input: 123 }), []);
-    });
+  it('extracts every file in a native patch', () => {
+    const patch = [
+      '*** Begin Patch', '*** Update File: /a.ts', '@@',
+      '-old', '+new', '*** Add File: /b.ts', '+content',
+      '*** Delete File: /c.ts', '*** End Patch',
+    ].join('\n');
+    const edits = extractEditInputs('apply_patch', { input: patch });
+    deepStrictEqual(edits.map(({ filePath, oldString, newString }) => ({ filePath, oldString, newString })), [
+      { filePath: '/a.ts', oldString: 'old', newString: 'new' },
+      { filePath: '/b.ts', oldString: '', newString: 'content' },
+      { filePath: '/c.ts', oldString: '', newString: '' },
+    ]);
+    deepStrictEqual(editedFilePaths([...edits, edits[0]]), ['/a.ts', '/b.ts', '/c.ts']);
   });
 });

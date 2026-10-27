@@ -6,6 +6,8 @@ Inspect the current Copilot session as a live, searchable timeline canvas.
 
 > **Experimental:** Requires a Copilot host supporting SDK canvas extensions. No additional npm dependencies are needed; the host resolves `@github/copilot-sdk/extension`.
 
+This is an Agent Plugins 1.0 package. The runtime discovers SDK canvas extensions at `com.github.copilot/extensions/`. The root manifest's `extensions` field is reserved for client namespace data, not a directory path. Copilot does not support redirecting canvas discovery through that field.
+
 ## Skills
 
 | Skill | Description |
@@ -60,7 +62,7 @@ The SDK's public durable event history is not a byte-for-byte copy of `events.js
 ## Validation
 
 ```sh
-node --check session-timeline/extensions/session-timeline/extension.mjs
+node --check session-timeline/com.github.copilot/extensions/session-timeline/extension.mjs
 node --test session-timeline/test/*.test.mjs
 ```
 
@@ -68,11 +70,11 @@ node --test session-timeline/test/*.test.mjs
 
 ```text
 session-timeline/
-├── .plugin/plugin.json
+├── plugin.json
 ├── CHANGELOG.md
 ├── README.md
 ├── skills/session-timeline/SKILL.md
-├── extensions/session-timeline/
+├── com.github.copilot/extensions/session-timeline/
 │   ├── extension.mjs
 │   ├── model.mjs
 │   ├── source.mjs

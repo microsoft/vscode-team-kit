@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.0.0 (2026-10-22)
+
+- BREAKING: Require Agent Plugins 1.0 with a root `plugin.json`. Marketplace metadata now lives only in `marketplace.json`; legacy manifests are removed.
+- Move the Debug agent to `com.github.copilot/agents/`.
+
 ## 1.1.0 — 2026-08-12
 
 Add an explicit security stance that calibrates caution to local, developer-owned debugging: the ingest token is treated as an ephemeral loopback value rather than a credential, and effort is directed at not leaving probe code behind, keeping probe payloads bounded, and guarding the loopback trust boundary.

@@ -89,7 +89,9 @@ Set `COPILOT_GITHUB_TOKEN` to run live evaluations. All eight eval specs use `gp
 
 ## Contributing
 
-We'd love contributions. Each plugin is self-contained in its own directory with a `.plugin/plugin.json`, skills, and optionally hooks or scripts — look at any existing plugin for the pattern.
+We'd love contributions. Each local plugin is an [Agent Plugins 1.0](https://agent-plugins.org/) package. See [AGENTS.md](AGENTS.md) for the package layout and authoring rules.
+
+Run `npm run test:packages` to validate manifests, component layout, marketplace metadata, and changelog versions.
 
 A few guidelines:
 - **New plugin?** Open an issue first to discuss scope. We keep the collection focused, so a quick conversation helps.

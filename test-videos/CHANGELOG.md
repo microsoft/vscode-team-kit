@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.0 (2026-10-22)
+
+- BREAKING: Require Agent Plugins 1.0 with a root `plugin.json`. Marketplace metadata now lives only in `marketplace.json`; legacy manifests are removed.
+
 ## 0.2.0 (2026-10-19)
 
 From cold runs, where a fresh agent made each video from the skill alone (#342051, #145202, TPI #342443 signed in, and five Explorer and Timeline bugs), then a review for size and a cold run of the smaller skill (#145202: 29 min, down from 39).

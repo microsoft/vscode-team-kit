@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { setTimeout } from 'node:timers/promises';
-import { TimelineSource } from '../extensions/session-timeline/source.mjs';
+import { TimelineSource } from '../com.github.copilot/extensions/session-timeline/source.mjs';
 
 const event = (id, type = 'user.message', data = { content: id }) => ({ id, type, data, timestamp: '2026-10-21T12:00:00Z', parentId: null });
 

@@ -20,5 +20,21 @@ The component explorer lets you define **fixture files** (`*.fixture.tsx`) that 
 
 ## Quick Start
 
-1. Install the plugin (see [add-component-explorer](skills/add-component-explorer/))
+1. Set up the explorer (see [setup-component-explorer](skills/setup-component-explorer/))
 2. Write fixtures and use MCP tools (see [use-component-explorer](skills/use-component-explorer/))
+
+Setup skills configure the MCP server in your workspace's `.mcp.json`.
+
+## Plugin structure
+
+```text
+component-explorer/
+├── plugin.json
+├── CHANGELOG.md
+├── README.md
+└── skills/
+    ├── setup-component-explorer/
+    ├── setup-component-explorer-light/
+    ├── setup-component-explorer-full/
+    └── use-component-explorer/
+```

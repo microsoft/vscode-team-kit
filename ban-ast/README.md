@@ -5,7 +5,7 @@ Ban code patterns using [Tree Sitter](https://tree-sitter.github.io/tree-sitter/
 ## How It Works
 
 1. You can ask the agent to define **ban rules** globally or for a folder/workspace — each one is a Tree Sitter query paired with a name and rejection message.
-2. The preToolUse hook intercepts edit tools (`replace_string_in_file`, `multi_replace_string_in_file`, `apply_patch`, `create_file`).
+2. The native Copilot `preToolUse` hook intercepts `create`, `edit`, and `apply_patch`, reading `toolName` and `toolArgs` from each event.
 3. It parses the new code with tree-sitter and runs every applicable ban query against it.
 4. If a query matches and the code doesn't contain a `<rule-name> justification: <reason>` comment, the edit is rejected.
 
@@ -77,3 +77,16 @@ const result = eval(expression);
 ```
 
 The hook checks for `<rule-name> justification: <non-empty reason>` anywhere in the new code. If found, that rule is not enforced for that edit.
+
+## Plugin structure
+
+```text
+ban-ast/
+├── plugin.json
+├── com.github.copilot/
+│   └── hooks/
+│       └── hooks.json
+├── scripts/
+└── skills/
+    └── manage-bans/
+```

@@ -1,4 +1,8 @@
-import { deepStrictEqual, strictEqual } from 'node:assert';
+import { deepStrictEqual, strictEqual, throws, match, notStrictEqual } from 'node:assert';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, it } from 'node:test';
 import {
   parseFrontmatter,
@@ -171,33 +175,30 @@ describe('escapeRegExp', () => {
 // ---------------------------------------------------------------------------
 
 describe('extractCodeFragments', () => {
-  it('extracts from replace_string_in_file', () => {
-    const fragments = extractCodeFragments('replace_string_in_file', {
-      filePath: '/src/index.ts',
-      oldString: 'foo',
-      newString: 'bar',
+  it('extracts from edit', () => {
+    const fragments = extractCodeFragments('edit', {
+      path: '/src/index.ts',
+      old_str: 'foo',
+      new_str: 'bar',
     });
     strictEqual(fragments.length, 1);
     strictEqual(fragments[0].filePath, '/src/index.ts');
     strictEqual(fragments[0].text, 'bar');
   });
 
-  it('extracts from create_file', () => {
-    const fragments = extractCodeFragments('create_file', {
-      filePath: '/src/new.ts',
-      content: 'const x = 1;',
+  it('extracts from create', () => {
+    const fragments = extractCodeFragments('create', {
+      path: '/src/new.ts',
+      file_text: 'const x = 1;',
     });
     strictEqual(fragments.length, 1);
     strictEqual(fragments[0].filePath, '/src/new.ts');
     strictEqual(fragments[0].text, 'const x = 1;');
   });
 
-  it('extracts from multi_replace_string_in_file', () => {
-    const fragments = extractCodeFragments('multi_replace_string_in_file', {
-      replacements: [
-        { filePath: '/a.ts', oldString: 'x', newString: 'y' },
-        { filePath: '/b.ts', oldString: 'p', newString: 'q' },
-      ],
+  it('extracts all files from apply_patch', () => {
+    const fragments = extractCodeFragments('apply_patch', {
+      input: '*** Begin Patch\n*** Update File: /a.ts\n-x\n+y\n*** Update File: /b.ts\n-p\n+q\n*** End Patch',
     });
     strictEqual(fragments.length, 2);
     strictEqual(fragments[0].text, 'y');
@@ -209,14 +210,76 @@ describe('extractCodeFragments', () => {
     strictEqual(fragments.length, 0);
   });
 
-  it('returns empty for create_file with missing content', () => {
-    const fragments = extractCodeFragments('create_file', { filePath: '/a.ts' });
-    strictEqual(fragments.length, 0);
+  it('rejects create with missing content', () => {
+    throws(() => extractCodeFragments('create', { path: '/a.ts' }));
   });
 
-  it('returns empty for create_file with empty content', () => {
-    const fragments = extractCodeFragments('create_file', { filePath: '/a.ts', content: '' });
-    strictEqual(fragments.length, 0);
+  it('preserves intentional empty content', () => {
+    deepStrictEqual(extractCodeFragments('create', { path: '/a.ts', file_text: '' }), [
+      { filePath: '/a.ts', text: '' },
+    ]);
+  });
+});
+
+describe('Copilot preToolUse command contract', () => {
+  it('registers a flat native command for every supported edit tool', () => {
+    const config = JSON.parse(readFileSync(new URL('../com.github.copilot/hooks/hooks.json', import.meta.url), 'utf8'));
+    strictEqual(config.version, 1);
+    deepStrictEqual(Object.keys(config.hooks), ['preToolUse']);
+    const [hook] = config.hooks.preToolUse;
+    strictEqual(hook.type, 'command');
+    strictEqual(hook.command, 'node "${PLUGIN_ROOT}/scripts/check-bans.mts"');
+    strictEqual(hook.timeoutSec, 30);
+    strictEqual('hooks' in hook, false);
+    const matcher = new RegExp(`^(?:${hook.matcher})$`);
+    for (const tool of ['create', 'edit', 'apply_patch']) strictEqual(matcher.test(tool), true);
+    for (const tool of ['view', 'Edit', 'create_file', 'multi_replace_string_in_file']) strictEqual(matcher.test(tool), false);
+  });
+
+  it('denies violations, preserves normal permissions, and rejects invalid input', t => {
+    const directory = mkdtempSync(join(tmpdir(), 'ban-ast-hook-'));
+    t.after(() => rmSync(directory, { recursive: true, force: true }));
+    mkdirSync(join(directory, 'home'));
+    writeFileSync(join(directory, 'BANNED_AST.md'), [
+      '---', 'name: no-eval', 'message: Do not use eval()', '---',
+      '(call_expression function: (identifier) @fn (#eq? @fn "eval"))',
+    ].join('\n'));
+    const script = new URL('./check-bans-impl.mts', import.meta.url).href;
+    const run = (input: unknown) => spawnSync(process.execPath, [
+      '--input-type=module', '-e', `import { main } from ${JSON.stringify(script)}; await main();`,
+    ], {
+      input: typeof input === 'string' ? input : JSON.stringify(input),
+      encoding: 'utf8',
+      env: { ...process.env, HOME: join(directory, 'home'), USERPROFILE: join(directory, 'home') },
+    });
+    const event = (toolName: string, toolArgs: unknown) => ({ toolName, toolArgs, cwd: directory });
+    for (const [tool, args] of [
+      ['create', { path: 'index.ts', file_text: 'eval(value);' }],
+      ['edit', { path: 'index.ts', old_str: 'safe(value);', new_str: 'eval(value);' }],
+      ['apply_patch', { input: '*** Begin Patch\n*** Add File: index.ts\n+eval(value);\n*** End Patch' }],
+    ] as const) {
+      const result = run(event(tool, args));
+      strictEqual(result.status, 0, result.stderr);
+      const decision = JSON.parse(result.stdout);
+      strictEqual(decision.permissionDecision, 'deny');
+      match(decision.permissionDecisionReason, /no-eval/);
+      deepStrictEqual(Object.keys(decision).sort(), ['permissionDecision', 'permissionDecisionReason']);
+    }
+    for (const source of ['safe(value);', '// no-eval justification: test fixture\neval(value);', '']) {
+      const result = run(event('create', { path: 'index.ts', file_text: source }));
+      strictEqual(result.status, 0, result.stderr);
+      deepStrictEqual(JSON.parse(result.stdout), {});
+    }
+    const unrelated = run(event('view', { path: 'index.ts' }));
+    strictEqual(unrelated.status, 0, unrelated.stderr);
+    deepStrictEqual(JSON.parse(unrelated.stdout), {});
+    for (const invalid of ['not-json', '{}', event('edit', { path: 'index.ts' }),
+      { tool_name: 'create', tool_input: { path: 'index.ts', file_text: 'eval(value);' }, cwd: directory }]) {
+      const result = run(invalid);
+      notStrictEqual(result.status, 0);
+      strictEqual(result.stdout, '');
+      match(result.stderr, /Error/);
+    }
   });
 });
 

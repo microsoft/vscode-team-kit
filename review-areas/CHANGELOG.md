@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.0 (2026-10-22)
+
+- BREAKING: Require Agent Plugins 1.0 with a root `plugin.json`. Marketplace metadata now lives only in `marketplace.json`; legacy manifests are removed.
+
 ## 1.2.4 — 2026-09-22
 
 - Run `review-areas` Vally evaluations with GPT-6 Luna and supply a diff for the security review case

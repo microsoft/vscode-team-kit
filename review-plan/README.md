@@ -10,24 +10,26 @@ Review implementation plans before handing off to coding — fans out parallel s
 
 ## How It Works
 
-1. **Scope** — find the plan in session memory or conversation context.
+1. **Scope** — find the session folder's `plan.md` or use the plan supplied in conversation.
 2. **Fan out** — launch 2–5 parallel subagents, each with a focused area prompt (completeness, feasibility, grounding, sequencing, scope, verification, risk).
 3. **Synthesize** — deduplicate across areas, order by severity, apply a strict signal filter.
-4. **Save** — persist findings to session memory for follow-up.
+4. **Save** — write review findings to a file in the session folder for follow-up.
 5. **Revise or report** — by default, fix the plan; stop at reporting if review-only.
 
 ## Hook
 
-The `remind-plan-review` hook fires after a `plan.md` is written to session memory and reminds the agent to run the review-plan skill before proceeding.
+The hook reminds the agent to run the review-plan skill after creating or editing a file named `plan.md`.
 
 ## Plugin Structure
 
 ```text
 review-plan/
-├── .plugin/plugin.json
+├── plugin.json
 ├── README.md
+├── com.github.copilot/
+│   └── hooks/
+│       └── hooks.json
 ├── hooks/
-│   ├── hooks.json
 │   └── remind-plan-review.mts
 └── skills/
     └── review-plan/

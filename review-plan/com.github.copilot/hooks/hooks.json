@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "hooks": {
+    "postToolUse": [
+      {
+        "matcher": "create|edit|apply_patch",
+        "type": "command",
+        "command": "node \"${PLUGIN_ROOT}/hooks/remind-plan-review.mts\"",
+        "timeoutSec": 30
+      }
+    ]
+  }
+}

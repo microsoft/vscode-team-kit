@@ -30,7 +30,7 @@ Explainer videos and slide decks of pull requests, in one white Microsoft look, 
 
 ```text
 pr-studio/
-├── .plugin/plugin.json
+├── plugin.json
 ├── CHANGELOG.md
 ├── README.md
 ├── scripts/

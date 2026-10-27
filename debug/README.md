@@ -12,7 +12,7 @@ Evidence-driven debugging that tests competing hypotheses with temporary probes 
 
 ## Optional Debug Agent
 
-The user-invokable [Debug](agents/debug.agent.md) agent is intentionally a tiny entry point that delegates the complete workflow to the skill. The skill owns its durable SQLite investigation ledger, resume behavior, human gates, collector lifecycle, safe parallel advisory patterns, and cleanup rules, and remains independently usable.
+The user-invokable [Debug](com.github.copilot/agents/debug.agent.md) agent is intentionally a tiny entry point that delegates the complete workflow to the skill. The skill owns its durable SQLite investigation ledger, resume behavior, human gates, collector lifecycle, safe parallel advisory patterns, and cleanup rules, and remains independently usable.
 
 ## Workflow
 
@@ -246,12 +246,12 @@ Automatic discovery produces candidates, not proof of target reachability. Befor
 
 ```text
 debug/
-├── .plugin/
-│   └── plugin.json
+├── plugin.json
 ├── CHANGELOG.md
 ├── README.md
-├── agents/
-│   └── debug.agent.md
+├── com.github.copilot/
+│   └── agents/
+│       └── debug.agent.md
 ├── scripts/
 │   ├── debug-server-status.mts
 │   ├── log-server.mts

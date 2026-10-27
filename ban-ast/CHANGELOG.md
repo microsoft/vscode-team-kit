@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.0 (2026-10-22)
+
+- BREAKING: Require Agent Plugins 1.0 with a root `plugin.json`. Marketplace metadata now lives only in `marketplace.json`; legacy manifests are removed.
+- Move hook configuration to `com.github.copilot/hooks/hooks.json`, keeping scripts in their existing locations.
+- Use native Copilot `preToolUse` events and `toolName`/`toolArgs` inputs for `create`, `edit`, and `apply_patch`, with native permission decisions.
+
 ## 1.2.2 (2026-09-22)
 
 - Run the `manage-bans` Vally evaluations with GPT-6 Luna

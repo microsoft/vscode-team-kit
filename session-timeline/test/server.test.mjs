@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFile } from 'node:fs/promises';
-import { createTimelineServer } from '../extensions/session-timeline/server.mjs';
+import { createTimelineServer } from '../com.github.copilot/extensions/session-timeline/server.mjs';
 
 async function fixture(t) {
 	const source = {
@@ -72,8 +72,11 @@ test('manual refresh changes revision while preserving filters', async t => {
 
 test('plugin manifest and marketplace registration agree', async () => {
 	const root = new URL('../../', import.meta.url);
-	const manifest = JSON.parse(await readFile(new URL('session-timeline/.plugin/plugin.json', root), 'utf8'));
+	const manifest = JSON.parse(await readFile(new URL('session-timeline/plugin.json', root), 'utf8'));
 	const marketplace = JSON.parse(await readFile(new URL('marketplace.json', root), 'utf8'));
 	const entry = marketplace.plugins.find(plugin => plugin.name === manifest.name);
-	assert.deepEqual([entry.version, entry.description, manifest.extensions], [manifest.version, manifest.description, 'extensions/']);
+	assert.deepEqual([entry.version, entry.description], [manifest.version, manifest.description]);
+	assert.equal(manifest.$schema, 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json');
+	assert.equal(manifest.extensions, undefined);
+	assert.match(await readFile(new URL('session-timeline/com.github.copilot/extensions/session-timeline/extension.mjs', root), 'utf8'), /createCanvas/);
 });

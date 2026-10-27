@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.0 (2026-10-22)
+
+- BREAKING: Require Agent Plugins 1.0 with a root `plugin.json`. Marketplace metadata now lives only in `marketplace.json`; legacy manifests are removed.
+
 ## 1.5.0 (2026-08-11)
 
 - Wait up to 15 minutes for automatic Copilot reviews instead of relying on `requested_reviewers`
