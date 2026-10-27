@@ -45,6 +45,7 @@ Record keys are `owner/repo#number`. A bare number means `<planRepo>#number` (de
 | `judge-prompt <issue...>` | Blind judge prompt and title (issue identity only) for a separate judge chat |
 | `opinion <issue> --action keep-open\|fixed\|duplicate\|not-planned\|needs-info [--reference R] [--confidence C] --reasoning "..." [--evidence E]` / `opinion <issue> --clear` | Record or clear a **blind** judgement (judge chats only) |
 | `implement [--readiness implement\|plan] [--limit N]` | Agent-ready issues (Sweeper `agentReadiness`), bugs first, then by severity and upvotes |
+| `find-clones [--repo owner/repo]` | Local clones the user's Agents window sessions worked in, by GitHub repository, most used first (read-only; works without an index) |
 
 `python3 <scripts>/refresh_my_issues.py` is the indexer pipeline. Only the indexer automation (or first-time setup) runs it; it never changes GitHub.
 

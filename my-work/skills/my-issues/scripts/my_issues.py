@@ -915,6 +915,93 @@ def cmd_record(a, idx):
     print(json.dumps({"key": k, "triageOutcome": value}, indent=1))
 
 
+# --- Local clones, discovered from the Agents window's session store (read-only, best effort) ---
+PRODUCT_DIRS = ["Code - Insiders", "Code", "Code - Exploration", "Code - OSS"]
+
+
+def agent_host_dbs():
+    if sys.platform == "darwin":
+        base = os.path.expanduser("~/Library/Application Support")
+    elif sys.platform == "win32":
+        base = os.environ.get("APPDATA") or os.path.expanduser("~/AppData/Roaming")
+    else:
+        base = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
+    return [p for p in (os.path.join(base, d, "User", "globalStorage", "agent-host.db") for d in PRODUCT_DIRS) if os.path.exists(p)]
+
+
+def _uri_path(uri):
+    from urllib.parse import unquote, urlparse
+    if not uri or not uri.startswith("file://"):
+        return None
+    path = unquote(urlparse(uri).path)
+    return path[1:] if sys.platform == "win32" and re.match(r"^/[A-Za-z]:", path) else path
+
+
+def _git(path, *args):
+    try:
+        r = subprocess.run(["git", "-C", path, *args], capture_output=True, text=True, timeout=15)
+        return r.stdout.strip() if r.returncode == 0 else None
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+
+
+def _github_repo(remote):
+    m = re.search(r"github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?/?$", remote or "")
+    return f"{m.group(1)}/{m.group(2)}".lower() if m else None
+
+
+def cmd_find_clones(a, _idx=None):
+    """List local clones the user's Agents window sessions worked in, by GitHub repository, most used first."""
+    import sqlite3
+    folders = {}  # path -> {sessions, lastUsed}
+    for db in agent_host_dbs():
+        try:
+            con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+            rows = con.execute("SELECT payload, modified_time FROM sessions_v2 WHERE is_chat_backing = 0").fetchall()
+            roots = con.execute("SELECT value FROM session_state_values WHERE key = 'copilot.worktree.repositoryRoot'").fetchall()
+            con.close()
+        except sqlite3.Error:
+            continue
+        uris = []
+        for payload, modified in rows:
+            try:
+                d = (json.loads(payload) or {}).get("data") or {}
+            except ValueError:
+                continue
+            uris.append(((d.get("project") or {}).get("uri"), d.get("modifiedTime") or modified))
+        uris += [(v, None) for (v,) in roots]
+        for uri, modified in uris:
+            path = _uri_path(uri)
+            if not path:
+                continue
+            f = folders.setdefault(path, {"sessions": 0, "lastUsed": 0})
+            f["sessions"] += 1
+            f["lastUsed"] = max(f["lastUsed"], int(modified or 0))
+    clones = {}
+    for path, f in folders.items():
+        if not os.path.isdir(path):
+            continue
+        # Worktrees resolve to their main clone.
+        common = _git(path, "rev-parse", "--path-format=absolute", "--git-common-dir")
+        if not common:
+            continue
+        main_clone = os.path.dirname(common) if os.path.basename(common) == ".git" else path
+        if os.path.realpath(main_clone) == os.path.realpath(path):
+            main_clone = path  # keep the path as the user knows it (git returns resolved symlinks)
+        repos = {_github_repo(_git(main_clone, "remote", "get-url", r)) for r in ("origin", "upstream")} - {None}
+        for repo in repos:
+            c = clones.setdefault((repo, main_clone), {"repo": repo, "path": main_clone, "sessions": 0, "lastUsed": 0})
+            c["sessions"] += f["sessions"]
+            c["lastUsed"] = max(c["lastUsed"], f["lastUsed"])
+    want = a.repo.lower() if getattr(a, "repo", None) else None
+    out = sorted((c for c in clones.values() if not want or c["repo"] == want), key=lambda c: (-c["sessions"], -c["lastUsed"]))
+    home = os.path.expanduser("~")
+    for c in out:
+        c["path"] = "~" + c["path"][len(home):] if c["path"].startswith(home + os.sep) else c["path"]
+        c["lastUsed"] = datetime.datetime.fromtimestamp(c["lastUsed"] / 1000, datetime.timezone.utc).strftime("%Y-%m-%d") if c["lastUsed"] else None
+    print(json.dumps({"stores": len(agent_host_dbs()), "clones": out}, indent=1))
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -956,7 +1043,11 @@ def main():
     op.add_argument("--informed", action="store_true", help="second-round verdict after seeing Sweeper's claims")
     jp = sub.add_parser("judge-prompt"); jp.add_argument("issues", nargs="+")
     jp.add_argument("--informed", action="store_true", help="second round: include the blind verdict and Sweeper's claims")
+    fc = sub.add_parser("find-clones", help="local clones used by Agents window sessions, by GitHub repository")
+    fc.add_argument("--repo", help="only this owner/repo")
     a = p.parse_args()
+    if a.cmd == "find-clones":
+        return cmd_find_clones(a)
     if a.cmd == "implement" and not a.readiness:
         a.readiness = ["implement"]
     idx = load(INDEX)

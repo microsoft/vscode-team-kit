@@ -92,3 +92,29 @@ test('prompts use the config, not one person\'s setup', () => {
 	assert.match(security, /secure-fix skill in the private fork/);
 	assert.match(security, /Never use the public repository/);
 });
+
+test('find-clones reads local clones from the session store', { skip: process.platform === 'win32' }, () => {
+	const fakeHome = mkdtempSync(path.join(os.tmpdir(), 'my-work-clones-'));
+	try {
+		const clone = path.join(fakeHome, 'src', 'app');
+		mkdirSync(clone, { recursive: true });
+		execFileSync('git', ['init', '-q', clone]);
+		execFileSync('git', ['-C', clone, 'remote', 'add', 'origin', 'https://github.com/Octo/App.git']);
+		const store = process.platform === 'darwin'
+			? path.join(fakeHome, 'Library', 'Application Support', 'Code - Insiders', 'User', 'globalStorage')
+			: path.join(fakeHome, '.config', 'Code - Insiders', 'User', 'globalStorage');
+		mkdirSync(store, { recursive: true });
+		const payload = JSON.stringify({ data: { project: { uri: `file://${clone}` }, modifiedTime: Date.now() } });
+		execFileSync('python3', ['-c', `import sqlite3, sys
+c = sqlite3.connect(sys.argv[1])
+c.execute("create table sessions_v2 (session_uri text, payload text, modified_time integer, is_chat_backing integer)")
+c.execute("create table session_state_values (session_uri text, key text, value text)")
+c.execute("insert into sessions_v2 values ('s1', ?, 0, 0)", (sys.argv[2],))
+c.commit()`, path.join(store, 'agent-host.db'), payload]);
+		const env = { ...process.env, HOME: fakeHome, XDG_CONFIG_HOME: path.join(fakeHome, '.config'), COPILOT_HOME: home, PYTHONDONTWRITEBYTECODE: '1' };
+		const out = JSON.parse(String(execFileSync('python3', [path.join(scripts, 'my_issues.py'), 'find-clones', '--repo', 'octo/app'], { env })));
+		assert.deepEqual(out.clones.map(c => [c.repo, c.path, c.sessions]), [['octo/app', '~/src/app', 1]]);
+	} finally {
+		rmSync(fakeHome, { recursive: true, force: true });
+	}
+});
