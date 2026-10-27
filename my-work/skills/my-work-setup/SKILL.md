@@ -17,7 +17,7 @@ Check each and tell the user what is missing:
 |---|---|---|
 | GitHub CLI, signed in | `gh auth status` | The index, notifications and My Work searches all use `gh`. |
 | Python 3.9+ and Node 22+ | `python3 --version`, `node --version` | |
-| Agents window with canvas support | the `my-issues-triage` canvas is listed | VS Code Insiders. Session features read the Agents window's local session store (best effort). |
+| Agents window with canvases enabled | `list_canvas_capabilities` for `my-issues-triage` succeeds | VS Code Insiders. Canvases are off in a fresh profile: if the canvas isn't listed, ask the user to turn on the **`chat.canvases.enabled`** setting (Settings → search "canvases") and reload the window. Session features read the Agents window's local session store (best effort). |
 | Local clone for fix sessions | see below | Optional. |
 | Sweeper state clone | see below | Optional, microsoft/vscode only. |
 

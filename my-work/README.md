@@ -24,7 +24,7 @@ Or run these in a Copilot chat session that supports `/plugin`:
 /plugin install my-work@vscode-team-kit
 ```
 
-Then ask **"set up My Work"**. The my-work-setup skill walks you through the rest (about 10 minutes, most of it the first index build).
+Make sure canvases are enabled (setting `chat.canvases.enabled`, off in a fresh profile), then ask **"set up My Work"**. The my-work-setup skill walks you through the rest (about 10 minutes, most of it the first index build).
 
 ## What you get
 
