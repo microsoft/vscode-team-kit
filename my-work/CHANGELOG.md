@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.1 (2026-10-27)
+
+- The reused daily triage chat is created with the title "My Work", matching the canvas.
+
 ## 1.0.0 (2026-10-27)
 
 - BREAKING: Require Agent Plugins 1.0 hosts with SDK canvas extensions (`com.github.copilot/extensions/`).

@@ -56,7 +56,7 @@ Feature area ids: read `my-issue-features.json` (fallback `others`). Sweeper sev
 
 ## Common recipes
 
-- Daily triage chat: read `<board>/my-triage-queue.md`. Its sections are Newly assigned, Sweeper changed its verdict, New activity, Severe bugs, and Top close proposals. It only lists open issues with no decision, or issues changed on GitHub after the last decision.
+- Daily triage (the reused triage chat, titled "My Work"): read `<board>/my-triage-queue.md`. Its sections are Newly assigned, Sweeper changed its verdict, New activity, Severe bugs, and Top close proposals. It only lists open issues with no decision, or issues changed on GitHub after the last decision.
 - Morning overview: `changes`, then `list --no-outcome --action propose-close --limit 15`.
 - Close candidates: `list --action propose-close --no-outcome --sort confidence`.
 - Worst bugs: `list --label bug --severity data-loss --severity crash --severity freeze --sort upvotes`.

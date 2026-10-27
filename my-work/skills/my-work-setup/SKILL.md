@@ -69,7 +69,7 @@ Start `python3 "<scripts>/refresh_my_issues.py"` **in the background** (async) a
 
 ## 6. Daily automation
 
-Read [references/indexer-automation.md](references/indexer-automation.md), replace `{{SCRIPTS}}` and `{{BOARD}}` with absolute paths, and ask the user whether they want it and at what time (default weekdays 09:00 local). If yes, create it with the automation tool: name "My Issues Indexer", a quick-chat target on the local agent host, and auto-approval so its commands can run unattended. It creates the "Daily triage" chat on its first run and reuses that chat every day after. Don't run it while the first index build is still going.
+Read [references/indexer-automation.md](references/indexer-automation.md), replace `{{SCRIPTS}}` and `{{BOARD}}` with absolute paths, and ask the user whether they want it and at what time (default weekdays 09:00 local). If yes, create it with the automation tool: name "My Issues Indexer", a quick-chat target on the local agent host, and auto-approval so its commands can run unattended. It creates the triage chat (titled "My Work") on its first run and reuses that chat every day after. Don't run it while the first index build is still going.
 
 ## Troubleshooting
 

@@ -206,3 +206,8 @@ test('the plugin ships no binary files', async () => {
 		assert.equal(statSync(file).mode & 0o111, 0, `${path.relative(root, file)} is executable`);
 	}
 });
+
+test('the reused triage chat is titled My Work', () => {
+	const out = execFileSync('python3', ['-c', 'import sys; sys.argv = ["x"]; import my_issues; print(my_issues.TRIAGE_CHAT_TITLE)'], { cwd: scripts, env: { ...process.env, COPILOT_HOME: home, PYTHONDONTWRITEBYTECODE: '1' } });
+	assert.equal(String(out).trim(), 'My Work');
+});
