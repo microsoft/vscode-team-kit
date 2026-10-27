@@ -18,7 +18,7 @@ Review implementation plans before handing off to coding — fans out parallel s
 
 ## Hook
 
-The native Copilot `postToolUse` hook watches `create`, `edit`, and `apply_patch`. When they change a file named `plan.md`, it reminds the agent to run the review-plan skill before proceeding. It reads `toolName` and `toolArgs`, not memory-tool operations.
+The hook reminds the agent to run the review-plan skill after creating or editing a file named `plan.md`.
 
 ## Plugin Structure
 

@@ -23,7 +23,7 @@ The component explorer lets you define **fixture files** (`*.fixture.tsx`) that 
 1. Set up the explorer (see [setup-component-explorer](skills/setup-component-explorer/))
 2. Write fixtures and use MCP tools (see [use-component-explorer](skills/use-component-explorer/))
 
-Setup skills write Copilot workspace MCP servers to `.mcp.json` using `mcpServers`. This is separate from the portable `mcp.json` used to package MCP servers inside an Agent Plugins package.
+Setup skills configure the MCP server in your workspace's `.mcp.json`.
 
 ## Plugin structure
 
@@ -38,5 +38,3 @@ component-explorer/
     ├── setup-component-explorer-full/
     └── use-component-explorer/
 ```
-
-The root manifest declares Agent Plugins 1.0. Skills remain portable in `skills/`; this plugin does not bundle an MCP server.

@@ -4,7 +4,7 @@ Triage GitHub notifications with smart grouping, rules, memory, and agents for r
 
 ## Skills and agents
 
-The [Inbox agent](com.github.copilot/agents/inbox.agent.md) coordinates triage and delegates to investigator, reviewer, summarizer, memory, project-board, and triager agents. Portable skills live in `skills/`.
+The [Inbox agent](com.github.copilot/agents/inbox.agent.md) coordinates triage and delegates to investigator, reviewer, summarizer, memory, project-board, and triager agents.
 
 ## How it works
 
@@ -28,5 +28,3 @@ github-inbox/
 │       └── inbox-triager.agent.md
 └── skills/
 ```
-
-The root manifest declares Agent Plugins 1.0. Copilot discovers agents only from the namespaced directory; there are no legacy copies.

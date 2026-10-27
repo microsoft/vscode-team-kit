@@ -89,11 +89,9 @@ Set `COPILOT_GITHUB_TOKEN` to run live evaluations. All eight eval specs use `gp
 
 ## Contributing
 
-We'd love contributions. Each local plugin is an [Agent Plugins 1.0](https://agent-plugins.org/) package with a root `plugin.json` declaring the canonical schema. Portable skills live in `skills/`; Copilot agents, commands, hooks, and SDK canvas extensions live under `com.github.copilot/`. Scripts stay with their plugin. See [AGENTS.md](AGENTS.md) for the authoring rules.
+We'd love contributions. Each local plugin is an [Agent Plugins 1.0](https://agent-plugins.org/) package. See [AGENTS.md](AGENTS.md) for the package layout and authoring rules.
 
-The 13 local packages use only the new format, with no legacy manifests or compatibility copies. Catalog metadata such as categories, maintainers, status, and evals belongs in `marketplace.json`, not the closed plugin manifest. The external [dap-cli](https://github.com/roblourens/dap-cli) entry is unchanged; its package format must be migrated upstream.
-
-Run `npm run test:packages` to validate local manifests against the official schema fixture and check component layout, marketplace metadata, and changelog versions. The fixture in `common/schemas/agent-plugins-1.0.0/` comes from the [canonical schema](https://agent-plugins.org/schemas/1.0.0/plugin.schema.json).
+Run `npm run test:packages` to validate manifests, component layout, marketplace metadata, and changelog versions.
 
 A few guidelines:
 - **New plugin?** Open an issue first to discuss scope. We keep the collection focused, so a quick conversation helps.

@@ -38,5 +38,3 @@ build-health/
         ├── SKILL.md
         └── scripts/
 ```
-
-The root manifest declares Agent Plugins 1.0. The skill and its supporting scripts stay in `skills/`.

@@ -80,4 +80,13 @@ The hook checks for `<rule-name> justification: <non-empty reason>` anywhere in 
 
 ## Plugin structure
 
-The root `plugin.json` declares Agent Plugins 1.0. Copilot discovers the hook configuration at `com.github.copilot/hooks/hooks.json`; its scripts remain in `scripts/`. The `manage-bans` skill stays in `skills/`.
+```text
+ban-ast/
+├── plugin.json
+├── com.github.copilot/
+│   └── hooks/
+│       └── hooks.json
+├── scripts/
+└── skills/
+    └── manage-bans/
+```
