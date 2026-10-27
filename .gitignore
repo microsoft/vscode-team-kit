@@ -146,6 +146,9 @@ vite.config.ts.timestamp-*
 # macOS
 .DS_Store
 
+# Python bytecode
+__pycache__/
+
 # Vally
 vally-results/
 
