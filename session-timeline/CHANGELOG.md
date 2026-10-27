@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.1 (2026-10-27)
+
+- Replace install badges stripped by GitHub with copyable VS Code install URLs. Keep the alternative slash-command instructions.
+
 ## 1.0.0 (2026-10-22)
 
 - BREAKING: Require Agent Plugins 1.0 with a root `plugin.json`. Marketplace metadata now lives only in `marketplace.json`; legacy manifests are removed.

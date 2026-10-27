@@ -16,10 +16,21 @@ This is an Agent Plugins 1.0 package. The runtime discovers SDK canvas extension
 
 ## Getting started
 
-[![Install in VS Code](https://img.shields.io/badge/Install_in-VS_Code-007ACC?style=for-the-badge)](vscode://chat-plugin/install?source=microsoft%2Fvscode-team-kit&plugin=session-timeline)
-[![Install in VS Code Insiders](https://img.shields.io/badge/Install_in-VS_Code_Insiders-24bfa5?style=for-the-badge)](vscode-insiders://chat-plugin/install?source=microsoft%2Fvscode-team-kit&plugin=session-timeline)
+GitHub removes `vscode://` and `vscode-insiders://` links from rendered Markdown. To install, copy the URL for your VS Code edition, paste it into your browser's address bar, and allow the browser to open VS Code.
 
-The buttons add the `microsoft/vscode-team-kit` marketplace and install `session-timeline` after confirmation. They require a VS Code version with plugin install-link support, plugins enabled, and a Copilot Agent Host session; VS Code can prompt to create a session if needed.
+**VS Code**
+
+```text
+vscode://chat-plugin/install?source=microsoft%2Fvscode-team-kit&plugin=session-timeline
+```
+
+**VS Code Insiders**
+
+```text
+vscode-insiders://chat-plugin/install?source=microsoft%2Fvscode-team-kit&plugin=session-timeline
+```
+
+These URLs add the `microsoft/vscode-team-kit` marketplace and install `session-timeline` after confirmation. They require a VS Code version with plugin install-link support, plugins enabled, and a Copilot Agent Host session; VS Code can prompt to create a session if needed.
 
 Alternatively, run these slash commands in an interactive Copilot CLI session or a VS Code Copilot chat session that supports `/plugin`:
 

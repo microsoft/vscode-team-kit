@@ -40,7 +40,7 @@
       "name": "session-timeline",
       "source": "./session-timeline/",
       "description": "Inspect the current Copilot session as a live, searchable timeline canvas.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "categories": ["debugging"],
       "status": "experimental",
       "keywords": ["canvas", "session", "timeline", "debugging", "copilot"]
