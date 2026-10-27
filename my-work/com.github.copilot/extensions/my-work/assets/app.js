@@ -97,7 +97,7 @@ function toast(message, error = false) {
 }
 
 async function api(path, body) {
-	const res = await fetch(path, body === undefined ? {} : {
+	const res = await fetch(path, body === undefined ? { headers: { 'x-triage-token': TOKEN } } : {
 		method: 'POST', headers: { 'content-type': 'application/json', 'x-triage-token': TOKEN }, body: JSON.stringify(body),
 	});
 	const json = await res.json().catch(() => ({}));
@@ -1033,9 +1033,12 @@ function renderMarkdown(src) {
 	text = text.replace(/```[^\n]*\n([\s\S]*?)(?:```|$)/g, (_, code) => `\n${hold(`<pre><code>${esc(code.replace(/\n$/, ''))}</code></pre>`)}\n`);
 	// Rendered-HTML copies use short-lived private-user-images URLs; the user-attachments form is stable.
 	const stable = url => url.replace(/^https:\/\/private-user-images\.githubusercontent\.com\/\d+\/\d+-([0-9a-f-]{36})\.[a-z0-9]+\?\S*$/i, 'https://github.com/user-attachments/assets/$1');
-	const img = (raw, alt, url = stable(raw)) => /^https:\/\//.test(url)
-		? hold(`<a class="md-img" href="${esc(url)}" target="_blank" rel="noopener" title="Open full size"><img src="${esc(url)}" alt="${esc(alt || 'image')}"></a>`)
-		: esc(alt || '');
+	// Only GitHub-hosted images load inline; others would tell their host when the user views the issue.
+	const trusted = url => /^https:\/\/(github\.com\/user-attachments\/|([\w-]+\.)?githubusercontent\.com\/)/i.test(url);
+	const img = (raw, alt, url = stable(raw)) => !/^https:\/\//.test(url) ? esc(alt || '')
+		: trusted(url)
+			? hold(`<a class="md-img" href="${esc(url)}" target="_blank" rel="noopener" title="Open full size"><img src="${esc(url)}" alt="${esc(alt || 'image')}"></a>`)
+			: hold(`<a class="md-media" href="${esc(url)}" target="_blank" rel="noopener" title="External image, not loaded: ${esc(url)}"><i class="codicon codicon-file-media" aria-hidden="true"></i>${esc(alt || 'External image')}</a>`);
 	text = text.replace(/!\[([^\]]*)\]\(([^)\s]+)[^)]*\)/g, (_, alt, url) => img(url, alt));
 	text = text.replace(/<img[^>]*src="([^"]+)"[^>]*>/gi, (m, url) => img(url, (m.match(/alt="([^"]*)"/) || [])[1]));
 	// A bare attachment URL on its own line is how GitHub embeds videos.
@@ -2665,7 +2668,7 @@ $('refresh').addEventListener('click', () => { if (!ui.refreshing) refreshNow();
 // Keep the "Updated … ago" label current.
 setInterval(() => { if (ui.state && !ui.refreshing && ui.tab === 'notifications' && document.activeElement?.id !== 'area-filter') renderAreaBar(); }, 30_000);
 
-const events = new EventSource('/api/events');
+const events = new EventSource(`/api/events?t=${encodeURIComponent(TOKEN)}`);
 events.addEventListener('changed', () => { load(); if (ui.work) loadWork(); });
 // The panel's files changed: reload, keeping the current view and selection.
 events.addEventListener('reload', () => {

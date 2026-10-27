@@ -2,7 +2,7 @@ import http from 'node:http';
 import { execFile } from 'node:child_process';
 import { promises as fs, watch as watchFs } from 'node:fs';
 import path from 'node:path';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import * as data from './data.mjs';
 import { spawnJudgeRequest, implementPrompt, issueMessagePrompt, notificationIssueActionPrompt, notificationTriagePrompt, issueRulesPrompt, workSessionPrompt, msrcItemSessionPrompt, createMyWorkChatPrompt, forwardToMyWorkChatPrompt, describeSessionMessage } from './prompts.mjs';
@@ -14,6 +14,13 @@ import { sessionsFor, sessionsMentioning, sessionsById, recentSessions, issueCan
 import { listPinned, pinSession, unpinSessions, parseSessionRef, getMyWorkChat, getHiddenSessions, setSessionHidden, setSessionBucket, BUCKETS, listPinnedIssues, pinIssue, setIssueBucket, unpinIssues, markSummaryRequested } from './workSessions.mjs';
 
 const ASSETS = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'assets');
+// Scripts, styles and data come only from this server; images and videos only from GitHub's own hosts
+// (user attachments redirect to GitHub's S3 bucket).
+const GITHUB_MEDIA = 'https://github.com https://*.githubusercontent.com https://github-production-user-asset-6210df.s3.amazonaws.com';
+const CSP = [
+	"default-src 'none'", "script-src 'self'", "style-src 'self' 'unsafe-inline'", "font-src 'self'", "connect-src 'self'",
+	`img-src 'self' data: ${GITHUB_MEDIA}`, `media-src 'self' ${GITHUB_MEDIA}`, "base-uri 'none'", "form-action 'none'",
+].join('; ');
 const ASSET_TYPES = { 'app.js': 'text/javascript; charset=utf-8', 'style.css': 'text/css; charset=utf-8', 'codicon.ttf': 'font/ttf' };
 const KEY_RE = /^[\w.-]+\/[\w.-]+#\d+$/;
 const ID_RE = /^\d+$/;
@@ -170,13 +177,29 @@ export class TriageServer {
 
 	checkWrite(req) {
 		const origin = req.headers.origin;
-		if (origin && origin !== `http://127.0.0.1:${this.port}`) throw Object.assign(new Error('forbidden origin'), { status: 403 });
-		if (req.headers['x-triage-token'] !== this.token) throw Object.assign(new Error('invalid token'), { status: 403 });
+		if (origin && origin !== `http://127.0.0.1:${this.port}` && origin !== `http://localhost:${this.port}`) throw Object.assign(new Error('forbidden origin'), { status: 403 });
+		this.checkToken(req, new URL(req.url, `http://127.0.0.1:${this.port}`));
+	}
+
+	// Reject requests addressed to any other host name, so a web page can't reach this server
+	// through DNS rebinding (an attacker's host name that resolves to 127.0.0.1).
+	checkHost(req) {
+		const host = String(req.headers.host || '').toLowerCase();
+		if (host !== `127.0.0.1:${this.port}` && host !== `localhost:${this.port}`) throw Object.assign(new Error('forbidden host'), { status: 403 });
+	}
+
+	// Every API call, reads included, needs the per-run token embedded in the page.
+	checkToken(req, url) {
+		const token = req.headers['x-triage-token'] || url.searchParams.get('t');
+		const a = Buffer.from(String(token || '')), b = Buffer.from(this.token);
+		if (a.length !== b.length || !timingSafeEqual(a, b)) throw Object.assign(new Error('invalid token'), { status: 403 });
 	}
 
 	async handle(req, res) {
+		this.checkHost(req);
 		const url = new URL(req.url, `http://127.0.0.1:${this.port}`);
 		const route = `${req.method} ${url.pathname}`;
+		if (url.pathname.startsWith('/api/')) this.checkToken(req, url);
 
 		if (route === 'GET /') {
 			const stamp = async name => (await fs.stat(path.join(ASSETS, name))).mtimeMs.toFixed(0);
@@ -184,7 +207,7 @@ export class TriageServer {
 				.replace('__TOKEN__', this.token)
 				.replace('/assets/style.css', `/assets/style.css?v=${await stamp('style.css')}`)
 				.replace('/assets/app.js', `/assets/app.js?v=${await stamp('app.js')}`);
-			res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+			res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'content-security-policy': CSP, 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer' });
 			res.end(html);
 			return;
 		}
