@@ -25,3 +25,18 @@ node ./skills/build-health/scripts/analyze-builds.mjs /tmp/build-health --format
 - Logged in — `az login`
 - Node.js on PATH
 - The `azure-devops` extension auto-installs on first use
+
+## Plugin structure
+
+```text
+build-health/
+├── plugin.json
+├── CHANGELOG.md
+├── README.md
+└── skills/
+    └── build-health/
+        ├── SKILL.md
+        └── scripts/
+```
+
+The root manifest declares Agent Plugins 1.0. The skill and its supporting scripts stay in `skills/`.

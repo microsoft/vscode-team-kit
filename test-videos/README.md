@@ -22,7 +22,7 @@ Short narrated "how to test" videos for VS Code test plan items (TPIs) and fixed
 
 ```text
 test-videos/
-├── .plugin/plugin.json
+├── plugin.json
 ├── CHANGELOG.md
 ├── README.md
 ├── scripts/

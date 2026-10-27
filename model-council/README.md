@@ -24,7 +24,7 @@ Multi-model council for code review and planning. Independent model-pinned agent
 
 ```text
 model-council/
-├── .plugin/plugin.json
+├── plugin.json
 ├── README.md
 └── skills/
     ├── council-plan/

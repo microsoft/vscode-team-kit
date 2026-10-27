@@ -1,9 +1,8 @@
 {
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "debug",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "description": "Evidence-driven debugging with competing hypotheses, temporary probes, and local structured runtime logs.",
   "license": "MIT",
-  "categories": ["debugging"],
-  "status": "experimental",
   "keywords": ["debugging", "instrumentation", "structured-logging", "hypotheses", "runtime-evidence", "human-in-the-loop"]
 }

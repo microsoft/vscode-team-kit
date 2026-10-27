@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 
-const script = await readFile(new URL('../extensions/session-timeline/public/find-worker.mjs', import.meta.url), 'utf8');
+const script = await readFile(new URL('../com.github.copilot/extensions/session-timeline/public/find-worker.mjs', import.meta.url), 'utf8');
 
 function worker(clock = performance) {
 	const results = [];

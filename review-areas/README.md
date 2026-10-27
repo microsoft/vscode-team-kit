@@ -29,7 +29,7 @@ Both plugins can be used together: run review-areas for area depth, then model-c
 
 ```text
 review-areas/
-├── .plugin/plugin.json
+├── plugin.json
 ├── README.md
 └── skills/
     └── review-areas/

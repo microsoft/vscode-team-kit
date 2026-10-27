@@ -39,7 +39,7 @@ function needsInstall(): boolean {
 
 export default async function install(): Promise<void> {
   if (needsInstall()) {
-    execSync("npm install", { cwd: root, stdio: "inherit" });
+    execSync("npm install", { cwd: root, stdio: ["ignore", process.stderr, process.stderr] });
     // Touch node_modules so future mtime checks are accurate
     const now = new Date();
     utimesSync(nodeModules, now, now);

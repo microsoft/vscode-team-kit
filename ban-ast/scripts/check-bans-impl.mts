@@ -2,7 +2,7 @@ import { createRequire } from 'node:module';
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve, extname, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { extractEditInputs, isEditTool, type EditInput } from '../../common/edit-tools.mts';
+import { extractEditInputs, parseToolEvent } from '../../common/edit-tools.mts';
 
 const require = createRequire(import.meta.url);
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -288,23 +288,10 @@ export interface CodeFragment {
 }
 
 export function extractCodeFragments(toolName: string, toolInput: Record<string, unknown>): CodeFragment[] {
-  if (toolName === 'create_file') {
-    const filePath = toolInput.filePath;
-    const content = toolInput.content;
-    if (typeof filePath === 'string' && typeof content === 'string' && content.length > 0) {
-      return [{ filePath, text: content }];
-    }
-    return [];
-  }
-
-  if (isEditTool(toolName)) {
-    return extractEditInputs(toolName, toolInput).map((e: EditInput) => ({
-      filePath: e.filePath,
-      text: e.newString,
-    }));
-  }
-
-  return [];
+  return extractEditInputs(toolName, toolInput).map(edit => ({
+    filePath: edit.filePath,
+    text: edit.newString,
+  }));
 }
 
 // ---------------------------------------------------------------------------
@@ -313,13 +300,14 @@ export function extractCodeFragments(toolName: string, toolInput: Record<string,
 
 export async function main() {
   const input = await readStdin();
-  const event = JSON.parse(input);
-  const toolName: string = event.tool_name;
-  const toolInput: Record<string, unknown> = event.tool_input ?? {};
-
-  const fragments = extractCodeFragments(toolName, toolInput);
+  const { toolName, toolArgs, cwd } = parseToolEvent(input);
+  const fragments = extractCodeFragments(toolName, toolArgs).map(fragment => ({
+    ...fragment,
+    filePath: resolve(cwd, fragment.filePath),
+  }));
   if (fragments.length === 0) {
-    process.exit(0);
+    process.stdout.write('{}');
+    return;
   }
 
   const allRules = loadAllBanRules(fragments.map((f) => f.filePath));
@@ -329,7 +317,8 @@ export async function main() {
     if (rules.length > 0) { hasAnyRules = true; break; }
   }
   if (!hasAnyRules) {
-    process.exit(0);
+    process.stdout.write('{}');
+    return;
   }
 
   const violations = await checkViolations(fragments, (fp) => allRules.get(fp) ?? []);
@@ -345,10 +334,10 @@ export async function main() {
       'the rule name above) in the same code region.';
 
     process.stdout.write(JSON.stringify({
-      continue: false,
-      stopReason: `Banned AST pattern(s) detected:\n\n${details}\n\n${hint}\n`,
-    }), () => process.exit(0));
+      permissionDecision: 'deny',
+      permissionDecisionReason: `Banned AST pattern(s) detected:\n\n${details}\n\n${hint}\n`,
+    }));
   } else {
-    process.exit(0);
+    process.stdout.write('{}');
   }
 }

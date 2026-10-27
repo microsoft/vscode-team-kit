@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.0.0 (2026-10-22)
+
+- BREAKING: Require Agent Plugins 1.0 with a root `plugin.json`. Marketplace metadata now lives only in `marketplace.json`; legacy manifests are removed.
+- Move slash commands to `com.github.copilot/commands/`.
+
 ## 1.0.0 (2026-03-19)
 
 - Initial release

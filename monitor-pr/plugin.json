@@ -1,10 +1,8 @@
 {
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "monitor-pr",
-  "version": "1.5.0",
+  "version": "2.0.0",
   "description": "Monitor a pull request until CI status and Copilot review are available — non-polling async terminal scripts that notify the agent when CI or reviews complete.",
   "license": "MIT",
-  "categories": ["ci"],
-  "status": "stable",
-  "maintainers": ["roblourens"],
   "keywords": ["pr", "pull-request", "ci", "code-review", "copilot", "monitor", "gh"]
 }

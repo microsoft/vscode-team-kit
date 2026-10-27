@@ -90,15 +90,16 @@ Create `component-explorer.json` next to the Vite config (or at the project root
 
 Adjust the `url` if the dev server uses a different port.
 
-### Configure `.vscode/mcp.json`
+### Configure `.mcp.json`
 
-Create or update `.vscode/mcp.json` to register the MCP server:
+Create or update `.mcp.json` at the workspace root to register the MCP server for the Copilot harness. Merge into existing `mcpServers` without replacing other servers:
 
 ```json
 {
-  "servers": {
+  "mcpServers": {
     "component-explorer": {
       "type": "stdio",
+      "tools": ["*"],
       "command": "npx",
       "args": [
         "component-explorer",
@@ -112,3 +113,5 @@ Create or update `.vscode/mcp.json` to register the MCP server:
 ```
 
 Adjust the `-p` path if `component-explorer.json` is not at the workspace root.
+
+`tools: ["*"]` enables every tool from this server; narrow the list if the project needs fewer capabilities. Start a new Copilot session and use `/mcp show component-explorer` to verify that the server starts and provides the expected tools. See [GitHub's MCP configuration guidance](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers).

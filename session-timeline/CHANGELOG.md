@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.0 (2026-10-22)
+
+- BREAKING: Require Agent Plugins 1.0 with a root `plugin.json`. Marketplace metadata now lives only in `marketplace.json`; legacy manifests are removed.
+- Move SDK canvas extensions to `com.github.copilot/extensions/`, the runtime's fixed discovery location for Agent Plugins packages. Remove the legacy `extensions` path field.
+
 ## 0.1.5
 
 - Include the date in user-request timestamps.
