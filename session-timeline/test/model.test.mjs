@@ -138,3 +138,18 @@ test('assistant pills show actual tool count, model name, and UTF-8 response siz
 	const toolsOnly = createTimelineModel([record('b', 'assistant.message', { toolRequests: [{ toolCallId: 'one', name: 'view' }] })]);
 	assert.equal(toolsOnly.events[0].summary, '');
 });
+
+test('argument and result pills include UTF-8 sizes', () => {
+	assert.deepEqual(sectionOutlines([
+		{ label: 'Arguments', content: '\u00e9' },
+		{ label: 'Result', content: 'done' },
+	]).map(item => item.text), ['Arguments 2B', 'Result 4B']);
+});
+
+test('tool previews preserve full paths for CSS truncation and tooltips', () => {
+	const path = '/src/' + 'directory/'.repeat(50) + 'file.ts';
+	const { events } = createTimelineModel([
+		record('t', 'tool.execution_start', { toolCallId: 'call', toolName: 'view', arguments: { path } }),
+	]);
+	assert.equal(events[0].summary, `path: ${path}`);
+});

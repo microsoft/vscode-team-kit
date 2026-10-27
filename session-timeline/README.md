@@ -2,6 +2,8 @@
 
 Inspect the current Copilot session as a live, searchable timeline canvas.
 
+![Session timeline demo showing scrolling and expanding a tool event](media/session-timeline-demo.gif)
+
 > **Experimental:** Requires a Copilot host supporting SDK canvas extensions. No additional npm dependencies are needed; the host resolves `@github/copilot-sdk/extension`.
 
 This is an Agent Plugins 1.0 package. The runtime discovers SDK canvas extensions at `com.github.copilot/extensions/`. The root manifest's `extensions` field is reserved for client namespace data, not a directory path. Copilot does not support redirecting canvas discovery through that field.
@@ -14,7 +16,21 @@ This is an Agent Plugins 1.0 package. The runtime discovers SDK canvas extension
 
 ## Getting started
 
-Install this plugin from the marketplace, or use your host's plugin-from-source workflow with the local `session-timeline` directory. In VS Code, run **Chat: Install Plugin from Source** and enter that directory's absolute path. Enable the plugin, then ask “show the session timeline” or invoke `/session-timeline`.
+[![Install in VS Code](https://img.shields.io/badge/Install_in-VS_Code-007ACC?style=for-the-badge)](vscode://chat-plugin/install?source=microsoft%2Fvscode-team-kit&plugin=session-timeline)
+[![Install in VS Code Insiders](https://img.shields.io/badge/Install_in-VS_Code_Insiders-24bfa5?style=for-the-badge)](vscode-insiders://chat-plugin/install?source=microsoft%2Fvscode-team-kit&plugin=session-timeline)
+
+The buttons add the `microsoft/vscode-team-kit` marketplace and install `session-timeline` after confirmation. They require a VS Code version with plugin install-link support, plugins enabled, and a Copilot Agent Host session; VS Code can prompt to create a session if needed.
+
+Alternatively, run these slash commands in an interactive Copilot CLI session or a VS Code Copilot chat session that supports `/plugin`:
+
+```text
+/plugin marketplace add microsoft/vscode-team-kit
+/plugin install session-timeline@vscode-team-kit
+```
+
+For local development, use your host's plugin-from-source workflow with the local `session-timeline` directory. In VS Code, run **Chat: Install Plugin from Source** and enter that directory's absolute path.
+
+Once installed, enable the plugin, then ask “show the session timeline” or invoke `/session-timeline`.
 
 ## How it works
 
@@ -23,10 +39,10 @@ The extension joins the current session, subscribes before fetching `session.get
 The canvas provides:
 
 - Sticky request navigation with the current request highlighted. All event headers stack flush at the top while scrolling their content and descendants.
-- Find across readable details, with raw-record fallback, a match counter, and wrapping Next/Previous navigation (Enter/Shift+Enter). Find opens matching details without filtering the tree; category filters still retain context ancestors.
+- Find across readable details, with raw-record fallback, a persistent "2 of 40" match counter, and wrapping up/down navigation (arrow buttons, ArrowUp/ArrowDown, or Enter/Shift+Enter). Changing the query automatically jumps to a match after the typing delay. Background updates preserve the current selection and counter. Find opens matching details without filtering the tree; category filters still retain context ancestors.
 - Find stays pinned above the timeline. Matching runs in a background worker after a 200 ms typing delay; each new keystroke cancels stale work. Live updates defer timeline rebuilding while the Find input has focus.
 - Inline section pills on System and Assistant headers, including tool-request counts, model names, and UTF-8 content/response sizes.
-- User requests show the local date and time. Tool headers keep the expand indicator, category, name, status pill, and duration together; only useful argument previews are shown.
+- User requests show section pills on the title line alongside the local date and time. Tool headers combine status and duration in one pill, with UTF-8 sizes on Arguments and Result pills. Tool previews use CSS ellipses with full-text tooltips.
 - Expandable prompts, reasoning, tool arguments/results/errors, durations, and raw SDK records. Collapsed cards show concise section outlines with direct links to their details; tool summaries prefer readable descriptions and paths over JSON.
 - Collapse all expanded events at once, including events hidden by the current filters.
 - System-prompt summaries for advertised skills, tool-guidance headings, and instruction headings.

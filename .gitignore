@@ -148,3 +148,6 @@ vite.config.ts.timestamp-*
 
 # Vally
 vally-results/
+
+# Playwright MCP snapshots
+.playwright-mcp/
