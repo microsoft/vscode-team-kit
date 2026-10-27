@@ -16,6 +16,7 @@ DEFAULTS = {
     "repoPaths": {"microsoft/vscode": "~/work/vscode"},
     "sweeperRepo": "~/work/vscodesweeper-state",
     "rulesFile": os.path.join(COPILOT_HOME, "github-inbox-rules.md"),
+    "memoryFile": os.path.join(COPILOT_HOME, "github-inbox-memory.md"),
     "login": None,
 }
 
@@ -36,6 +37,8 @@ CFG = load_config()
 ORG = CFG["org"]
 PLAN_REPO = CFG["planRepo"]
 RULES_FILE = CFG["rulesFile"]
+MEMORY_FILE = CFG["memoryFile"]
+PRINCIPLES_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "triage-principles.md")
 SWEEPER_REPO = os.path.expanduser(CFG["sweeperRepo"] or "")
 # Sweeper only publishes records for microsoft/vscode.
 SWEEPER_SCOPE = "microsoft/vscode"

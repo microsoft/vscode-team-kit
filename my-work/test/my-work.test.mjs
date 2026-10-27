@@ -41,7 +41,7 @@ test('config overlays the user file on the defaults', () => {
 });
 
 test('Python and JS configs share their defaults', () => {
-	const out = execFileSync('python3', ['-c', 'import json, my_work_config as c; print(json.dumps({k: c.DEFAULTS[k] for k in ["org", "planRepo", "repoPaths", "sweeperRepo"]}))'], { cwd: scripts, env: { ...process.env, COPILOT_HOME: home, PYTHONDONTWRITEBYTECODE: '1' } });
+	const out = execFileSync('python3', ['-c', 'import json, my_work_config as c; print(json.dumps({k: c.DEFAULTS[k] for k in ["org", "planRepo", "repoPaths", "sweeperRepo", "rulesFile", "memoryFile"]}))'], { cwd: scripts, env: { ...process.env, COPILOT_HOME: home, PYTHONDONTWRITEBYTECODE: '1' } });
 	const py = JSON.parse(String(out));
 	for (const key of Object.keys(py)) {
 		assert.deepEqual(py[key], config.DEFAULTS[key], key);
@@ -86,6 +86,9 @@ test('prompts use the config, not one person\'s setup', () => {
 	].join('\n').replaceAll(os.homedir(), '~');
 	assert.ok(texts.includes(`octo/app → ${path.join(home, 'src', 'app')}`.replaceAll(os.homedir(), '~')));
 	assert.doesNotMatch(texts, /octo\/missing/);
+	assert.ok(existsSync(config.PRINCIPLES), 'bundled triage principles exist');
+	assert.ok(texts.includes(config.PRINCIPLES.replaceAll(os.homedir(), '~')), 'triage prompts apply the principles');
+	assert.match(texts, /github-inbox-memory\.md/, 'triage prompts read the inbox memory');
 	assert.ok(texts.includes(config.SCRIPT.replaceAll(os.homedir(), '~')), 'refers to the bundled helper script');
 	assert.doesNotMatch(texts, /sandy081|\.agents\/skills|rules? \d/);
 	const security = prompts.msrcItemSessionPrompt({ incidentId: '1', link: 'l', title: 't', description: 'd' });

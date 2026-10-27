@@ -14,6 +14,8 @@ export const CONFIG_FILE = path.join(BOARD, 'my-work.config.json');
 const here = path.dirname(fileURLToPath(import.meta.url));
 // <plugin>/com.github.copilot/extensions/my-work/lib → <plugin>/skills/my-issues/scripts/my_issues.py
 export const SCRIPT = process.env.MY_WORK_SCRIPT || path.resolve(here, '..', '..', '..', '..', 'skills', 'my-issues', 'scripts', 'my_issues.py');
+// Baseline triage principles shipped with the plugin; the user's rules refine them.
+export const PRINCIPLES = path.resolve(path.dirname(SCRIPT), '..', 'triage-principles.md');
 
 export const DEFAULTS = Object.freeze({
 	// GitHub org whose issues are indexed and searched.
@@ -26,6 +28,8 @@ export const DEFAULTS = Object.freeze({
 	sweeperRepo: '~/work/vscodesweeper-state',
 	// Inbox rules shared with the github-inbox plugin.
 	rulesFile: path.join(COPILOT_HOME, 'github-inbox-rules.md'),
+	// Inbox memory shared with the github-inbox plugin: people, GitHub logins, owners, teams, preferences.
+	memoryFile: path.join(COPILOT_HOME, 'github-inbox-memory.md'),
 	// Private My Work data: pinned sessions, MSRC items, the My Work chat link.
 	dataDir: '~/.agents/data/my-work',
 	// Skill fix sessions use for bugs, e.g. a personal "fix-vscode-bug" skill; empty = none.
@@ -80,6 +84,12 @@ export function dataDir() {
 export function repoHint(repo = config().planRepo) {
 	const paths = clones().map(([r, p]) => `${r} → ${p}`).join(', ');
 	return paths ? `local clones: ${paths}` : `no local clones are configured; ask before cloning ${repo}`;
+}
+
+/** Prompt text telling a chat which triage principles, rules and memory to use. */
+export function rulesHint() {
+	const c = config();
+	return `Apply the general triage principles (${PRINCIPLES}) and my inbox rules (${c.rulesFile}; they win over the principles and may not exist yet), and use my memory (${c.memoryFile}) for people, GitHub logins, owners and teams`;
 }
 
 /** The command prefix chats use to run the helper script. */

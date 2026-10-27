@@ -1,4 +1,4 @@
-import { config, repoHint, scriptCommand } from './config.mjs';
+import { config, repoHint, rulesHint, scriptCommand } from './config.mjs';
 
 function fixSkillHint() {
 	return config().fixSkill ? ` (use the ${config().fixSkill} skill for bugs)` : '';
@@ -76,7 +76,7 @@ export function notificationTriagePrompt({ items, recompute = false, customGroup
 		recompute
 			? `Panel request: re-check the classification of these ${items.length} notifications. The user wants every notification that can be dismissed to land in Auto-dismiss or Safe to dismiss (and owner changes in Route), so look again at items you put in action/fyi/cleanup: anything that does not need the user (e.g. FYI with nothing to do, closed/merged items, assigned to someone else, CODENOTIFY-only on merged PRs) should be auto (with the rule) or dismiss (with a reason). Keep action only for items that really need the user. Do only this, then continue with whatever you were doing.`
 			: `Panel request: classify these ${items.length} notifications (new, or with new activity since you last classified them) so the panel can fill its Auto-dismiss / Safe-to-dismiss lists. Do only this, then continue with whatever you were doing.`,
-		`Follow my inbox rules (${config().rulesFile}) exactly: read each item's LATEST comments before classifying, apply the auto-dismiss rules and name the matching rule, and never dismiss, comment, or change anything on GitHub yourself.`,
+		`${rulesHint()}. Read each item's LATEST comments before classifying, apply the auto-dismiss rules and name the matching rule, and never dismiss, comment, or change anything on GitHub yourself.`,
 		'Classify every one of them, then call the my-issues-triage canvas action setNotificationTriage once with all items and "keepBatch": true (do not move the panel\'s current batch). Groups: action, route (belongs to another owner per my routing rules; set routeTo to the logins and rule to the routing rule), auto (set rule), cleanup, dismiss (safe, with a reason), fyi.',
 		...(customGroups.length ? ['Custom groups (use them whenever their criteria match, before the built-in groups):', ...customGroups.map(g => `- ${g.id} ("${g.label}"): ${one(g.criteria)}`)] : []),
 		'Reply with one line: counts per group.',
@@ -91,7 +91,7 @@ export function issueMessagePrompt({ key, url, title, text }) {
 		'',
 		text,
 		'',
-		'Handle this like any request from me about this issue, following the my-issues skill and the inbox rules. Anything that changes GitHub still needs my explicit approval here in the chat.',
+		`Handle this like any request from me about this issue, following the my-issues skill. ${rulesHint()}. Anything that changes GitHub still needs my explicit approval here in the chat.`,
 		'To dismiss its notification, use the my-issues-triage canvas action dismissNotifications {"ids": [...]} (not the GitHub API directly), so the panel updates at once.',
 		`When you have the answer or result, post it back to the panel with the my-issues-triage canvas action replyToIssue {"key": "${key}", "text": "<concise markdown, at most ~1500 characters>", "choices": [...]}. If you need to ask me something first, ask it with replyToIssue as well.`,
 		'Whenever the reply asks me to approve, choose, or confirm, add 2-4 `choices` buttons with the exact replies I would type: the recommended one as style "primary" (e.g. {"label": "Approve & dismiss", "reply": "approve and dismiss"}), alternatives (e.g. "Approve only", "Keep open"), an {"label": "Edit comment…", "reply": "change the comment to: ", "edit": true} when there is proposed comment text, and "Skip". When a button reply comes back, treat it exactly as my typed approval.',
@@ -101,7 +101,7 @@ export function issueMessagePrompt({ key, url, title, text }) {
 export function issueRulesPrompt({ items, recompute = false }) {
 	return [
 		`Panel request: apply my inbox rules to these ${items.length} issues from the panel's Cleanup / Implement / Today views${recompute ? ' (re-check: earlier verdicts are shown; revise them if the rules or the issue changed)' : ''}. Do only this, then continue with whatever you were doing.`,
-		`Read my inbox rules (${config().rulesFile}: routing, handling conventions, known duplicates and triage rules) and check each issue live (title, labels, latest comments). Sweeper data is only a hint; my rules win. If the file does not exist, classify everything as keep.`,
+		`${rulesHint()} (routing, handling conventions, known duplicates and triage rules), and check each issue live (title, labels, latest comments). Sweeper data is only a hint; my rules win. Without a rule that applies, classify as keep.`,
 		'Classify each issue with exactly one group:',
 		'- route: a rule says it belongs to someone else. Set routeTo to the GitHub logins the rule names ([] = only unassign me) and rule to the rule number and short name, e.g. "12. Settings owners". Only clear routing candidates; uncertain owners are keep with the doubt in the reason.',
 		'- close: a rule says it should be closed (e.g. a known duplicate, or a re-filed not-planned issue). Set closeAs to "fixed", "duplicate #N", "not-planned" or "as-designed", and rule.',
@@ -136,6 +136,7 @@ export function msrcItemSessionPrompt(x) {
 function myWorkChatInstructions() {
 	return [
 		'You are the My Work chat: you keep the user\'s My Work board (in the my-issues-triage canvas) up to date. Before your first canvas action, call list_canvas_capabilities for canvasId "my-issues-triage" and open_canvas with canvasId "my-issues-triage", instanceId "my-work-chat", input {} (once per chat).',
+		`Use my memory (${config().memoryFile}) for people, GitHub logins and owners when I mention someone. Save lasting facts I tell you (e.g. someone's GitHub login or what they own) there after confirming the exact text.`,
 		'Use the canvas actions getMyWork (what is on the board, plus recent sessions) and updateMyWork (pin/unpin sessions, add/move/remove issues in My priorities, add MSRC items). These only change the user\'s local board, so do them directly. Anything that changes GitHub (e.g. setting a milestone) needs explicit approval first.',
 		'"This session", "the current session" or "the session I am working in" means the user\'s most recently active Agents window session other than the triage chat and this My Work chat: use list_sessions (or getMyWork\'s recentSessions) and pick the most recently active one; if two are close, ask with choices.',
 		'Always answer in the panel with the canvas action replyToIssue {"key": "my-work", "text": "<a line or two of markdown>", "choices": [...]} (add choices whenever you ask to choose or confirm). Button clicks come back to you as the user\'s next message.',

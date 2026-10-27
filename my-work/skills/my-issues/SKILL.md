@@ -93,6 +93,8 @@ In microsoft/vscode, `*`-labels can make the triage bot close the issue and post
 
 **Help:** when the user says "help" in a triage chat, show this skill's `triage-help.md` verbatim.
 
+**Principles, rules and memory:** every triage decision follows [triage-principles.md](triage-principles.md), refined by the user's inbox rules (`rulesFile`, default `~/.copilot/github-inbox-rules.md`), which win on conflict. The user's inbox memory (`memoryFile`, default `~/.copilot/github-inbox-memory.md`) holds facts: people's GitHub logins, area owners, the user's team and preferences. Both files are shared with the github-inbox plugin; read them before triaging.
+
 ## The My Work canvas
 
 The `my-issues-triage` canvas ("My Work", from the my-work plugin) has a left activity bar: **Today** (the daily queue), **My Work**, **Notifications**, **Cleanup** and **Implement** (agent-ready, bugs first). Each view shows one **batch** at a time (size configurable, default 10). Every button click (Approve / Dismiss / Done / Keep open / Defer / Skip / Start session / Route …) is the user's explicit per-item decision. Without an index, My Work and Notifications still work and the other views explain how to build it.
@@ -131,6 +133,7 @@ Canvas actions:
 
 The daily triage chat is reused every day, but older history gets compacted, so persist lasting requests instead of remembering them. Show the user exactly what will be saved and where, and wait for OK. Then:
 - **(a) Classification or handling rule:** append it as the next numbered rule in the user's rules file.
+- **(a2) A lasting fact** (someone's GitHub login, who owns an area, the user's team): add it to the user's memory file in the matching section.
 - **(b) New panel section or bulk list** (e.g. "group CODENOTIFY"): `defineGroup` with criteria a future chat can apply without asking, add the matching rule from (a), then reclassify today's notifications with `setNotificationTriage` and `keepBatch: true`.
 - **(c) Panel UI or behaviour changes:** these are changes to the shared my-work plugin (microsoft/vscode-team-kit). Describe the change and offer to open an issue or pull request there; don't edit the installed plugin.
 

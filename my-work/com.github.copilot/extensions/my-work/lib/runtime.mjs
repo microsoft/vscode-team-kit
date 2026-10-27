@@ -5,7 +5,7 @@ import { watch as fsWatch, mkdirSync } from 'node:fs';
 import { sessionsById, recentSessions } from './sessions.mjs';
 import { TriageServer } from './server.mjs';
 import * as data from './data.mjs';
-import { config } from './config.mjs';
+import { config, PRINCIPLES } from './config.mjs';
 
 const GROUPS = data.BUILTIN_GROUPS;
 const GROUP_ID = { type: 'string', pattern: '^[a-z][a-z0-9-]{1,30}$' };
@@ -328,7 +328,7 @@ export class TriageRuntime {
 				return {
 					builtinGroups: GROUPS,
 					customGroups: await data.getCustomGroups(),
-					standingRules: `Classification and handling rules live in ${config().rulesFile}; append new "from now on" rules there (after confirming the exact text with the user).`,
+					standingRules: `Classification and handling rules live in ${config().rulesFile}; append new "from now on" rules there (after confirming the exact text with the user). Baseline principles: ${PRINCIPLES}. Facts such as people's GitHub logins, owners and teams live in ${config().memoryFile}.`,
 				};
 			case 'setMyWorkChat': {
 				await setMyWorkChat(input.link);

@@ -8,7 +8,7 @@ import argparse, datetime, json, os, re, subprocess, sys, tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from my_work_config import (  # noqa: E402
-    BOARD, ORG, PLAN_REPO, RULES_FILE, SWEEPER_REPO, SWEEPER_SCOPE, REPO_CLONE, has_sweeper, login as _gh_login,
+    BOARD, ORG, PLAN_REPO, RULES_FILE, MEMORY_FILE, PRINCIPLES_FILE, SWEEPER_REPO, SWEEPER_SCOPE, REPO_CLONE, has_sweeper, login as _gh_login,
 )
 
 INDEX = os.path.join(BOARD, "my-issues.json")
@@ -276,7 +276,9 @@ def chat_prompt(date, refreshed_at, notifications):
         f"(issue index refreshed {refreshed_at}).\n\n"
         "Part 1 – Notifications. Fetch my unread GitHub notifications (`gh api notifications`, or the github-inbox plugin's "
         "inbox-list-notifications skill if it is installed) and triage them "
-        f"following my inbox rules ({RULES_FILE}; if it does not exist, use judgement and ask before dismissing). "
+        f"following the general triage principles ({PRINCIPLES_FILE}) and my inbox rules ({RULES_FILE}; they win over the "
+        "principles and may not exist yet). Use my memory "
+        f"({MEMORY_FILE}) for people, GitHub logins, owners and teams. "
         "Read the latest comments of each before classifying, and use the my-issues skill "
         f"(`{SCRIPT_CMD} proposal`) for my assigned issues. Present them grouped as: Needs my action, Auto-dismiss "
         "(notifications that match one of the auto-dismiss rules in my inbox rules, e.g. merged own PRs or closed "
@@ -339,7 +341,8 @@ def chat_prompt(date, refreshed_at, notifications):
         "instructions are re-sent each morning, so anything I ask for \"from now on\" (or \"always\", "
         "\"never\", \"by default\") must be persisted, never just remembered here. Show me exactly what you will persist "
         "and where, and wait for my OK, then: (a) a classification or handling rule: append it as the next numbered rule "
-        f"in {RULES_FILE} (in the matching section; create it if missing); (b) a new panel section or bulk list for some "
+        f"in {RULES_FILE} (in the matching section; create it if missing); (a2) a lasting fact rather than a rule (someone's "
+        f"GitHub login, who owns an area, my team): add it to {MEMORY_FILE} in the matching section; (b) a new panel section or bulk list for some "
         "kind of notification (e.g. \"group CODENOTIFY\"): call `defineGroup` with an id, label and criteria precise "
         "enough for a future chat, add the matching rule from (a), then reclassify today's notifications into it with "
         "`setNotificationTriage` (keepBatch true); (c) any other change to the panel's UI or behaviour, or to what you "
