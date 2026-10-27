@@ -357,7 +357,7 @@ def chat_prompt(date, refreshed_at, notifications):
     )
 
 
-TRIAGE_CHAT_TITLE = "Daily triage"
+TRIAGE_CHAT_TITLE = "My Work"
 
 
 def new_day_message(date, refreshed_at, notifications):

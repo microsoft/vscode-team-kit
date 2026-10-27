@@ -36,7 +36,7 @@ The canvas (`my-issues-triage`, titled **My Work**) has five views:
 - **Cleanup** — Sweeper close and needs-info proposals with live fact checks and independent judge chats; each action needs your approval.
 - **Implement** — agent-ready issues, bugs first, with one-click fix sessions.
 
-A daily automation refreshes the index and posts the day's triage to a reused **Daily triage** chat that works alongside the canvas.
+A daily automation refreshes the index and posts the day's triage to a reused triage chat, titled **My Work**, that works alongside the canvas.
 
 ## How it works
 
