@@ -21,6 +21,7 @@ Paths below use `<board>` for `<COPILOT_HOME>/project-boards` (default `~/.copil
 | `my-triage-queue.md` / `.json` | Generated daily triage queue. Don't edit. |
 | `my-triage-chats.json` | Which refresh already got its daily triage message, and `persistentChat`: the one triage chat reused every day. Written by `mark-chat`. |
 | `my-work.config.json` | Per-user settings (optional; defaults suit the VS Code team). |
+| `my-issues-refresh-status.json` | Progress of the running (or last failed) refresh, written by `refresh_my_issues.py`; the canvas shows it on Today, Cleanup and Implement. |
 
 Record keys are `owner/repo#number`. A bare number means `<planRepo>#number` (default `microsoft/vscode`).
 

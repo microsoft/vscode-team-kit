@@ -399,6 +399,9 @@ function render() {
 	renderAreaBar();
 	renderSubtabs();
 	renderBatchBar();
+	$('indexbar').innerHTML = indexingBannerHtml();
+	// While the index is still being built, "All done" in the batch bar would be misleading.
+	if (ui.state.indexing?.state === 'running' && ['queue', 'cleanup', 'implement'].includes(ui.tab)) $('batchbar').innerHTML = '';
 	renderList();
 	if (ui.selected) renderDetail(true, true);
 	renderWorkChat();
@@ -472,6 +475,18 @@ function autoClassify() {
 	const inBatch = st.notifications.filter(n => b.ids.includes(n.id) && needsTriage(n)).map(n => n.id);
 	// The current batch first; otherwise classify ahead so the next batches are ready.
 	requestClassify(inBatch.length ? { ids: inBatch, count: 50 } : { count: 25 });
+}
+
+// While the indexer runs (or after it failed), the index-based views say so.
+function indexingBannerHtml() {
+	const ix = ui.state?.indexing;
+	if (!ix || !['queue', 'cleanup', 'implement'].includes(ui.tab)) return '';
+	if (ix.state === 'failed') {
+		return `<div class="index-banner bad" role="status"><i class="codicon codicon-warning" aria-hidden="true"></i><span><b>The last index refresh failed.</b> ${esc(ix.error || '')} Showing the previous index.</span></div>`;
+	}
+	const pct = ix.total ? Math.round((ix.done / ix.total) * 100) : null;
+	const what = ix.firstRun ? 'Building your issue index' : 'Refreshing your issue index';
+	return `<div class="index-banner" role="status" aria-live="polite"><i class="codicon codicon-loading spin" aria-hidden="true"></i><span><b>${what}…</b> ${esc(ix.phase || '')}${ix.total ? ` · ${ix.done}/${ix.total}` : ''} · started ${esc(agoText(ix.startedAt))}. ${ix.firstRun ? 'This view fills in when it finishes.' : 'This view updates when it finishes.'}</span>${pct !== null ? `<span class="index-bar" aria-hidden="true"><span style="width:${pct}%"></span></span>` : ''}</div>`;
 }
 
 function renderBatchBar() {
@@ -717,6 +732,8 @@ function renderList() {
 	$('list').innerHTML = groups.length || done.length
 		? groups.map(g => `${g.collapsible ? `<button type="button" class="group-h done-toggle" data-group-toggle="${esc(g.role)}" aria-expanded="${!g.collapsed}"><i class="codicon codicon-chevron-right" aria-hidden="true"></i>${esc(g.header)}<span class="group-n">${g.count}</span></button>` : g.header ? `<div class="group-h"${g.drop ? ` data-drop-group="${esc(g.role)}"` : ''}>${esc(g.header)}<span class="group-n">${g.items.filter(i => !isHandled(i)).length || ''}</span></div>` : ''}${g.collapsed ? '' : g.items.length ? g.items.map(rowHtml).join('') : g.role === 'priorities' ? '<div class="cd empty-group" data-drop-group="priorities">Your own ordered list, kept locally (milestones on GitHub are untouched). Paste <b>#123</b> or an issue link into the chat below, or use <b>Add to my priorities</b> on any issue.</div>' : `<div class="cd empty-group"${g.drop ? ` data-drop-group="${esc(g.role)}"` : ''}>Nothing planned yet. Use <b>Plan for…</b> on an issue or drop a session here.</div>`}`).join('')
 			+ (groups.length ? '' : '<div class="empty"><i class="codicon codicon-check-all" aria-hidden="true"></i>All done in this batch</div>') + doneHtml
+		: ui.state?.indexing?.state === 'running' && ['queue', 'cleanup', 'implement'].includes(ui.tab) && (ui.state.indexing.firstRun || !ui.state.hasIndex)
+			? '<div class="empty cd">My Work and Notifications already work while the index is built.</div>'
 		: ui.state && !ui.state.hasIndex && ['queue', 'cleanup', 'implement'].includes(ui.tab)
 			? '<div class="empty"><i class="codicon codicon-info" aria-hidden="true"></i><b>No issue index yet</b><br>This view is built from your local issue index. Ask the chat to <i>set up My Work</i> (my-work-setup skill) to build it; My Work and Notifications work without it.</div>'
 			: '<div class="empty"><i class="codicon codicon-check-all" aria-hidden="true"></i>Nothing here</div>';

@@ -797,3 +797,13 @@ html.narrow .title-sub { gap: 8px; }
 .find-row[draggable="true"] { cursor: grab; }
 .find-row.dragging { opacity: .5; }
 #list.drop-ready .group-h[data-drop-group], #list.drop-ready .empty-group[data-drop-group] { outline: 1px dashed var(--line); outline-offset: -1px; border-radius: 4px; }
+
+/* Indexer progress */
+#indexbar:empty { display: none; }
+.index-banner { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 4px 8px 6px; padding: 8px 10px; border-radius: 8px; background: var(--accent-soft); color: var(--fg); font-size: 12px; }
+.index-banner .codicon { color: var(--accent); }
+.index-banner.bad { background: color-mix(in srgb, var(--bad, #cf222e) 12%, transparent); }
+.index-banner.bad .codicon { color: var(--bad, #cf222e); }
+.index-banner > span:not(.index-bar) { flex: 1 1 200px; }
+.index-bar { flex: 1 1 100%; height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.index-bar > span { display: block; height: 100%; background: var(--accent); transition: width .3s; }

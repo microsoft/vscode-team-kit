@@ -12,6 +12,7 @@ export const CANVAS_ID = 'my-issues-triage';
 export const DATA_DIR = path.join(COPILOT_HOME, 'extension-data', CANVAS_ID);
 const QUEUE_JSON = path.join(BOARD, 'my-triage-queue.json');
 const INDEX_JSON = path.join(BOARD, 'my-issues.json');
+const REFRESH_STATUS_JSON = path.join(BOARD, 'my-issues-refresh-status.json');
 const OUTCOMES_JSON = path.join(BOARD, 'my-issue-outcomes.json');
 const FEATURES_JSON = path.join(BOARD, 'my-issue-features.json');
 const TRIAGE_FILE = path.join(DATA_DIR, 'notification-triage.json');
@@ -177,7 +178,7 @@ async function loadOutcomes() {
 
 // Refresh the panel when decisions or the index change outside the panel (e.g. the chat closed an issue).
 export function watchDecisions(onChange) {
-	const names = new Set([path.basename(OUTCOMES_JSON), path.basename(INDEX_JSON)]);
+	const names = new Set([path.basename(OUTCOMES_JSON), path.basename(INDEX_JSON), path.basename(REFRESH_STATUS_JSON)]);
 	let timer;
 	let watcher;
 	try {
@@ -490,6 +491,23 @@ async function loadAreas() {
 	return [...areas, { id: fb.id, name: fb.name }];
 }
 
+// The indexer (refresh_my_issues.py) publishes its progress so the panel can say it is still building.
+async function loadIndexing() {
+	const st = await readJsonFile(REFRESH_STATUS_JSON).catch(() => undefined);
+	if (!st || typeof st !== 'object') return null;
+	if (st.state === 'running') {
+		let alive = true;
+		try { process.kill(st.pid, 0); } catch (error) { alive = error.code === 'EPERM'; }
+		const fresh = Date.now() - Date.parse(st.updatedAt || 0) < 30 * 60 * 1000;
+		if (!alive || !fresh) return null;
+	} else if (st.state === 'failed') {
+		if (Date.now() - Date.parse(st.updatedAt || 0) > 24 * 60 * 60 * 1000) return null;
+	} else {
+		return null;
+	}
+	return { state: st.state, phase: st.phase || null, done: st.done ?? null, total: st.total ?? null, startedAt: st.startedAt || null, firstRun: !!st.firstRun, error: st.error || null };
+}
+
 export async function getState({ forceNotifications = false } = {}) {
 	// Without an index (e.g. before the first indexer run) My Work and Notifications still work;
 	// the index-based views (Today, Cleanup, Implement) stay empty and show how to build it.
@@ -587,7 +605,7 @@ export async function getState({ forceNotifications = false } = {}) {
 	}
 
 	return {
-		hasIndex, refreshedAt: index.refreshedAt, counts: index.counts, queueDate: queue?.date ?? null, settings, batches, opinions, opinionPending, informedPending, threads, customGroups, areas, sessions,
+		hasIndex, indexing: await loadIndexing(), refreshedAt: index.refreshedAt, counts: index.counts, queueDate: queue?.date ?? null, settings, batches, opinions, opinionPending, informedPending, threads, customGroups, areas, sessions,
 		notifications, notificationsError: notif.error ?? null, notificationsFetchedAt: notif.at ? new Date(notif.at).toISOString() : null, untriaged, notifTriagePending, issueRules, issueRulesPending, sections, cleanup: cleanupGroups,
 		implement: { total: implement.total, bugs: implement.bugs, items: implementItems },
 		today: {

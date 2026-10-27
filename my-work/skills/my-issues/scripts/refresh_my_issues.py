@@ -482,6 +482,34 @@ def write_json_atomic(path, obj):
     os.replace(tmp, path)
 
 
+STATUS_PATH = os.path.join(BOARD_DIR, "my-issues-refresh-status.json")
+_status = {}
+_status_written = 0.0
+
+
+def status(phase=None, done=None, total=None, state="running", error=None, force=False):
+    """Publish refresh progress for the My Work canvas (throttled; atomic)."""
+    global _status_written
+    if phase is not None and phase != _status.get("phase"):
+        force = True
+    _status.update({"state": state, "pid": os.getpid(), "updatedAt": now_iso()})
+    _status.setdefault("startedAt", _status["updatedAt"])
+    _status["firstRun"] = _status.get("firstRun", not os.path.exists(INDEX_PATH))
+    if phase is not None:
+        _status["phase"] = phase
+    _status["done"], _status["total"] = done, total
+    if error is not None:
+        _status["error"] = str(error)[:500]
+    if not force and time.time() - _status_written < 2:
+        return
+    _status_written = time.time()
+    try:
+        os.makedirs(BOARD_DIR, exist_ok=True)
+        write_json_atomic(STATUS_PATH, _status)
+    except OSError:
+        pass
+
+
 def bootstrap():
     """First run: create an empty feature configuration, index and manifest so the incremental refresh can start."""
     os.makedirs(BOARD_DIR, exist_ok=True)
@@ -514,6 +542,7 @@ def main():
     issues_before = {k: dict(v) for k, v in issues.items()}
     prev_partitions = index["sourceCheckpoints"]["github"]["partitions"]
 
+    status("Finding your issues on GitHub")
     print("== Building inventory (adaptive partitions) ==", file=sys.stderr)
     inventory, partition_report = build_inventory(prev_partitions)
     with open(INVENTORY_CACHE, "w") as f:
@@ -541,7 +570,8 @@ def main():
     removed_unassigned = []
     deleted_or_transferred = []
     anomalies_kept = []
-    for k in sorted(missing_keys):
+    for i, k in enumerate(sorted(missing_keys)):
+        status("Checking issues no longer assigned", i, len(missing_keys))
         rec = issues[k]
         repo, number = rec["repository"], rec["number"]
         full, err = fetch_full_issue(repo, number)
@@ -561,7 +591,8 @@ def main():
     # --- Fetch full metadata for added/restored/changed ---
     need_full = sorted(added_keys | restored_keys | changed_keys)
     full_meta = {}
-    for k in need_full:
+    for i, k in enumerate(need_full):
+        status("Fetching new and changed issues", i, len(need_full))
         rec_hint = inventory.get(k) or issues.get(k) or departed.get(k)
         repo, number = rec_hint["repository"], rec_hint["number"]
         full, err = fetch_full_issue(repo, number)
@@ -571,6 +602,8 @@ def main():
         full_meta[k] = full
 
     sweeper_new_commit = None
+    if SWEEPER_REPO and os.path.isdir(SWEEPER_REPO):
+        status("Reading Sweeper proposals")
     try:
         run(["git", "-C", SWEEPER_REPO, "fetch", "origin", "state"])
         sweeper_new_commit = run(["git", "-C", SWEEPER_REPO, "rev-parse", "origin/state"]).strip()
@@ -826,6 +859,7 @@ def main():
     )
 
     validation_passed = all(checks.values())
+    status("Validating and publishing")
     print("== Validation ==", file=sys.stderr)
     for k, v in checks.items():
         print(f"  {k}: {v}", file=sys.stderr)
@@ -926,4 +960,16 @@ if __name__ == "__main__":
     if "--reclassify-only" in sys.argv:
         reclassify_only()
     else:
-        main()
+        status("Starting", force=True)
+        try:
+            main()
+        except SystemExit as e:
+            if e.code not in (None, 0):
+                status(state="failed", error=e.code if isinstance(e.code, str) else "refresh failed", force=True)
+                raise
+            status(state="done", force=True)
+        except BaseException as e:
+            status(state="failed", error=e, force=True)
+            raise
+        else:
+            status(state="done", force=True)
