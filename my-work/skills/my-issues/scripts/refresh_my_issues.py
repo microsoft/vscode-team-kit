@@ -87,8 +87,15 @@ query($q:String!,$cursor:String!){
 """
 
 
+# What this pass covers: "full" (everything assigned), "open" / "closed" (first-run phases) or
+# "delta" (only issues updated since the last refresh). Set by run_pass().
+SCOPE = {"name": "full", "qualifier": "", "label": ""}
+FULL_CHECK_DAYS = 7
+
+
 def search_query(start, end):
-    return f"org:{ORG} assignee:{ASSIGNEE} is:issue created:{start}..{end}"
+    q = f"org:{ORG} assignee:{ASSIGNEE} is:issue created:{start}..{end}"
+    return f"{q} {SCOPE['qualifier']}".strip()
 
 
 def count_for(start, end):
@@ -536,13 +543,13 @@ _status_written = 0.0
 def status(phase=None, done=None, total=None, state="running", error=None, force=False):
     """Publish refresh progress for the My Work canvas (throttled; atomic)."""
     global _status_written
-    if phase is not None and phase != _status.get("phase"):
+    if phase is not None and phase != _status.get("phase", "").split(": ")[-1]:
         force = True
     _status.update({"state": state, "pid": os.getpid(), "updatedAt": now_iso()})
     _status.setdefault("startedAt", _status["updatedAt"])
     _status["firstRun"] = _status.get("firstRun", not os.path.exists(INDEX_PATH))
     if phase is not None:
-        _status["phase"] = phase
+        _status["phase"] = f"{SCOPE['label']}{phase}" if SCOPE.get("label") else phase
     _status["done"], _status["total"] = done, total
     if error is not None:
         _status["error"] = str(error)[:500]
@@ -586,7 +593,9 @@ def main():
     issues = index["issues"]
     departed = index["departedIssues"]
     issues_before = {k: dict(v) for k, v in issues.items()}
-    prev_partitions = index["sourceCheckpoints"]["github"]["partitions"]
+    gh_checkpoint = index["sourceCheckpoints"]["github"]
+    # Partition boundaries are only reusable for full passes; scoped passes are small or one-off.
+    prev_partitions = gh_checkpoint.get("partitions", []) if SCOPE["name"] == "full" else []
 
     status("Finding your issues on GitHub")
     print("== Building inventory (adaptive partitions) ==", file=sys.stderr)
@@ -607,7 +616,10 @@ def main():
     present_keys = inv_keys & existing_keys
     changed_keys = {k for k in present_keys if issues[k]["updatedAt"] != inventory[k]["updatedAt"]}
     unchanged_keys = present_keys - changed_keys
-    missing_keys = existing_keys - inv_keys  # need verification
+    # Only records inside this pass's scope can be "missing"; a delta pass can't tell (the weekly full pass does).
+    in_scope = {"full": lambda r: True, "open": lambda r: r.get("state") == "open",
+                "closed": lambda r: r.get("state") == "closed", "delta": lambda r: False}[SCOPE["name"]]
+    missing_keys = {k for k in existing_keys - inv_keys if in_scope(issues[k])}  # need verification
 
     print(f"added={len(added_keys)} restored={len(restored_keys)} changed={len(changed_keys)} "
           f"unchanged={len(unchanged_keys)} missing_to_verify={len(missing_keys)}", file=sys.stderr)
@@ -830,12 +842,17 @@ def main():
     index["refreshedAt"] = NOW
     index["featureConfigurationHash"] = hashlib.sha256(json.dumps(config, sort_keys=True).encode()).hexdigest()
     index["featureConfiguration"] = CONFIG_PATH
+    full_pass = SCOPE["name"] == "full"
     index["sourceCheckpoints"]["github"] = {
         "query": f"org:{ORG} assignee:{ASSIGNEE} is:issue",
         "inventoryCompletedAt": NOW,
         "inventoryCount": len(inventory),
         "rawSearchCount": len(inventory),
-        "partitions": partition_report,
+        "partitions": partition_report if full_pass else gh_checkpoint.get("partitions", []),
+        "lastPass": SCOPE["name"],
+        # A first run indexes open issues, then closed ones; until then the closed backfill is pending.
+        "backfillPending": SCOPE["name"] == "open" or (gh_checkpoint.get("backfillPending", False) and SCOPE["name"] != "closed" and not full_pass),
+        "lastFullAt": NOW if full_pass or SCOPE["name"] == "closed" else gh_checkpoint.get("lastFullAt"),
     }
     index["sourceCheckpoints"]["sweeper"] = {
         "repository": "egamma/vscodesweeper-state",
@@ -863,6 +880,7 @@ def main():
     )
     checks["inventoryCountsReconcile"] = (
         index["sourceCheckpoints"]["github"]["inventoryCount"] == len(inventory) == counts["total"]
+        if full_pass else all(k in issues or k in departed for k in inventory)
     )
     checks["recordKeysMatchIdentity"] = all(
         k == f"{r['repository']}#{r['number']}" for k, r in list(issues.items()) + list(departed.items())
@@ -1006,13 +1024,47 @@ def main():
     print(json.dumps(result_summary, indent=2))
 
 
+def run_pass(name, label="", qualifier=""):
+    SCOPE.update(name=name, label=label, qualifier=qualifier)
+    print(f"== Pass: {name} {qualifier} ==", file=sys.stderr)
+    main()
+
+
+def run_passes(force_full=False):
+    """First run: open issues first (published quickly), then closed. Later: only what changed since the last
+    refresh, with a full pass every FULL_CHECK_DAYS days (or --full) to catch unassigned or transferred issues."""
+    if not ASSIGNEE:
+        sys.exit("Cannot tell whose issues to index: sign in with `gh auth login` or set \"login\" in my-work.config.json.")
+    bootstrap()
+    with open(INDEX_PATH) as f:
+        index = json.load(f)
+    gh = (index.get("sourceCheckpoints") or {}).get("github") or {}
+    if not index.get("issues"):
+        run_pass("open", "Open issues: ", "is:open")
+        run_pass("closed", "Closed issues: ", "is:closed")
+        return
+    if gh.get("backfillPending"):
+        run_pass("closed", "Closed issues: ", "is:closed")
+        return
+    last_full = gh.get("lastFullAt")
+    stale = not last_full or (datetime.datetime.now(datetime.timezone.utc)
+                              - datetime.datetime.fromisoformat(last_full.replace("Z", "+00:00"))).days >= FULL_CHECK_DAYS
+    since = index.get("refreshedAt")
+    if force_full or stale or not since:
+        run_pass("full")
+        return
+    # Look back a day before the last refresh so nothing updated mid-run is missed.
+    since_day = (datetime.datetime.fromisoformat(since.replace("Z", "+00:00")) - datetime.timedelta(days=1)).date().isoformat()
+    run_pass("delta", "", f"updated:>={since_day}")
+
+
 if __name__ == "__main__":
     if "--reclassify-only" in sys.argv:
         reclassify_only()
     else:
         status("Starting", force=True)
         try:
-            main()
+            run_passes(force_full="--full" in sys.argv)
         except SystemExit as e:
             if e.code not in (None, 0):
                 status(state="failed", error=e.code if isinstance(e.code, str) else "refresh failed", force=True)

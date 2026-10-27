@@ -121,3 +121,41 @@ c.commit()`, path.join(store, 'agent-host.db'), payload]);
 		rmSync(fakeHome, { recursive: true, force: true });
 	}
 });
+
+test('the indexer picks open-first, backfill, delta or full passes', () => {
+	const py = `
+import json, os, sys, datetime
+sys.argv = ['x']
+sys.path.insert(0, ${JSON.stringify(scripts)})
+import refresh_my_issues as r
+r.ASSIGNEE = 'someone'
+calls = []
+r.run_pass = lambda name, label='', qualifier='': calls.append([name, qualifier])
+def index(**gh):
+    os.makedirs(r.BOARD_DIR, exist_ok=True)
+    issues = gh.pop('issues', {})
+    refreshed = gh.pop('refreshedAt', None)
+    json.dump({'issues': issues, 'refreshedAt': refreshed, 'sourceCheckpoints': {'github': gh}}, open(r.INDEX_PATH, 'w'))
+now = datetime.datetime.now(datetime.timezone.utc)
+iso = lambda d: (now - datetime.timedelta(days=d)).strftime('%Y-%m-%dT%H:%M:%SZ')
+out = {}
+index(); calls.clear(); r.run_passes(); out['first'] = calls[:]
+index(issues={'a#1': {}}, backfillPending=True, refreshedAt=iso(0)); calls.clear(); r.run_passes(); out['backfill'] = calls[:]
+index(issues={'a#1': {}}, lastFullAt=iso(1), refreshedAt=iso(0)); calls.clear(); r.run_passes(); out['daily'] = calls[:]
+index(issues={'a#1': {}}, lastFullAt=iso(8), refreshedAt=iso(0)); calls.clear(); r.run_passes(); out['weekly'] = calls[:]
+index(issues={'a#1': {}}, lastFullAt=iso(1), refreshedAt=iso(0)); calls.clear(); r.run_passes(force_full=True); out['forced'] = calls[:]
+print(json.dumps(out))
+`;
+	const fresh = mkdtempSync(path.join(os.tmpdir(), 'my-work-passes-'));
+	try {
+		const out = JSON.parse(String(execFileSync('python3', ['-c', py], { env: { ...process.env, COPILOT_HOME: fresh, PYTHONDONTWRITEBYTECODE: '1' } })));
+		assert.deepEqual(out.first.map(c => c[0]), ['open', 'closed']);
+		assert.deepEqual(out.backfill.map(c => c[0]), ['closed']);
+		assert.equal(out.daily[0][0], 'delta');
+		assert.match(out.daily[0][1], /^updated:>=\d{4}-\d{2}-\d{2}$/);
+		assert.deepEqual(out.weekly.map(c => c[0]), ['full']);
+		assert.deepEqual(out.forced.map(c => c[0]), ['full']);
+	} finally {
+		rmSync(fresh, { recursive: true, force: true });
+	}
+});

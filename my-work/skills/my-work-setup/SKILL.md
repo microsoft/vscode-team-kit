@@ -65,7 +65,7 @@ Open it now, before the index exists, so the user can start right away: call `li
 
 ## 5. Build the index
 
-Start `python3 "<scripts>/refresh_my_issues.py"` **in the background** (async) and keep going; don't wait for it. On the first run it creates the feature configuration, index and manifest, then inventories every issue assigned to the user. It fetches issues in batches of 50, so even thousands of issues take only a few minutes. It never changes GitHub. The canvas shows its progress; report the final counts when it finishes.
+Start `python3 "<scripts>/refresh_my_issues.py"` **in the background** (async) and keep going; don't wait for it. On the first run it creates the feature configuration, index and manifest, indexes the user's **open** issues and publishes them (usually within a minute), then adds their **closed** issues and publishes again. It fetches issues in batches of 50, so even ten thousand issues take only minutes. It never changes GitHub. The canvas shows its progress; report the final counts when it finishes.
 
 ## 6. Daily automation
 

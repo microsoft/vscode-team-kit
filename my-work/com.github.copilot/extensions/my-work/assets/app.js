@@ -485,8 +485,9 @@ function indexingBannerHtml() {
 		return `<div class="index-banner bad" role="status"><i class="codicon codicon-warning" aria-hidden="true"></i><span><b>The last index refresh failed.</b> ${esc(ix.error || '')} Showing the previous index.</span></div>`;
 	}
 	const pct = ix.total ? Math.round((ix.done / ix.total) * 100) : null;
-	const what = ix.firstRun ? 'Building your issue index' : 'Refreshing your issue index';
-	return `<div class="index-banner" role="status" aria-live="polite"><i class="codicon codicon-loading spin" aria-hidden="true"></i><span><b>${what}…</b> ${esc(ix.phase || '')}${ix.total ? ` · ${ix.done}/${ix.total}` : ''} · started ${esc(agoText(ix.startedAt))}. ${ix.firstRun ? 'This view fills in when it finishes.' : 'This view updates when it finishes.'}</span>${pct !== null ? `<span class="index-bar" aria-hidden="true"><span style="width:${pct}%"></span></span>` : ''}</div>`;
+	const backfill = /^Closed issues/.test(ix.phase || '');
+	const what = backfill ? 'Adding your closed issues' : ix.firstRun ? 'Building your issue index' : 'Refreshing your issue index';
+	return `<div class="index-banner" role="status" aria-live="polite"><i class="codicon codicon-loading spin" aria-hidden="true"></i><span><b>${what}…</b> ${esc(ix.phase || '')}${ix.total ? ` · ${ix.done}/${ix.total}` : ''} · started ${esc(agoText(ix.startedAt))}. ${backfill ? 'Your open issues are ready; history and duplicate checks improve when this finishes.' : ix.firstRun ? 'This view fills in when it finishes.' : 'This view updates when it finishes.'}</span>${pct !== null ? `<span class="index-bar" aria-hidden="true"><span style="width:${pct}%"></span></span>` : ''}</div>`;
 }
 
 function renderBatchBar() {

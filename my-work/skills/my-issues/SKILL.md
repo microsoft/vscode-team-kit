@@ -48,7 +48,7 @@ Record keys are `owner/repo#number`. A bare number means `<planRepo>#number` (de
 | `implement [--readiness implement\|plan] [--limit N]` | Agent-ready issues (Sweeper `agentReadiness`), bugs first, then by severity and upvotes |
 | `find-clones [--repo owner/repo]` | Local clones the user's Agents window sessions worked in, by GitHub repository, most used first (read-only; works without an index) |
 
-`python3 <scripts>/refresh_my_issues.py` is the indexer pipeline. Only the indexer automation (or first-time setup) runs it; it never changes GitHub.
+`python3 <scripts>/refresh_my_issues.py [--full]` is the indexer pipeline. Only the indexer automation (or first-time setup) runs it; it never changes GitHub. The first run indexes open issues first (published quickly), then closed ones. Later runs only fetch issues updated since the last refresh (seconds); every 7 days, or with `--full`, a full pass also catches issues that were unassigned, transferred or deleted.
 
 `list` filters: `--area <id>`, `--repo owner/repo`, `--label L` (repeatable, all required), `--action keep-open|propose-close|needs-info|route-to-area`, `--severity S` (repeatable), `--autofixable`, `--no-milestone`, `--no-outcome`, `--has-outcome`, `--no-repro`, `--stale-days N`, `--text <title substring>`, `--state`. Sort: `updated` (default), `created`, `upvotes`, `confidence`, `severity`.
 
