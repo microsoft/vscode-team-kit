@@ -5,6 +5,7 @@
 - BREAKING: Require Agent Plugins 1.0 hosts with SDK canvas extensions (`com.github.copilot/extensions/`).
 - The index is incremental: the first run publishes open issues first, then adds closed ones; daily runs only fetch issues updated since the last refresh, with a full pass every 7 days (or `--full`).
 - The indexer fetches issues in batches of 50 with GraphQL, so a first build of thousands of issues takes minutes instead of hours.
+- No binaries in the plugin: the panel uses the codicon icon font from the local VS Code installation.
 - Security: the panel server only answers its own host (DNS-rebinding protection) and requires its per-run token on every API call; the page has a content security policy; images in issues load only from GitHub's hosts; GitHub text in chat prompts is JSON-quoted and marked as untrusted data, and "Start session" clicks no longer imply approval for GitHub changes.
 - Setup gets every path from `my_issues.py paths` (honours `COPILOT_HOME`) instead of assuming `~/.copilot`.
 - Setup opens the canvas before building the index, and builds it in the background.

@@ -1,6 +1,7 @@
 import http from 'node:http';
 import { execFile } from 'node:child_process';
 import { promises as fs, watch as watchFs } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -22,6 +23,23 @@ const CSP = [
 	`img-src 'self' data: ${GITHUB_MEDIA}`, `media-src 'self' ${GITHUB_MEDIA}`, "base-uri 'none'", "form-action 'none'",
 ].join('; ');
 const ASSET_TYPES = { 'app.js': 'text/javascript; charset=utf-8', 'style.css': 'text/css; charset=utf-8', 'codicon.ttf': 'font/ttf' };
+// The icon font is not bundled (no binaries in the plugin); it is served from the VS Code installation.
+async function findCodiconFont() {
+	const rel = ['out', 'media', 'codicon.ttf'];
+	const apps = process.platform === 'darwin'
+		? ['Visual Studio Code - Insiders', 'Visual Studio Code', 'Visual Studio Code - Exploration'].flatMap(n => [`/Applications/${n}.app`, path.join(os.homedir(), 'Applications', `${n}.app`)]).map(a => path.join(a, 'Contents', 'Resources', 'app'))
+		: process.platform === 'win32'
+			? ['Microsoft VS Code Insiders', 'Microsoft VS Code'].flatMap(n => [process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'Programs', n), process.env.ProgramFiles && path.join(process.env.ProgramFiles, n)]).filter(Boolean).map(a => path.join(a, 'resources', 'app'))
+			: ['/usr/share/code-insiders', '/usr/share/code', '/opt/visual-studio-code-insiders', '/opt/visual-studio-code'].map(a => path.join(a, 'resources', 'app'));
+	if (process.env.VSCODE_CWD) apps.unshift(path.join(process.env.VSCODE_CWD, 'resources', 'app'));
+	for (const app of apps) {
+		const file = path.join(app, ...rel);
+		if (await fs.stat(file).catch(() => null)) return file;
+	}
+	return null;
+}
+let codiconFont;
+
 const KEY_RE = /^[\w.-]+\/[\w.-]+#\d+$/;
 const ID_RE = /^\d+$/;
 const GROUPS = new Set(['fixed', 'duplicate', 'reason', 'needs-info']);
@@ -214,8 +232,10 @@ export class TriageServer {
 		if (req.method === 'GET' && url.pathname.startsWith('/assets/')) {
 			const name = url.pathname.slice('/assets/'.length);
 			if (!ASSET_TYPES[name]) throw Object.assign(new Error('not found'), { status: 404 });
+			const file = name === 'codicon.ttf' ? (codiconFont ??= await findCodiconFont()) : path.join(ASSETS, name);
+			if (!file) throw Object.assign(new Error('codicon font not found'), { status: 404 });
 			res.writeHead(200, { 'content-type': ASSET_TYPES[name], 'cache-control': 'no-store' });
-			res.end(await fs.readFile(path.join(ASSETS, name)));
+			res.end(await fs.readFile(file));
 			return;
 		}
 		if (route === 'GET /api/events') {

@@ -89,7 +89,7 @@ my-work/
 ├── com.github.copilot/extensions/my-work/
 │   ├── extension.mjs
 │   ├── lib/          (server, data, prompts, config, sessions, work, …)
-│   └── assets/       (index.html, app.js, style.css, codicons)
+│   └── assets/       (index.html, app.js, style.css; icons use the VS Code installation's codicon font)
 └── test/
     └── my-work.test.mjs
 ```

@@ -196,3 +196,13 @@ test('GitHub text is quoted as untrusted data in prompts', () => {
 		assert.doesNotMatch(text, /Do not ask (for confirmation )?again/);
 	}
 });
+
+test('the plugin ships no binary files', async () => {
+	const { readdirSync, readFileSync } = await import('node:fs');
+	const root = fileURLToPath(new URL('../', import.meta.url));
+	const walk = dir => readdirSync(dir, { withFileTypes: true }).flatMap(e => e.name === '__pycache__' ? [] : e.isDirectory() ? walk(path.join(dir, e.name)) : [path.join(dir, e.name)]);
+	for (const file of walk(root)) {
+		assert.ok(!readFileSync(file).includes(0), `${path.relative(root, file)} looks binary`);
+		assert.equal(statSync(file).mode & 0o111, 0, `${path.relative(root, file)} is executable`);
+	}
+});
