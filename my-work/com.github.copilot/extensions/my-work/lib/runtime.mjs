@@ -28,7 +28,7 @@ export const actionDefinitions = [
 						properties: {
 							id: { type: 'string', pattern: '^\\d+$', description: 'Notification thread id' },
 							group: { ...GROUP_ID, description: 'Built-in: action = needs the user; route = belongs to another owner (set routeTo); auto = matches one of the user\'s Inbox auto-dismiss rules (set rule); cleanup = Sweeper cleanup offer; dismiss = safe to dismiss; fyi = informational. Or the id of a custom group from getConfig (use it whenever its criteria match).' },
-							rule: { type: 'string', maxLength: 120, description: 'For auto: the auto-dismiss rule that matched, e.g. "1. Merged own PR". For route: the routing rule, e.g. "12. Settings owners"' },
+							rule: { type: 'string', maxLength: 120, description: 'For auto: the auto-dismiss rule that matched, e.g. "A1. Merged own PR" from the triage principles or a numbered rule of the user. For route: the routing rule, e.g. "12. Settings owners"' },
 							routeTo: { type: 'array', maxItems: 5, items: { type: 'string', pattern: '^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$' }, description: 'For route: GitHub logins to assign. Routing from the panel adds them, removes the current user, records `routed`, and dismisses the notification. Empty = only unassign the current user.' },
 							reason: { type: 'string', maxLength: 400, description: 'One-line reason shown to the user (required for dismiss)' },
 							issueKey: { type: 'string', description: 'owner/repo#number of the notification\'s issue/PR (always set it for route)' },
