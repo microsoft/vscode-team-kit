@@ -59,21 +59,21 @@ The first refresh creates `<board>/my-issue-features.json` with no custom areas;
 { "id": "settings", "name": "Settings", "labels": ["config", "settings-editor"], "priority": 60 }
 ```
 
-## 4. Build the index
+## 4. Open the canvas
 
-Run `python3 "<scripts>/refresh_my_issues.py"` once. On the first run it creates the feature configuration, index and manifest, then inventories every issue assigned to the user (this can take a few minutes for thousands of issues). It never changes GitHub. Report the counts it prints.
+Open it now, before the index exists, so the user can start right away: call `list_canvas_capabilities` for `my-issues-triage`, then `open_canvas` with `instanceId` "triage-board" and input `{}`. **My Work** and **Notifications** work immediately; Today, Cleanup and Implement show the index build's progress and fill in when it finishes. Suggest trying **Browse issues & PRs** and pasting an issue number into the chat box at the bottom.
 
-## 5. Daily automation
+## 5. Build the index
 
-Read [references/indexer-automation.md](references/indexer-automation.md), replace `{{SCRIPTS}}` and `{{BOARD}}` with absolute paths, and ask the user for the time (default weekdays 09:00 local). Create it with the automation tool: name "My Issues Indexer", a quick-chat target on the local agent host, and auto-approval so its commands can run unattended. Offer to run it once now: it creates the "Daily triage" chat on its first run and reuses that chat every day after.
+Start `python3 "<scripts>/refresh_my_issues.py"` **in the background** (async) and keep going; don't wait for it. On the first run it creates the feature configuration, index and manifest, then inventories every issue assigned to the user. It fetches issues in batches of 50, so even thousands of issues take only a few minutes. It never changes GitHub. The canvas shows its progress; report the final counts when it finishes.
 
-## 6. Open the canvas
+## 6. Daily automation
 
-Call `list_canvas_capabilities` for `my-issues-triage`, then `open_canvas` with `instanceId` "triage-board" and input `{}`. In **My Work**, try **Browse issues & PRs** and paste an issue number into the chat box at the bottom.
+Read [references/indexer-automation.md](references/indexer-automation.md), replace `{{SCRIPTS}}` and `{{BOARD}}` with absolute paths, and ask the user whether they want it and at what time (default weekdays 09:00 local). If yes, create it with the automation tool: name "My Issues Indexer", a quick-chat target on the local agent host, and auto-approval so its commands can run unattended. It creates the "Daily triage" chat on its first run and reuses that chat every day after. Don't run it while the first index build is still going.
 
 ## Troubleshooting
 
-- **Today / Cleanup / Implement say "No issue index yet"**: run step 4.
+- **Today / Cleanup / Implement say "No issue index yet"**: run step 5.
 - **Empty Cleanup and Implement**: no Sweeper clone (step 1), or no microsoft/vscode issues.
 - **Notifications error**: run `gh auth status`; the token needs the `notifications` scope (`gh auth refresh -s notifications`).
 - **Start session cannot find the repository**: add it to `repoPaths`.

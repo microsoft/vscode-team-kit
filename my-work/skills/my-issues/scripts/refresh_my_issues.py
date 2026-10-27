@@ -175,6 +175,52 @@ def fetch_full_issue(repo, number):
     return d, None
 
 
+BATCH_FIELDS = """number url title body state stateReason createdAt updatedAt closedAt
+  author{ login } milestone{ title } issueType{ name } repository{ nameWithOwner }
+  labels(first: 50){ nodes{ name } } assignees(first: 20){ nodes{ login } }"""
+
+
+def _rest_shape(n):
+    """Shape a GraphQL issue like the REST payload the rest of the pipeline expects."""
+    repo = n["repository"]["nameWithOwner"]
+    return {
+        "number": n["number"], "html_url": n["url"], "title": n["title"], "body": n.get("body") or "",
+        "state": (n.get("state") or "").lower(), "state_reason": (n.get("stateReason") or "").lower() or None,
+        "created_at": n["createdAt"], "updated_at": n["updatedAt"], "closed_at": n.get("closedAt"),
+        "user": {"login": (n.get("author") or {}).get("login")},
+        "milestone": {"title": n["milestone"]["title"]} if n.get("milestone") else None,
+        "type": {"name": n["issueType"]["name"]} if n.get("issueType") else None,
+        "labels": [{"name": l["name"]} for l in (n.get("labels") or {}).get("nodes", [])],
+        "assignees": [{"login": a["login"]} for a in (n.get("assignees") or {}).get("nodes", [])],
+        "repository_url": f"https://api.github.com/repos/{repo}",
+    }
+
+
+def fetch_full_issues(pairs, on_progress=None, batch=50):
+    """Fetch many issues with batched GraphQL queries (falls back to REST per issue). Returns {(repo, number): (full, err)}."""
+    out = {}
+    pairs = list(pairs)
+    for start in range(0, len(pairs), batch):
+        chunk = pairs[start:start + batch]
+        parts = []
+        for i, (repo, number) in enumerate(chunk):
+            owner, name = repo.split("/", 1)
+            parts.append(f'i{i}: repository(owner: {json.dumps(owner)}, name: {json.dumps(name)}) {{ issue(number: {int(number)}) {{ {BATCH_FIELDS} }} }}')
+        data = {}
+        # Missing or transferred issues make gh exit non-zero but still return the other issues' data.
+        r = subprocess.run(["gh", "api", "graphql", "-f", "query=query {" + "\n".join(parts) + "}"], capture_output=True, text=True)
+        try:
+            data = json.loads(r.stdout or "{}").get("data") or {}
+        except ValueError:
+            print(f"WARN: batch fetch failed, falling back to single fetches: {r.stderr[:200]}", file=sys.stderr)
+        for i, (repo, number) in enumerate(chunk):
+            node = ((data.get(f"i{i}") or {}).get("issue")) if data else None
+            out[(repo, number)] = (_rest_shape(node), None) if node else fetch_full_issue(repo, number)
+        if on_progress:
+            on_progress(min(start + batch, len(pairs)), len(pairs))
+    return out
+
+
 def clean_body_summary(body, max_len=320):
     if not body:
         return ""
@@ -570,11 +616,13 @@ def main():
     removed_unassigned = []
     deleted_or_transferred = []
     anomalies_kept = []
-    for i, k in enumerate(sorted(missing_keys)):
-        status("Checking issues no longer assigned", i, len(missing_keys))
+    status("Checking issues no longer assigned", 0, len(missing_keys))
+    missing_full = fetch_full_issues([(issues[k]["repository"], issues[k]["number"]) for k in sorted(missing_keys)],
+                                     lambda d, t: status("Checking issues no longer assigned", d, t))
+    for k in sorted(missing_keys):
         rec = issues[k]
         repo, number = rec["repository"], rec["number"]
-        full, err = fetch_full_issue(repo, number)
+        full, err = missing_full[(repo, number)]
         if full is None:
             deleted_or_transferred.append(k)
             continue
@@ -591,11 +639,13 @@ def main():
     # --- Fetch full metadata for added/restored/changed ---
     need_full = sorted(added_keys | restored_keys | changed_keys)
     full_meta = {}
-    for i, k in enumerate(need_full):
-        status("Fetching new and changed issues", i, len(need_full))
-        rec_hint = inventory.get(k) or issues.get(k) or departed.get(k)
-        repo, number = rec_hint["repository"], rec_hint["number"]
-        full, err = fetch_full_issue(repo, number)
+    status("Fetching new and changed issues", 0, len(need_full))
+    hints = {k: (inventory.get(k) or issues.get(k) or departed.get(k)) for k in need_full}
+    fetched = fetch_full_issues([(h["repository"], h["number"]) for h in hints.values()],
+                                lambda d, t: status("Fetching new and changed issues", d, t))
+    for k in need_full:
+        repo, number = hints[k]["repository"], hints[k]["number"]
+        full, err = fetched[(repo, number)]
         if full is None:
             print(f"WARN: could not fetch {k}: {err}", file=sys.stderr)
             continue
