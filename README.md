@@ -38,6 +38,7 @@ Install any plugin directly in VS Code:
 | Plugin | What it does |
 |---|---|
 | [github-inbox](github-inbox/) | Smart notification triage with sub-agents for review, investigation, and memory — groups by repo, applies rules, acts on your behalf |
+| [my-work](my-work/) | A planning and triage canvas: current/next milestone, your own priorities, linked Agents window sessions, notifications and Sweeper-assisted cleanup of your issues |
 
 ### Guard — enforce standards automatically
 
@@ -106,5 +107,6 @@ Plugins work independently, but some are better together:
 - **review-plan → review-areas** — Review the plan before coding, review the code after. Catches issues at both stages.
 - **ban-ast + review-areas** — Ban patterns enforce rules on every edit; review-areas catches what slips through.
 - **handy-commands + monitor-pr** — `/pr-comments` to address feedback, then monitor the resulting CI run.
+- **github-inbox + my-work** — Both read the same inbox rules (`~/.copilot/github-inbox-rules.md`); github-inbox triages notifications in chat, my-work adds a canvas for planning and bulk triage.
 
 **review-areas vs. model-council:** Both do code review. review-areas uses one model with parallel area-focused subagents. model-council sends the same review to GPT, Claude, and Gemini for consensus. Use review-areas daily; reach for model-council on high-stakes changes.

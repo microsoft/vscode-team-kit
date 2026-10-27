@@ -15,7 +15,7 @@ const validate = ajv.compile(schema);
 const marketplace = await readJson('marketplace.json');
 const localEntries = marketplace.plugins.filter(entry => typeof entry.source === 'string' && entry.source.startsWith('./'));
 
-test('all 13 local packages are registered once without legacy manifests', async () => {
+test('all 14 local packages are registered once without legacy manifests', async () => {
 	const packages = [];
 	for (const entry of await readdir(root, { withFileTypes: true })) {
 		if (!entry.isDirectory() || entry.name.startsWith('.') || entry.name === 'node_modules') continue;
@@ -25,7 +25,7 @@ test('all 13 local packages are registered once without legacy manifests', async
 		}
 		if (existsSync(new URL(prefix + 'plugin.json', root))) packages.push(entry.name);
 	}
-	assert.equal(packages.length, 13);
+	assert.equal(packages.length, 14);
 	assert.equal(localEntries.length, packages.length);
 	assert.equal(new Set(marketplace.plugins.map(entry => entry.name)).size, marketplace.plugins.length);
 	assert.deepEqual(packages.sort(), localEntries.map(entry => entry.name).sort());
@@ -74,6 +74,7 @@ test('Copilot components occupy their runtime discovery locations', async () => 
 		'ban-ast': ['hooks/hooks.json'],
 		'review-plan': ['hooks/hooks.json'],
 		'session-timeline': ['extensions/session-timeline/extension.mjs', 'extensions/session-timeline/public/index.html'],
+		'my-work': ['extensions/my-work/extension.mjs', 'extensions/my-work/assets/index.html'],
 	};
 	for (const [name, paths] of Object.entries(components)) {
 		for (const path of paths) {

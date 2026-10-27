@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en" data-theme="vscode" data-accent="blue">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="triage-token" content="__TOKEN__">
+	<title>My Work</title>
+	<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+	<aside class="rail" aria-label="Views">
+		<div class="logo" aria-hidden="true"><span class="codicon codicon-inbox"></span></div>
+		<nav class="rail-nav" role="tablist" aria-orientation="vertical" aria-label="Triage views">
+			<button type="button" role="tab" class="rail-btn" id="tab-queue" aria-controls="panel" aria-selected="false" data-tab="queue" data-label="Today" aria-label="Today"><span class="codicon codicon-calendar" aria-hidden="true"></span><span class="badge" id="count-queue"></span></button>
+			<button type="button" role="tab" class="rail-btn" id="tab-work" aria-controls="panel" aria-selected="false" data-tab="work" data-label="My Work" aria-label="My Work"><span class="codicon codicon-milestone" aria-hidden="true"></span><span class="badge" id="count-work"></span></button>
+			<button type="button" role="tab" class="rail-btn" id="tab-notifications" aria-controls="panel" aria-selected="false" data-tab="notifications" data-label="Notifications" aria-label="Notifications"><span class="codicon codicon-bell" aria-hidden="true"></span><span class="badge" id="count-notifications"></span></button>
+			<button type="button" role="tab" class="rail-btn" id="tab-cleanup" aria-controls="panel" aria-selected="false" data-tab="cleanup" data-label="Cleanup" aria-label="Cleanup"><span class="codicon codicon-clear-all" aria-hidden="true"></span><span class="badge" id="count-cleanup"></span></button>
+			<button type="button" role="tab" class="rail-btn" id="tab-implement" aria-controls="panel" aria-selected="false" data-tab="implement" data-label="Implement" aria-label="Implement"><span class="codicon codicon-tools" aria-hidden="true"></span><span class="badge" id="count-implement"></span></button>
+		</nav>
+		<div class="rail-foot">
+			<button type="button" class="rail-btn" id="refresh" data-label="Refresh" aria-label="Refresh"><span class="codicon codicon-refresh" aria-hidden="true"></span></button>
+			<button type="button" class="rail-btn" id="settings-btn" data-label="Settings" aria-label="Settings" aria-haspopup="dialog" aria-expanded="false" aria-controls="settings"><span class="codicon codicon-settings-gear" aria-hidden="true"></span></button>
+		</div>
+	</aside>
+
+	<div class="app">
+		<header class="top">
+			<div class="brand">
+				<h1 id="heading">Today</h1>
+				<p class="sub" id="subtitle">Loading…</p>
+			</div>
+			<dl class="stats" aria-label="Today">
+				<div><dt>Unread</dt><dd id="chip-unread">–</dd></div>
+				<div><dt>Notifications done</dt><dd id="chip-notif-done">–</dd></div>
+				<div><dt>Issues done</dt><dd id="chip-issues-done">–</dd></div>
+				<div><dt>Sessions</dt><dd id="chip-sessions">–</dd></div>
+			</dl>
+		</header>
+
+		<main class="layout" id="panel" role="tabpanel">
+			<section class="list" aria-label="Items">
+				<div class="areabar" id="areabar"></div>
+				<div class="subtabs" id="subtabs" role="group" aria-label="Filter"></div>
+				<div class="batchbar" id="batchbar" aria-live="polite"></div>
+				<div id="indexbar"></div>
+				<div id="list" class="list-body"></div>
+				<div id="workchat" class="list-chat" hidden></div>
+			</section>
+			<div class="split-handle" id="split-handle" role="separator" aria-orientation="horizontal" aria-label="Resize list" tabindex="0" title="Drag to resize"></div>
+			<section class="detail" id="detail" aria-label="Details" tabindex="-1">
+				<div class="empty">Select an item to see details and actions.</div>
+			</section>
+		</main>
+	</div>
+
+	<div class="popover" id="settings" role="dialog" aria-label="Settings" hidden>
+		<h2 class="pop-title">Appearance</h2>
+		<fieldset>
+			<legend>Theme</legend>
+			<div class="seg" id="theme-seg">
+				<button type="button" data-theme="vscode" title="Follow the VS Code colour theme (updates live)">VS Code</button>
+				<button type="button" data-theme="system">System</button>
+				<button type="button" data-theme="light">Light</button>
+				<button type="button" data-theme="dark">Dark</button>
+				<button type="button" data-theme="midnight">Midnight</button>
+			</div>
+			<p class="hint" id="vscode-theme-name"></p>
+		</fieldset>
+		<fieldset>
+			<legend>Accent</legend>
+			<div class="swatches" id="accent-seg">
+				<button type="button" data-accent="blue" aria-label="Blue"></button>
+				<button type="button" data-accent="violet" aria-label="Violet"></button>
+				<button type="button" data-accent="green" aria-label="Green"></button>
+				<button type="button" data-accent="orange" aria-label="Orange"></button>
+				<button type="button" data-accent="pink" aria-label="Pink"></button>
+			</div>
+		</fieldset>
+		<fieldset>
+			<legend>Density</legend>
+			<div class="seg seg-3" id="density-seg">
+				<button type="button" data-density="auto" title="Compact when the panel is small">Auto</button>
+				<button type="button" data-density="comfortable">Comfortable</button>
+				<button type="button" data-density="compact">Compact</button>
+			</div>
+		</fieldset>
+		<fieldset>
+			<legend>Open issues &amp; PRs in</legend>
+			<div class="seg seg-2" id="link-seg">
+				<button type="button" data-link="vscode">VS Code</button>
+				<button type="button" data-link="browser">Browser</button>
+			</div>
+			<p class="hint">Hold ⌘/Ctrl when clicking to use the other one.</p>
+		</fieldset>
+		<fieldset>
+			<legend><label for="batch-size">Batch size</label></legend>
+			<input type="number" id="batch-size" min="1" max="50" step="1" inputmode="numeric">
+		</fieldset>
+	</div>
+
+	<div class="toast" id="status" role="status" aria-live="polite"></div>
+	<script src="/assets/app.js" type="module"></script>
+</body>
+</html>
