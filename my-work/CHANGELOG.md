@@ -4,6 +4,7 @@
 
 - Each issue gets its own chat: the first message about an issue from the panel creates it as a chat nested under your My Work session (no workspace), even when the panel is open in another session, and later messages go to the same chat, so the conversation stays with the issue. **Open chat** in the conversation opens it.
 - **Start session** on an issue you discussed turns its chat into the work session: it gets a worktree of the repository and starts working with everything you discussed. *Start another session* still creates a separate one.
+- Fix and implement sessions (Start session, Start another session, Implement, and starting from a notification) are nested under your My Work session too, each with its own worktree. MSRC sessions stay separate.
 - A message the chat doesn't answer within 3 minutes (for example because the Agents window lost the nested chat) shows "No reply yet" with **Resend in a new chat**, instead of waiting forever.
 - Browse issues & PRs: Refresh re-runs the search on GitHub (no 2-minute cache), and the list also re-runs when a chat changes something, e.g. closes an issue.
 - Issue chats get the helper script's exact path, so they can record decisions without relying on personal instructions.
