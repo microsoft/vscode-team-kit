@@ -1874,13 +1874,13 @@ function renderFindWorkInto(el) {
 				${filter.note ? `<div class="find-query-note cd">${esc(filter.note)}</div>` : ''}
 			</div>` : '';
 	const asking = ui.findAsking ? `<p class="cd find-asking"><i class="codicon codicon-loading spin" aria-hidden="true"></i> Asking the chat to turn “${esc(ui.findAsking)}” into a GitHub search… <button type="button" class="link-btn" data-find-ask-cancel>Cancel</button></p>` : '';
-	el.innerHTML = `<div class="detail-head">${titleBarHtml({ title: 'Browse issues & PRs', meta: '<div class="meta"><span class="cd">Live from GitHub (org:microsoft, newest first). Type a filter and press Enter: GitHub syntax or plain words (e.g. “created by alexdima”). Click a title to open it here, drag a row into a group on the left, or use its buttons. Added locally: GitHub milestones stay unchanged.</span></div>' })}</div>
+	el.innerHTML = `<div class="detail-head">${titleBarHtml({ title: 'Browse issues & PRs', meta: `<div class="meta"><span class="cd">Live from GitHub (org:microsoft, newest first). Type a filter and press Enter: GitHub syntax or plain words (e.g. “created by ${esc(ui.state.me || 'octocat')}”). Click a row to open it here, drag it into a group on the left, or use its buttons. Added locally: GitHub milestones stay unchanged.</span></div>` })}</div>
 		<div class="detail-body find-view">
 			<div class="find-tools">
 				<div class="seg" role="group" aria-label="Source">${pills}</div>${areaSel}
 				<button type="button" class="btn sm icon${ui.find?.loading ? ' busy' : ''}" data-find-refresh title="Run this search again on GitHub" aria-label="Refresh results"><i class="codicon codicon-refresh${ui.find?.loading ? ' spin' : ''}" aria-hidden="true"></i></button>
 				<button type="button" class="btn sm icon${ui.findHistoryOpen ? ' on' : ''}" data-find-history aria-expanded="${!!ui.findHistoryOpen}" title="Recent filters" aria-label="Recent filters"><i class="codicon codicon-history" aria-hidden="true"></i></button>
-				<div class="find-search"><i class="codicon codicon-search" aria-hidden="true"></i><label class="sr-only" for="find-filter">Filter, press Enter to apply</label><input id="find-filter" type="search" placeholder="Filter, press Enter to apply (e.g. created by alexdima)" value="${esc(ui.findFilter || '')}"></div>
+				<div class="find-search"><i class="codicon codicon-search" aria-hidden="true"></i><label class="sr-only" for="find-filter">Filter, press Enter to apply</label><input id="find-filter" type="search" placeholder="Filter, press Enter to apply (e.g. created by ${esc(ui.state.me || 'octocat')})" value="${esc(ui.findFilter || '')}"></div>
 			</div>
 			${ui.findHistoryOpen ? browseHistoryHtml() : ''}${queryBar}${asking}
 			${ui.find?.error ? `<p class="cd" style="color:var(--bad)">${esc(ui.find.error)}</p>` : ui.find?.loading && !items.length ? '<p class="cd"><i class="codicon codicon-loading spin" aria-hidden="true"></i> Searching GitHub…</p>'
@@ -2659,7 +2659,7 @@ $('detail').addEventListener('keydown', e => {
 });
 $('detail').addEventListener('click', e => {
 	// A click anywhere on a Browse row (except its buttons and links) opens the issue, like clicking its title.
-	const rowEl = !e.target.closest('button, a, input, select') && e.target.closest('.find-row');
+	const rowEl = e.target.closest('button, a, input, select') ? null : e.target.closest('.find-row');
 	const open = e.target.closest('[data-browse-open]') || rowEl?.querySelector('[data-browse-open]');
 	if (open) { ui.browseScroll = document.querySelector('#detail .detail-body')?.scrollTop ?? 0; select('browseitem', open.dataset.browseOpen); return; }
 	if (e.target.closest('[data-browse-back]')) {

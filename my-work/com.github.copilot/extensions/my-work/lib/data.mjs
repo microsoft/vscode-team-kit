@@ -622,7 +622,7 @@ export async function getState({ forceNotifications = false } = {}) {
 	}
 
 	return {
-		hasIndex, indexing: await loadIndexing(), refreshedAt: index.refreshedAt, counts: index.counts, queueDate: queue?.date ?? null, settings, batches, opinions, opinionPending, informedPending, threads, issueChats, sessionSummaries, customGroups, areas, sessions,
+		hasIndex, indexing: await loadIndexing(), refreshedAt: index.refreshedAt, counts: index.counts, queueDate: queue?.date ?? null, settings, batches, opinions, opinionPending, informedPending, threads, issueChats, sessionSummaries, me: await currentLogin().catch(() => null), customGroups, areas, sessions,
 		notifications, notificationsError: notif.error ?? null, notificationsFetchedAt: notif.at ? new Date(notif.at).toISOString() : null, untriaged, notifTriagePending, issueRules, issueRulesPending, sections, cleanup: cleanupGroups,
 		implement: { total: implement.total, bugs: implement.bugs, items: implementItems },
 		today: {
@@ -840,7 +840,7 @@ export async function getGitHubDetail(key, fresh = false) {
 		comments: comments.map(c => ({ id: c.id, url: c.html_url, author: ghUser(c.user), association: c.author_association, createdAt: c.created_at, body: c.body || '', reactions: reactionsOf(c.reactions) })),
 		linkedPrs: [...linked.values()].slice(-8),
 		pr: pr ? { draft: pr.draft, merged: !!pr.merged_at, additions: pr.additions, deletions: pr.deletions, changedFiles: pr.changed_files, head: pr.head?.ref, base: pr.base?.ref } : null,
-		me: await getMe().catch(() => null),
+		me: await currentLogin().catch(() => null),
 		fetchedAt: new Date().toISOString(),
 	};
 	ghCache.set(key, { at: Date.now(), value });
