@@ -61,6 +61,22 @@ Everything stays on your machine:
 
 Nothing changes on GitHub without an explicit per-item click or approval in chat. MSRC items (a pasted IcM link and description) are stored only locally and their fix sessions are told to stay private. Session details are read best-effort from the Agents window's internal session store, which can change between builds.
 
+## Develop locally
+
+To try changes before publishing, keep the plugin installed and point it at your checkout. Add `"devSource"` to `my-work.config.json`:
+
+```json
+{ "devSource": "~/work/vscode-team-kit/my-work" }
+```
+
+The panel then loads its code, assets and scripts from that folder and shows "My Work (dev)":
+
+- Edits under `assets/` reload the open panel right away.
+- Edits under `lib/` or the Python scripts take effect after an extensions reload (ask the chat to reload extensions) or in a new chat.
+- `extension.mjs` always runs from the installed copy.
+
+Remove `devSource` to go back to the published version.
+
 ## Validation
 
 ```sh
