@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.2 (2026-10-28)
+
+- Browse issues & PRs: clicking a title opens the issue in the panel (details, discussion, Start session, add to current/next/My priorities) with Back to results; the GitHub link is still on the issue number.
+- Remove an issue planned for the current or next milestone back to untriaged: clears its GitHub milestone and drops it from My Work.
+- Issues not in your index get the same My Work menu (local moves, Remove from My Work), and opening issues works before the index exists.
+
 ## 1.0.1 (2026-10-27)
 
 - The reused daily triage chat is created with the title "My Work", matching the canvas.

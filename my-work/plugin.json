@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "my-work",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Plan and run your day in one canvas: current and next milestone, your own priorities, linked Agents window sessions, GitHub notifications and Sweeper-assisted issue cleanup.",
   "license": "MIT",
   "keywords": ["canvas", "planning", "triage", "issues", "notifications", "sessions", "sweeper"]
