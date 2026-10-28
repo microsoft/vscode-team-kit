@@ -9,6 +9,7 @@
 - A message the chat doesn't answer within 3 minutes (for example because the Agents window lost the nested chat) shows "No reply yet" with **Resend in a new chat**, instead of waiting forever.
 - Browse issues & PRs: **Recent filters** (history button) re-runs any of your last 15 filters with its list, and a refresh button re-runs the current search on GitHub.
 - Paste screenshots into the issue conversation or My Work chat box. They're saved privately in the My Work data folder (kept 30 days), shown as thumbnails, and passed to the chat as file paths it can open.
+- Items in My Work and Browse are normal clickable boxes (pointer cursor); clicking anywhere on a Browse row opens it. Dragging uses the grip that appears on the left on hover.
 - **Open chat** works for nested chats (such as the My Work chat), not only top-level sessions.
 - Browse issues & PRs remembers where you were: switching to another view and back reopens it (or the issue you opened from it), and the source, area and filter are kept when the panel is reopened.
 - Browse issues & PRs: Refresh re-runs the search on GitHub (no 2-minute cache), and the list also re-runs when a chat changes something, e.g. closes an issue.

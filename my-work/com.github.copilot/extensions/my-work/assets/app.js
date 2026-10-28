@@ -659,7 +659,7 @@ function rowHtml(item) {
 		const w = item.w;
 		const prio = item.milestone?.role === 'priorities';
 		const local = !!w.local;
-		return `<button type="button" class="${cls} ${w.isBug ? 'dot-action' : ''}${prio || local ? ' prio-row' : ''}" data-kind="work" data-id="${esc(w.key)}" data-group="${esc(item.group || '')}" aria-current="${!!current}"${prio ? ` draggable="true" data-prio="${esc(w.key)}" data-pin-issue="${esc(w.key)}" title="Drag to reorder or into current / next; Alt+↑/↓ moves the selected issue"` : local ? ` draggable="true" data-pin-issue="${esc(w.key)}" title="Added locally (GitHub milestone unchanged). Drag to another group."` : ''}>
+		return `<button type="button" class="${cls} ${w.isBug ? 'dot-action' : ''}${prio || local ? ' prio-row' : ''}" data-kind="work" data-id="${esc(w.key)}" data-group="${esc(item.group || '')}" aria-current="${!!current}"${prio ? ` draggable="true" data-prio="${esc(w.key)}" data-pin-issue="${esc(w.key)}" title="Drag to reorder or into current / next; Alt+↑/↓ moves the selected issue"` : local ? ` draggable="true" data-pin-issue="${esc(w.key)}" title="Added locally (GitHub milestone unchanged). Drag to another group."` : ''}>${prio || local ? '<span class="row-grip" aria-hidden="true" title="Drag to move"><i class="codicon codicon-gripper"></i></span>' : ''}
 			<span class="row-title" title="${esc(w.title)}">${prio ? `<span class="prio-rank">${w.rank}</span>` : ''}${esc(w.title)}</span><span class="row-meta"><span>${esc(shortKey(w.key))}</span>${w.isBug ? '<span>bug</span>' : ''}${prio && w.milestone ? `<span>${esc(w.milestone)}</span>` : ''}${local ? '<span class="tag" title="Added to My Work locally; its GitHub milestone is unchanged">local</span>' : ''}${sessTag(w.key)}</span>
 		</button>`;
 	}
@@ -680,7 +680,7 @@ function rowHtml(item) {
 	if (item.kind === 'pinsess') {
 		const p = item.p, z = p.session;
 		const inPrio = item.group === 'priorities';
-		return `<button type="button" class="${cls}${z && !z.read ? ' dot-action' : ''} prio-row" data-kind="pinsess" data-id="${esc(p.id)}" data-group="${esc(item.group || 'current')}" data-sess="${esc(p.id)}"${inPrio ? ` data-prio="session:${esc(p.id)}"` : ''} draggable="true" title="Drag to another group${inPrio ? ' or reorder' : ''}" aria-current="${!!current}">
+		return `<button type="button" class="${cls}${z && !z.read ? ' dot-action' : ''} prio-row" data-kind="pinsess" data-id="${esc(p.id)}" data-group="${esc(item.group || 'current')}" data-sess="${esc(p.id)}"${inPrio ? ` data-prio="session:${esc(p.id)}"` : ''} draggable="true" title="Drag to another group${inPrio ? ' or reorder' : ''}" aria-current="${!!current}"><span class="row-grip" aria-hidden="true" title="Drag to move"><i class="codicon codicon-gripper"></i></span>
 			<span class="row-title" title="${esc(z?.title || '')}">${inPrio ? `<span class="prio-rank">${item.rank}</span>` : ''}<i class="codicon codicon-comment-discussion" aria-hidden="true"></i> ${esc(z?.title || p.note || 'Session not found')}</span>
 			<span class="row-meta">${z?.project ? `<span>${esc(z.project)}</span>` : ''}${z?.modified ? `<span>active ${esc(agoText(new Date(z.modified).toISOString()))}</span>` : ''}${z?.changes ? `<span class="add">+${esc(z.changes.additions)}</span><span class="del">−${esc(z.changes.deletions)}</span>` : ''}${z && !z.read ? '<span class="tag acc">unread</span>' : ''}</span>
 		</button>`;
@@ -2635,7 +2635,9 @@ $('detail').addEventListener('keydown', e => {
 	setChatHeight((ui.state.settings.chatHeight || 160) + (e.key === 'ArrowUp' ? 24 : -24), true);
 });
 $('detail').addEventListener('click', e => {
-	const open = e.target.closest('[data-browse-open]');
+	// A click anywhere on a Browse row (except its buttons and links) opens the issue, like clicking its title.
+	const rowEl = !e.target.closest('button, a, input, select') && e.target.closest('.find-row');
+	const open = e.target.closest('[data-browse-open]') || rowEl?.querySelector('[data-browse-open]');
 	if (open) { ui.browseScroll = document.querySelector('#detail .detail-body')?.scrollTop ?? 0; select('browseitem', open.dataset.browseOpen); return; }
 	if (e.target.closest('[data-browse-back]')) {
 		select('worksrc', 'find').then(() => { const b = document.querySelector('#detail .detail-body'); if (b) b.scrollTop = ui.browseScroll || 0; renderAreaBar(); });

@@ -680,7 +680,13 @@ html.narrow .title-sub { gap: 8px; }
 .prio-add input { flex: 1 1 auto; min-width: 0; font: inherit; font-size: 12px; padding: 2px 6px; color: var(--fg); background: var(--input-bg, transparent); border: 1px solid var(--line); border-radius: 4px; }
 .prio-add input:focus { outline: 1px solid var(--focus, var(--accent)); outline-offset: -1px; }
 .prio-rank { display: inline-block; min-width: 1.4em; margin-right: 6px; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
-.prio-row { cursor: grab; }
+.prio-row { cursor: pointer; }
+/* Drag handle: replaces the dot on the left while hovering; the row itself stays a normal clickable item. */
+.row-grip { position: absolute; left: 3px; top: 10px; width: 16px; height: 18px; display: grid; place-items: center; color: var(--faint); opacity: 0; cursor: grab; }
+.row-grip .codicon { font-size: 12px; }
+.prio-row:hover .row-grip, .prio-row:focus-visible .row-grip { opacity: 1; }
+.prio-row:hover::before, .prio-row:focus-visible::before { opacity: 0; }
+@media (hover: none) { .row-grip { opacity: 1; } .prio-row::before { opacity: 0; } }
 .prio-row.dragging { opacity: .5; }
 .prio-row.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
 .prio-row.drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
@@ -804,7 +810,7 @@ html.narrow .title-sub { gap: 8px; }
 .areabar .btn.sm .codicon { margin-right: 2px; }
 
 .btn.sm.on { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
-.find-row[draggable="true"] { cursor: grab; }
+.find-row { cursor: pointer; }
 .find-row.dragging { opacity: .5; }
 #list.drop-ready .group-h[data-drop-group], #list.drop-ready .empty-group[data-drop-group] { outline: 1px dashed var(--line); outline-offset: -1px; border-radius: 4px; }
 
