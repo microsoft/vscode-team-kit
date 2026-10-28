@@ -26,6 +26,7 @@ const scripts = fileURLToPath(new URL('../skills/my-issues/scripts/', import.met
 const config = await import(new URL('lib/config.mjs', ext));
 const prompts = await import(new URL('lib/prompts.mjs', ext));
 const data = await import(new URL('lib/data.mjs', ext));
+const issueTriage = await import(new URL('lib/issueTriage.mjs', ext));
 const msrc = await import(new URL('lib/msrcItems.mjs', ext));
 const workSessions = await import(new URL('lib/workSessions.mjs', ext));
 
@@ -55,6 +56,41 @@ test('session and IcM references are parsed strictly', () => {
 	assert.equal(msrc.parseIncident('https://portal.microsofticm.com/imp/v5/incidents/details/31000000000001/summary'), '31000000000001');
 	assert.equal(msrc.parseIncident('IcM 31000000000001'), '31000000000001');
 	assert.equal(msrc.parseIncident('#123'), null);
+});
+
+test('Issue Triage workflow is offered only for open triage-needed issues', () => {
+	assert.equal(issueTriage.canRunIssueTriage({ type: 'Issue', state: 'open', labels: ['triage-needed'] }), true);
+	assert.equal(issueTriage.canRunIssueTriage({ type: 'Issue', state: 'closed', labels: ['triage-needed'] }), false);
+	assert.equal(issueTriage.canRunIssueTriage({ type: 'Issue', state: 'open', labels: ['bug'] }), false);
+	assert.equal(issueTriage.canRunIssueTriage({ type: 'PullRequest', state: 'open', labels: ['triage-needed'] }), false);
+});
+
+test('Issue Triage workflow dispatch uses fixed repository and validated inputs', async () => {
+	const calls = [];
+	const runner = (command, args, options, done) => {
+		calls.push({ command, args, options });
+		done(null, '', '');
+	};
+	const result = await issueTriage.dispatchIssueTriageWorkflow({ owner: 'microsoft', repo: 'vscode', number: 123 }, runner);
+	assert.deepEqual(calls[0].args, [
+		'workflow', 'run', 'issue-triage.lock.yml',
+		'--repo', 'microsoft/vscode-engineering',
+		'-f', 'issue_number=123',
+		'-f', 'repo_name=vscode',
+		'-f', 'repo_owner=microsoft',
+	]);
+	assert.equal(result.accepted, true);
+	assert.equal(result.target, 'microsoft/vscode#123');
+	assert.throws(() => issueTriage.issueTriageWorkflowArgs({ owner: 'microsoft/x', repo: 'vscode', number: 123 }), /invalid issue owner/);
+	assert.throws(() => issueTriage.issueTriageWorkflowArgs({ owner: 'microsoft', repo: 'vscode', number: 0 }), /invalid issue number/);
+});
+
+test('Issue Triage workflow dispatch surfaces command failures', async () => {
+	const runner = (_command, _args, _options, done) => done(new Error('exit 1'), '', 'workflow not found');
+	await assert.rejects(
+		issueTriage.dispatchIssueTriageWorkflow({ owner: 'microsoft', repo: 'vscode', number: 123 }, runner),
+		/Issue Triage workflow dispatch failed: workflow not found/,
+	);
 });
 
 test('my priorities keep their order locally', async () => {

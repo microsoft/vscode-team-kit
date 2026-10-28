@@ -14,6 +14,7 @@ import { saveImage, imagePaths, MAX_IMAGE_BYTES } from './attachments.mjs';
 import { listMsrcItems, saveMsrcItem, removeMsrcItem, getMsrcItem, parseIncident, INCIDENT_RE } from './msrcItems.mjs';
 import { sessionsFor, sessionsMentioning, sessionsById, recentSessions, issueCandidates, sessionTranscript } from './sessions.mjs';
 import { listPinned, pinSession, unpinSessions, parseSessionRef, getMyWorkChat, getHiddenSessions, setSessionHidden, setSessionBucket, BUCKETS, listPinnedIssues, pinIssue, setIssueBucket, unpinIssues, markSummaryRequested, markSessionSummaryRequested, getSessionSummaries, getIssueChat, setIssueChat, setMyWorkChat } from './workSessions.mjs';
+import { canRunIssueTriage, dispatchIssueTriageWorkflow, normalizeIssueTriageTarget } from './issueTriage.mjs';
 
 const ASSETS = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'assets');
 // Scripts, styles and data come only from this server; images and videos only from GitHub's own hosts
@@ -716,6 +717,13 @@ export class TriageServer {
 				if (!KEY_RE.test(body.key || '')) throw bad('invalid key');
 				result = await data.skipIssue({ key: body.key });
 				break;
+			case '/api/run-issue-triage': {
+				const target = normalizeIssueTriageTarget(body);
+				const issue = (await issueDetails([`${target.owner}/${target.repo}#${target.number}`], true))[`${target.owner}/${target.repo}#${target.number}`];
+				if (!canRunIssueTriage(issue)) throw bad('issue must be open and labeled triage-needed');
+				result = await dispatchIssueTriageWorkflow(target);
+				break;
+			}
 			case '/api/dismiss':
 				if (!ID_RE.test(String(body.id || ''))) throw bad('invalid id');
 				result = await data.dismissNotification({ id: String(body.id), unsubscribe: !!body.unsubscribe });

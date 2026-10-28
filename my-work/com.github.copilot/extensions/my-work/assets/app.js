@@ -28,7 +28,7 @@ const SEV_DOT = { 'data-loss': 'dot-action', crash: 'dot-action', freeze: 'dot-a
 const VIEW_TITLES = { queue: 'Today', notifications: 'Notifications', cleanup: 'Cleanup', implement: 'Implement', work: 'My Work' };
 const VIEW_HINTS = { queue: 'What changed since yesterday', notifications: 'Unread GitHub notifications', cleanup: 'Sweeper close proposals to judge', implement: 'Agent-ready issues, bugs first', work: 'MSRC items, current and next milestone, then your own priority list' };
 
-const ui = { tab: 'queue', sub: { queue: 'all', cleanup: 'fixed' }, work: null, selected: null, state: null, busy: false, checks: {}, asked: {}, picked: new Set() };
+const ui = { tab: 'queue', sub: { queue: 'all', cleanup: 'fixed' }, work: null, selected: null, state: null, busy: false, checks: {}, asked: {}, picked: new Set(), triageRuns: new Set() };
 
 function esc(value) {
 	return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -880,6 +880,12 @@ async function renderDetail(fetchDetail, silent = false) {
 	scrollThreadToEnd();
 }
 
+function issueTriageActionFor(issue, key) {
+	if (!issue?.canRunIssueTriage) return null;
+	const queued = ui.triageRuns.has(key);
+	return { act: 'run-issue-triage', key, label: queued ? 'Issue Triage Workflow queued' : 'Run Issue Triage Workflow', icon: 'rocket', disabled: queued };
+}
+
 // All classified, still-unread notifications in a dismiss group (across every batch).
 // While a bulk dismiss runs, its items stay listed so the rows can show progress.
 function bulkItems(group) {
@@ -947,6 +953,7 @@ async function renderDetailInner(fetchDetail, silent = false) {
 			? `<button type="button" class="btn" data-act="notification-start"><i class="codicon codicon-rocket" aria-hidden="true"></i>Start fix session</button>
 				<button type="button" class="btn" data-act="notification-investigate"><i class="codicon codicon-search" aria-hidden="true"></i>Investigate</button>`
 			: '';
+		const issueTriageAction = issueTriageActionFor(n.myIssue, n.issueKey);
 		const ref = n.issueKey ? (n.issueKey.startsWith('microsoft/vscode#') ? shortKey(n.issueKey) : n.issueKey) : n.repo;
 		const nhead = titleBarHtml({
 			title: n.title, url: n.htmlUrl,
@@ -954,6 +961,7 @@ async function renderDetailInner(fetchDetail, silent = false) {
 			primary: routable
 				? { act: 'route-one', label: n.triage.routeTo?.length ? `Route to ${n.triage.routeTo.map(l => `@${l}`).join(', ')}` : 'Unassign me', icon: 'person' }
 				: { act: 'dismiss', label: 'Dismiss', icon: 'check' },
+			secondary: issueTriageAction ? [issueTriageAction] : [],
 			menu: [...(routable ? [{ act: 'dismiss', label: 'Dismiss only' }] : []), { act: 'done', label: 'Done & unsubscribe' }, { act: 'skip-notification', label: 'Skip for now' }],
 			status: n.handled ? '<span class="decided"><i class="codicon codicon-pass" aria-hidden="true"></i>Handled</span>' : null,
 		});
@@ -966,7 +974,7 @@ async function renderDetailInner(fetchDetail, silent = false) {
 		${n.issueKey ? `<div class="footer">${threadHtml(n.issueKey, n.title)}</div>` : ''}`;
 		hydrateGitHub();
 		if (n.myIssue) {
-			await renderIssueInto($('issue-slot'), n.myIssue.key, fetchDetail, true, silent, { extras: issueActions, sameTitle: n.myIssue.title === n.title });
+			await renderIssueInto($('issue-slot'), n.myIssue.key, fetchDetail, true, silent, { extras: issueActions, sameTitle: n.myIssue.title === n.title, hideTriageAction: true });
 			paintGitHub(n.issueKey);
 		}
 		return;
@@ -1504,14 +1512,15 @@ function decisionChip(outcome) {
 	return `<span class="decided" title="${esc(outcome.note || '')} (${esc(agoText(outcome.decidedAt))})"><i class="codicon codicon-pass" aria-hidden="true"></i>${esc(label + detail)}</span>`;
 }
 
-function titleBarHtml({ title, url, meta, primary, menu, status }) {
+function titleBarHtml({ title, url, meta, primary, secondary = [], menu, status }) {
 	if (status) {
 		return `<div class="title-block">
 		<h2>${esc(title)}</h2>
 		<div class="title-sub">${meta}<div class="title-actions">${status}</div></div>
 	</div>`;
 	}
-	const attrs = a => `data-act="${esc(a.act)}"${a.key ? ` data-key="${esc(a.key)}"` : ''}${a.group ? ` data-group="${esc(a.group)}"` : ''}${a.milestone ? ` data-milestone="${esc(a.milestone)}"` : ''}${a.link ? ` data-link="${esc(a.link)}"` : ''}`;
+	const attrs = a => `data-act="${esc(a.act)}"${a.key ? ` data-key="${esc(a.key)}"` : ''}${a.group ? ` data-group="${esc(a.group)}"` : ''}${a.milestone ? ` data-milestone="${esc(a.milestone)}"` : ''}${a.link ? ` data-link="${esc(a.link)}"` : ''}${a.disabled ? ' disabled' : ''}`;
+	const secondaryHtml = secondary.map(a => `<button type="button" class="btn" ${attrs(a)}>${a.icon ? `<i class="codicon codicon-${a.icon}" aria-hidden="true"></i>` : ''}${esc(a.label)}</button>`).join('');
 	const split = primary ? `<div class="split">
 		<button type="button" class="btn primary split-main" ${attrs(primary)}>${primary.icon ? `<i class="codicon codicon-${primary.icon}" aria-hidden="true"></i>` : ''}${esc(primary.label)}</button>
 		${menu?.length ? `<button type="button" class="btn primary split-toggle" aria-haspopup="menu" aria-expanded="false" aria-label="More actions"><i class="codicon codicon-chevron-down" aria-hidden="true"></i></button>
@@ -1519,7 +1528,7 @@ function titleBarHtml({ title, url, meta, primary, menu, status }) {
 	</div>` : '';
 	return `<div class="title-block">
 		<h2>${esc(title)}</h2>
-		<div class="title-sub">${meta}<div class="title-actions">${split}</div></div>
+		<div class="title-sub">${meta}<div class="title-actions">${secondaryHtml}${split}</div></div>
 	</div>`;
 }
 
@@ -1626,6 +1635,7 @@ async function renderIssueInto(el, key, fetchDetail, nested, silent = false, opt
 	const isCleanup = !!(p.group && p.proposedComment);
 	const isImplement = !isCleanup && (readiness?.agentReadiness === 'implement' || readiness?.agentReadiness === 'plan');
 	const safeKey = esc(key);
+	const triageAction = opts.hideTriageAction ? null : issueTriageActionFor(issue, key);
 	const outcome = outcomeHtml(issue.outcome);
 	const summary = p.summary || review?.Summary;
 	const meta = `<div class="meta-col"><div class="meta"><a class="num-link" href="${esc(safeUrl(issue.url))}" target="_blank" rel="noopener" title="Open ${esc(issue.key)} (⌘-click for the other target)">${esc(shortKey(issue.key))}</a><span>·</span><span>${esc(issue.area)}</span><span>·</span><span>updated ${esc(agoText(issue.updatedAt))}</span></div>${ownersHtml(owners)}</div>`;
@@ -1703,8 +1713,8 @@ async function renderIssueInto(el, key, fetchDetail, nested, silent = false, opt
 	const decided = !opts.work && issue.outcome && issue.outcome.decision !== 'fixing' ? issue.outcome : null;
 	if (nested) {
 		// Inside a notification: no repeated title, and only secondary buttons (the notification owns the primary action).
-		const attrs = a => `data-act="${esc(a.act)}"${a.key ? ` data-key="${esc(a.key)}"` : ''}${a.group ? ` data-group="${esc(a.group)}"` : ''}${a.milestone ? ` data-milestone="${esc(a.milestone)}"` : ''}${a.link ? ` data-link="${esc(a.link)}"` : ''}`;
-		const buttons = decided ? '' : [primary, ...menu].filter(Boolean).map(a => `<button type="button" class="btn" ${attrs(a)}>${a.icon ? `<i class="codicon codicon-${a.icon}" aria-hidden="true"></i>` : ''}${esc(a.label)}</button>`).join('');
+		const attrs = a => `data-act="${esc(a.act)}"${a.key ? ` data-key="${esc(a.key)}"` : ''}${a.group ? ` data-group="${esc(a.group)}"` : ''}${a.milestone ? ` data-milestone="${esc(a.milestone)}"` : ''}${a.link ? ` data-link="${esc(a.link)}"` : ''}${a.disabled ? ' disabled' : ''}`;
+		const buttons = decided ? '' : [primary, triageAction, ...menu].filter(Boolean).map(a => `<button type="button" class="btn" ${attrs(a)}>${a.icon ? `<i class="codicon codicon-${a.icon}" aria-hidden="true"></i>` : ''}${esc(a.label)}</button>`).join('');
 		// A fix session is already running: don't offer to start another.
 		if (issue.outcome?.decision === 'fixing' && opts.extras) opts.extras = opts.extras.replace(/<button[^>]*data-act="notification-start"[\s\S]*?<\/button>\s*/, '');
 		const toolbar = (opts.extras || buttons) ? `<div class="toolbar">${opts.extras || ''}${opts.extras && buttons ? '<span class="tb-sep" aria-hidden="true"></span>' : ''}${buttons}</div>` : '';
@@ -1735,6 +1745,7 @@ async function renderIssueInto(el, key, fetchDetail, nested, silent = false, opt
 	</div>` : '');
 	const fixing = issue.outcome?.decision === 'fixing';
 	const tools = decided ? '' : [
+		triageAction ? `<button type="button" class="btn" data-act="${triageAction.act}" data-key="${safeKey}" ${triageAction.disabled ? 'disabled' : ''}><i class="codicon codicon-rocket" aria-hidden="true"></i>${esc(triageAction.label)}</button>` : '',
 		`<button type="button" class="btn" data-act="issue-investigate" data-key="${safeKey}"><i class="codicon codicon-search" aria-hidden="true"></i>Investigate</button>`,
 		!isImplement && !fixing ? `<button type="button" class="btn" data-act="implement" data-key="${safeKey}"><i class="codicon codicon-rocket" aria-hidden="true"></i>Start fix session</button>` : '',
 	].join('');
@@ -2045,6 +2056,7 @@ async function act(button) {
 		try { await api('/api/cancel-opinion', { key, mode: button.dataset.mode || 'blind' }); toast('Judgement request cancelled'); await load(); } catch (error) { toast(error.message, true); }
 		return;
 	}
+	if (act === 'run-issue-triage' && !globalThis.confirm(`Run Issue Triage Workflow for ${key}? This workflow may comment, label, and assign the issue.`)) return;
 	if (ui.busy) return;
 	const id = ui.selected?.kind === 'notification' ? ui.selected.id : undefined;
 	ui.busy = true;
@@ -2065,6 +2077,13 @@ async function act(button) {
 		} else if (act === 'skip-issue') {
 			await api('/api/skip-issue', { key });
 			msg = `${shortKey(key)}: skipped`;
+		} else if (act === 'run-issue-triage') {
+			const [repository, number] = key.split('#');
+			const [owner, repo] = repository.split('/');
+			const result = await api('/api/run-issue-triage', { owner, repo, number: Number(number) });
+			ui.triageRuns.add(key);
+			msg = `Issue Triage workflow queued for ${result.target}`;
+			move = false;
 		} else if (act === 'dismiss' || act === 'done') {
 			await api('/api/dismiss', { id, unsubscribe: act === 'done' });
 			msg = act === 'done' ? 'Done and unsubscribed' : 'Dismissed';

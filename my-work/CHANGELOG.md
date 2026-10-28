@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.7 (2026-10-28)
+
+- Open `triage-needed` issues show a **Run Issue Triage Workflow** action that confirms the target and dispatches the official `microsoft/vscode-engineering` workflow.
+
 ## 1.0.6 (2026-10-28)
 
 - Issue chats and work sessions are nested under your My Work session. The first message about an issue creates its chat there (no workspace), even when the panel is open in another session; Start session, Start another session, Implement and starting from a notification create nested sessions with their own worktree. MSRC sessions stay separate.

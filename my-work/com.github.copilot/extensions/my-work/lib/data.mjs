@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { sessionsFor } from './sessions.mjs';
 import { listIssueChats, getSessionSummaries } from './workSessions.mjs';
 import { COPILOT_HOME, BOARD, SCRIPT, config } from './config.mjs';
+import { canRunIssueTriage } from './issueTriage.mjs';
 
 export { BOARD, SCRIPT };
 
@@ -137,9 +138,11 @@ async function loadIndex() {
 
 function compactIssue(key, r) {
 	const s = r.sweeper || {};
+	const labels = r.labels || [];
+	const issue = { type: 'Issue', state: r.state, labels };
 	return {
-		key, title: r.title, url: r.url, state: r.state, area: r.primaryFeatureArea, updatedAt: r.updatedAt,
-		labels: r.labels || [],
+		key, type: issue.type, title: r.title, url: r.url, state: r.state, area: r.primaryFeatureArea, updatedAt: r.updatedAt,
+		labels, canRunIssueTriage: canRunIssueTriage(issue),
 		sweeper: r.sweeper ? {
 			action: s.triageAction ?? null, severity: s.severity ?? null, confidence: s.confidence ?? null,
 			autoFixable: !!s.autoFixable, closeReason: s.closeReason ?? null,
