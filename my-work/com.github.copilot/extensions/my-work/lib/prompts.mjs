@@ -120,12 +120,23 @@ export function createIssueChatPrompt({ key, url, title, text }) {
 	const num = key.split('#')[1];
 	return [
 		`Panel request: create the chat for ${key}. Do only this, then continue with whatever you were doing:`,
-		`Call create_session with relationship "independent", title ${JSON.stringify(`#${num}: ${plainTitle(title) || key}`)}, no workspace and no worktree, and the prompt between the markers below passed VERBATIM.`,
-		`Then call the my-issues-triage canvas action setIssueChat {"key": "${key}", "link": "<the new session's agent-host-session:// link>"} so later messages about this issue go straight to it. Reply with one line: the link.`,
+		`Call create_session with title ${JSON.stringify(`#${num}: ${plainTitle(title) || key}`)}; omit relationship (so the chat is nested under this My Work session) and omit workspace and worktree. Pass the prompt between the markers below VERBATIM.`,
+		`Then call the my-issues-triage canvas action setIssueChat {"key": "${key}", "link": "<the new chat's agent-host-session:// link>"} so later messages about this issue go straight to it. Reply with one line: the link.`,
 		`If create_session fails, do not retry: call replyToIssue for ${key} with the error.`,
 		'<<<ISSUE_CHAT_PROMPT',
 		issueChatInstructions({ key, url, title }), '', 'The user\'s first message:', '', text,
 		'ISSUE_CHAT_PROMPT>>>',
+	].join('\n');
+}
+
+/** A panel open outside the My Work session hands its request to that session, so the chats it creates are nested there. */
+export function forwardToMyWorkSessionPrompt(link, request) {
+	return [
+		`Panel request: run a request in the My Work session (${link}) so the chats it creates are nested there. Do only this: call get_current_session. If this chat belongs to that session (same session id), handle the message between the markers yourself. Otherwise call send_message with session "${link}" and the message between the markers VERBATIM (delivery "queue"), do not act on it yourself, and reply with one word: forwarded.`,
+		'If send_message fails because that session no longer exists, handle the message between the markers yourself instead.',
+		'<<<MY_WORK_REQUEST',
+		request,
+		'MY_WORK_REQUEST>>>',
 	].join('\n');
 }
 
