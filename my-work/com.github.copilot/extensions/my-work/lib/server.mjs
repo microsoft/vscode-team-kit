@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import * as data from './data.mjs';
 import { spawnJudgeRequest, implementPrompt, createIssueChatPrompt, forwardToIssueChatPrompt, forwardToMyWorkSessionPrompt, startIssueSessionMessage, notificationIssueActionPrompt, notificationTriagePrompt, issueRulesPrompt, browseQueryPrompt, workSessionPrompt, msrcItemSessionPrompt, createMyWorkChatPrompt, forwardToMyWorkChatPrompt, describeSessionMessage } from './prompts.mjs';
 import { getVsCodeTheme, watchVsCodeTheme } from './vscodeTheme.mjs';
-import { getMyWork, moveToMilestone, issueDetails, closingIssues, workSource, sourceQuery, myLogin } from './work.mjs';
+import { getMyWork, moveToMilestone, issueDetails, closingIssues, workSource, sourceQuery, myLogin, doneState } from './work.mjs';
 import { config } from './config.mjs';
 import { saveImage, imagePaths, MAX_IMAGE_BYTES } from './attachments.mjs';
 import { listMsrcItems, saveMsrcItem, removeMsrcItem, getMsrcItem, parseIncident, INCIDENT_RE } from './msrcItems.mjs';
@@ -119,6 +119,11 @@ function cleanBrowse(b) {
 	const area = /^[a-z0-9_-]{0,40}$/.test(b.area || '') ? (b.area || '') : '';
 	const refine = b.refine && str(b.refine.query, 300) ? { query: str(b.refine.query, 300), text: str(b.refine.text, 300), note: str(b.refine.note, 300) } : null;
 	return { source, area, refine };
+}
+
+function prKeyOf(url) {
+	const m = /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/pull\/(\d+)/.exec(String(url || ''));
+	return m ? `${m[1]}#${m[2]}` : null;
 }
 
 export class TriageServer {
@@ -305,20 +310,22 @@ export class TriageServer {
 			const msrcItems = await listMsrcItems();
 			const pinned = await listPinned();
 			const byId = await sessionsById(pinned.map(p => p.id)).catch(() => ({}));
-			// Sessions marked done (archived) drop off My Work.
-			const archived = pinned.filter(p => byId[p.id]?.archived).map(p => p.id);
-			if (archived.length) { await unpinSessions(archived); await data.updatePriorities({ op: 'prune', key: archived.map(id => `session:${id}`) }); }
-			const pinnedSessions = pinned.filter(p => !archived.includes(p.id)).map(p => ({ ...p, session: byId[p.id] || null }));
+			// Finished sessions stay, marked with their status, until the user clears them: done (archived), or its pull request merged/closed.
+			const prKeys = pinned.flatMap(p => (byId[p.id]?.prs || []).map(pr => prKeyOf(pr.url)).filter(Boolean));
+			const prDet = prKeys.length ? await issueDetails([...new Set(prKeys)], url.searchParams.get('fresh') === '1').catch(() => ({})) : {};
+			const pinnedSessions = pinned.map(p => {
+				const z = byId[p.id] || null;
+				const lastPr = (z?.prs || []).map(pr => prKeyOf(pr.url)).filter(Boolean).at(-1);
+				return { ...p, session: z, status: z?.archived ? 'done' : lastPr ? doneState(prDet[lastPr]?.state) : null };
+			});
 			const hidden = new Set(await getHiddenSessions());
 			const recent = (await recentSessions(40).catch(() => [])).filter(r => !pinned.some(p => p.id === r.id) && !hidden.has(r.id)).slice(0, 20);
-			// Issues added locally (e.g. resolved from a session): details from GitHub, closed ones drop off.
+			// Issues added locally (e.g. resolved from a session): details from GitHub; closed ones stay, marked, until cleared.
 			const pinIssues = await listPinnedIssues();
 			const det = await issueDetails(pinIssues.map(p => p.key), url.searchParams.get('fresh') === '1').catch(() => ({}));
-			const closedPins = pinIssues.filter(p => det[p.key] && det[p.key].state !== 'OPEN').map(p => p.key);
-			if (closedPins.length) await unpinIssues(closedPins);
-			const pinnedIssues = pinIssues.filter(p => !closedPins.includes(p.key)).map(p => {
+			const pinnedIssues = pinIssues.map(p => {
 				const d = det[p.key] || {};
-				return { ...p, title: d.title || p.key, url: d.url || `https://github.com/${p.key.replace('#', '/issues/')}`, labels: d.labels || [], isBug: (d.labels || []).includes('bug'), milestone: d.milestone || null, updatedAt: d.updatedAt || p.addedAt };
+				return { ...p, title: d.title || p.key, url: d.url || `https://github.com/${p.key.replace('#', '/issues/')}`, labels: d.labels || [], isBug: (d.labels || []).includes('bug'), milestone: d.milestone || null, updatedAt: d.updatedAt || p.addedAt, state: doneState(d.state) };
 			});
 			const sessions = await sessionsFor([...keys, ...pinnedIssues.map(p => p.key)]).catch(() => ({}));
 			// Sessions linked explicitly (resolved from a branch or PR) show on their issue too.

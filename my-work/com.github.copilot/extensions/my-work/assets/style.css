@@ -853,3 +853,15 @@ html.narrow .title-sub { gap: 8px; }
 /* Browse toolbar: sources and actions on the first row, the filter on its own full-width row. */
 .find-tools-end { margin-left: auto; display: inline-flex; gap: 4px; }
 .find-tools .find-search { flex: 1 1 100%; }
+
+/* Finished work (issue closed, PR merged, session done): dimmed with a status tag until cleared. */
+.row.is-done .row-title { color: var(--muted); }
+.row.is-done::before { background: var(--good, #2da44e); }
+.tag.done { color: var(--good, #2da44e); background: color-mix(in srgb, var(--good, #2da44e) 12%, transparent); }
+.tag.done .codicon { font-size: 11px; margin-right: 3px; }
+.group-h .group-clear { margin-left: auto; font-size: 11px; text-transform: none; letter-spacing: 0; font-weight: 400; }
+.closed-fold { display: flex; align-items: center; gap: 5px; width: 100%; border: 0; background: none; color: var(--faint); font: inherit; font-size: 12px; padding: 6px 10px; cursor: pointer; text-align: left; border-radius: var(--r); }
+.closed-fold:hover { background: var(--hover); color: var(--muted); }
+.closed-fold .codicon-chevron-right { transition: transform .12s; font-size: 12px; }
+.closed-fold[aria-expanded="true"] .codicon-chevron-right { transform: rotate(90deg); }
+.closed-fold .codicon-pass-filled { color: var(--good, #2da44e); font-size: 12px; }

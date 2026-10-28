@@ -361,3 +361,11 @@ test('screenshots pasted in the panel reach the chat as private file paths', asy
 		await server.stop();
 	}
 });
+
+test('finished work is marked by its GitHub state', async () => {
+	const work = await import(new URL('lib/work.mjs', ext));
+	assert.equal(work.doneState('OPEN'), null);
+	assert.equal(work.doneState('CLOSED'), 'closed');
+	assert.equal(work.doneState('MERGED'), 'merged');
+	assert.equal(work.doneState(undefined), null, 'unknown state counts as open');
+});

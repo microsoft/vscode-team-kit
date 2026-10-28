@@ -286,7 +286,9 @@ function listGroups() {
 		const collapsed = !!ui.state?.settings?.recentCollapsed;
 		const recentGroup = recent.length ? [{ header: 'Active sessions', role: 'recent', collapsible: true, collapsed, keepEmpty: true, count: recent.length, items: collapsed ? [] : recent.map(z => ({ kind: 'recentsess', id: z.id, z })) }] : [];
 		return [...msrcGroup, ...ui.work.data.milestones.map(m => ({ header: label(m), role: m.role, keepEmpty: true, drop: true,
-			items: m.role === 'priorities' ? prioItems(m) : [...m.items.map(w => ({ kind: 'work', id: w.key, w, milestone: m, group: m.role })), ...issuesIn(m.role), ...sessIn(m.role)] })), ...recentGroup];
+			items: m.role === 'priorities' ? prioItems(m) : [...m.items.filter(w => !w.state).map(w => ({ kind: 'work', id: w.key, w, milestone: m, group: m.role })), ...issuesIn(m.role), ...sessIn(m.role)],
+			// Issues closed this week in the milestone: folded into one line at the bottom of the group.
+			closed: m.role === 'priorities' ? [] : m.items.filter(w => w.state).map(w => ({ kind: 'work', id: w.key, w, milestone: m, group: m.role })) })), ...recentGroup];
 	}
 	if (ui.tab === 'notifications' && ui.notifFilter) {
 		const g = notifGroups().find(x => x.id === ui.notifFilter);
@@ -661,13 +663,44 @@ function quickActionsHtml(actions) {
 function withQuick(rowHtml, actions) {
 	return `<div class="row-act">${rowHtml}${quickActionsHtml(actions)}</div>`;
 }
-function issueQuick(key, url, { removable = false } = {}) {
+// Finished work stays in My Work, marked, until you clear it.
+const DONE_LABEL = { closed: 'Closed', merged: 'Merged', done: 'Done' };
+function doneTag(state, prefix = '') {
+	return state ? `<span class="tag done" title="${state === 'done' ? 'The session is marked done' : `${prefix}${DONE_LABEL[state].toLowerCase()} on GitHub`}"><i class="codicon codicon-pass-filled" aria-hidden="true"></i>${esc(prefix ? `${prefix}${state}` : DONE_LABEL[state])}</span>` : '';
+}
+function issueQuick(key, url, { removable = false, state = null } = {}) {
 	const live = liveSession(key);
+	if (state) return [
+		{ href: url || `https://github.com/${key.split('#')[0]}/issues/${key.split('#')[1]}`, icon: 'link-external', label: 'Open on GitHub' },
+		...(removable ? [{ act: 'issue-unpin', key, icon: 'check', label: 'Clear from My Work (done)' }] : []),
+	];
 	return [
 		live ? { act: 'open-session', link: live.link, icon: 'comment-discussion', label: 'Open session' } : { act: 'work-session', key, icon: 'rocket', label: 'Start session' },
 		{ href: url || `https://github.com/${key.split('#')[0]}/issues/${key.split('#')[1]}`, icon: 'link-external', label: 'Open on GitHub' },
 		...(removable ? [{ act: 'issue-unpin', key, icon: 'close', label: 'Remove from My Work' }] : []),
 	];
+}
+
+function closedFoldHtml(g) {
+	if (!g.closed?.length) return '';
+	const open = !!ui.closedOpen?.[g.role];
+	return `<button type="button" class="closed-fold" data-closed-fold="${esc(g.role)}" aria-expanded="${open}"><i class="codicon codicon-chevron-right" aria-hidden="true"></i><i class="codicon codicon-pass-filled" aria-hidden="true"></i>Closed this week<span class="group-n">${g.closed.length}</span></button>${open ? g.closed.map(rowHtml).join('') : ''}`;
+}
+// Finished items the user can clear from My Work (milestone issues leave on their own a week after closing).
+function clearableDone(i) {
+	return (i.kind === 'pinsess' && !!i.p.status) || (i.kind === 'work' && !!i.w.state && (i.w.local || i.group === 'priorities'));
+}
+async function clearDone(role) {
+	const g = listGroups().find(x => x.role === role);
+	const items = (g?.items || []).filter(clearableDone);
+	try {
+		for (const i of items) {
+			if (i.kind === 'pinsess') await api('/api/work-pin', { op: 'remove', id: i.p.id });
+			else await api('/api/work-issue', { op: 'remove', key: i.w.key });
+		}
+		toast(`Cleared ${items.length} done item${items.length === 1 ? '' : 's'}`);
+	} catch (error) { toast(error.message, true); }
+	await loadWork();
 }
 
 function rowHtml(item) {
@@ -678,9 +711,9 @@ function rowHtml(item) {
 		const w = item.w;
 		const prio = item.milestone?.role === 'priorities';
 		const local = !!w.local;
-		return withQuick(`<button type="button" class="${cls} ${w.isBug ? 'dot-action' : ''}${prio || local ? ' prio-row' : ''}" data-kind="work" data-id="${esc(w.key)}" data-group="${esc(item.group || '')}" aria-current="${!!current}"${prio ? ` draggable="true" data-prio="${esc(w.key)}" data-pin-issue="${esc(w.key)}" title="Drag to reorder or into current / next; Alt+↑/↓ moves the selected issue"` : local ? ` draggable="true" data-pin-issue="${esc(w.key)}" title="Added locally (GitHub milestone unchanged). Drag to another group."` : ''}>${prio || local ? '<span class="row-grip" aria-hidden="true" title="Drag to move"><i class="codicon codicon-gripper"></i></span>' : ''}
-			<span class="row-title" title="${esc(w.title)}">${prio ? `<span class="prio-rank">${w.rank}</span>` : ''}${esc(w.title)}</span><span class="row-meta"><span>${esc(shortKey(w.key))}</span>${w.isBug ? '<span>bug</span>' : ''}${prio && w.milestone ? `<span>${esc(w.milestone)}</span>` : ''}${local ? '<span class="tag" title="Added to My Work locally; its GitHub milestone is unchanged">local</span>' : ''}${sessTag(w.key)}</span>
-		</button>`, issueQuick(w.key, w.url, { removable: local }));
+		return withQuick(`<button type="button" class="${cls}${w.state ? ' is-done' : w.isBug ? ' dot-action' : ''}${prio || local ? ' prio-row' : ''}" data-kind="work" data-id="${esc(w.key)}" data-group="${esc(item.group || '')}" aria-current="${!!current}"${prio ? ` draggable="true" data-prio="${esc(w.key)}" data-pin-issue="${esc(w.key)}" title="Drag to reorder or into current / next; Alt+↑/↓ moves the selected issue"` : local ? ` draggable="true" data-pin-issue="${esc(w.key)}" title="Added locally (GitHub milestone unchanged). Drag to another group."` : ''}>${prio || local ? '<span class="row-grip" aria-hidden="true" title="Drag to move"><i class="codicon codicon-gripper"></i></span>' : ''}
+			<span class="row-title" title="${esc(w.title)}">${prio ? `<span class="prio-rank">${w.rank}</span>` : ''}${esc(w.title)}</span><span class="row-meta"><span>${esc(shortKey(w.key))}</span>${w.isBug ? '<span>bug</span>' : ''}${prio && w.milestone ? `<span>${esc(w.milestone)}</span>` : ''}${local ? '<span class="tag" title="Added to My Work locally; its GitHub milestone is unchanged">local</span>' : ''}${doneTag(w.state)}${w.state ? '' : sessTag(w.key)}</span>
+		</button>`, issueQuick(w.key, w.url, { removable: local || prio, state: w.state }));
 	}
 	if (item.kind === 'workhome') {
 		const waiting = (ui.state.threads?.['my-work'] || []).at(-1)?.role === 'user';
@@ -699,10 +732,10 @@ function rowHtml(item) {
 	if (item.kind === 'pinsess') {
 		const p = item.p, z = p.session;
 		const inPrio = item.group === 'priorities';
-		return withQuick(`<button type="button" class="${cls}${z && !z.read ? ' dot-action' : ''} prio-row" data-kind="pinsess" data-id="${esc(p.id)}" data-group="${esc(item.group || 'current')}" data-sess="${esc(p.id)}"${inPrio ? ` data-prio="session:${esc(p.id)}"` : ''} draggable="true" title="Drag to another group${inPrio ? ' or reorder' : ''}" aria-current="${!!current}"><span class="row-grip" aria-hidden="true" title="Drag to move"><i class="codicon codicon-gripper"></i></span>
+		return withQuick(`<button type="button" class="${cls}${p.status ? ' is-done' : z && !z.read ? ' dot-action' : ''} prio-row" data-kind="pinsess" data-id="${esc(p.id)}" data-group="${esc(item.group || 'current')}" data-sess="${esc(p.id)}"${inPrio ? ` data-prio="session:${esc(p.id)}"` : ''} draggable="true" title="Drag to another group${inPrio ? ' or reorder' : ''}" aria-current="${!!current}"><span class="row-grip" aria-hidden="true" title="Drag to move"><i class="codicon codicon-gripper"></i></span>
 			<span class="row-title" title="${esc(z?.title || '')}">${inPrio ? `<span class="prio-rank">${item.rank}</span>` : ''}<i class="codicon codicon-comment-discussion" aria-hidden="true"></i> ${esc(z?.title || p.note || 'Session not found')}</span>
-			<span class="row-meta">${z?.project ? `<span>${esc(z.project)}</span>` : ''}${z?.modified ? `<span>active ${esc(agoText(new Date(z.modified).toISOString()))}</span>` : ''}${z?.changes ? `<span class="add">+${esc(z.changes.additions)}</span><span class="del">−${esc(z.changes.deletions)}</span>` : ''}${z && !z.read ? '<span class="tag acc">unread</span>' : ''}</span>
-		</button>`, [{ act: 'open-session', link: `agent-host-session://ahp-session/${p.id}`, icon: 'comment-discussion', label: 'Open session' }, { act: 'unpin-session', key: p.id, icon: 'close', label: 'Remove from My Work' }]);
+			<span class="row-meta">${z?.project ? `<span>${esc(z.project)}</span>` : ''}${z?.modified ? `<span>active ${esc(agoText(new Date(z.modified).toISOString()))}</span>` : ''}${z?.changes ? `<span class="add">+${esc(z.changes.additions)}</span><span class="del">−${esc(z.changes.deletions)}</span>` : ''}${p.status ? doneTag(p.status, p.status === 'done' ? '' : 'PR ') : z && !z.read ? '<span class="tag acc">unread</span>' : ''}</span>
+		</button>`, [{ act: 'open-session', link: `agent-host-session://ahp-session/${p.id}`, icon: 'comment-discussion', label: 'Open session' }, p.status ? { act: 'unpin-session', key: p.id, icon: 'check', label: 'Clear from My Work (done)' } : { act: 'unpin-session', key: p.id, icon: 'close', label: 'Remove from My Work' }]);
 	}
 	if (item.kind === 'msrcitem') {
 		const x = item.x;
@@ -778,7 +811,7 @@ function renderList() {
 		? `<button type="button" class="group-h done-toggle" data-done-toggle aria-expanded="${!!ui.showDone}"><i class="codicon codicon-chevron-right" aria-hidden="true"></i>Done<span class="group-n">${done.length}</span></button>${ui.showDone ? done.map(rowHtml).join('') : ''}`
 		: '';
 	$('list').innerHTML = groups.length || done.length
-		? groups.map(g => `${g.collapsible ? `<button type="button" class="group-h done-toggle" data-group-toggle="${esc(g.role)}" aria-expanded="${!g.collapsed}"><i class="codicon codicon-chevron-right" aria-hidden="true"></i>${esc(g.header)}<span class="group-n">${g.count}</span></button>` : g.header ? `<div class="group-h"${g.drop ? ` data-drop-group="${esc(g.role)}"` : ''}>${esc(g.header)}<span class="group-n">${g.items.filter(i => !isHandled(i)).length || ''}</span></div>` : ''}${g.collapsed ? '' : g.items.length ? g.items.map(rowHtml).join('') : g.role === 'priorities' ? '<div class="cd empty-group" data-drop-group="priorities">Your own ordered list, kept locally (milestones on GitHub are untouched). Paste <b>#123</b> or an issue link into the chat below, or use <b>Add to my priorities</b> on any issue.</div>' : `<div class="cd empty-group"${g.drop ? ` data-drop-group="${esc(g.role)}"` : ''}>Nothing planned yet. Use <b>Plan for…</b> on an issue or drop a session here.</div>`}`).join('')
+		? groups.map(g => `${g.collapsible ? `<button type="button" class="group-h done-toggle" data-group-toggle="${esc(g.role)}" aria-expanded="${!g.collapsed}"><i class="codicon codicon-chevron-right" aria-hidden="true"></i>${esc(g.header)}<span class="group-n">${g.count}</span></button>` : g.header ? `<div class="group-h"${g.drop ? ` data-drop-group="${esc(g.role)}"` : ''}>${esc(g.header)}<span class="group-n">${g.items.filter(i => !isHandled(i) && !clearableDone(i) && !i.w?.state).length || ''}</span>${g.items.some(clearableDone) ? `<button type="button" class="link-btn group-clear" data-clear-done="${esc(g.role)}" title="Remove the finished items in this group from My Work">Clear done</button>` : ''}</div>` : ''}${g.collapsed ? '' : g.items.length ? g.items.map(rowHtml).join('') : g.role === 'priorities' ? '<div class="cd empty-group" data-drop-group="priorities">Your own ordered list, kept locally (milestones on GitHub are untouched). Paste <b>#123</b> or an issue link into the chat below, or use <b>Add to my priorities</b> on any issue.</div>' : `<div class="cd empty-group"${g.drop ? ` data-drop-group="${esc(g.role)}"` : ''}>Nothing planned yet. Use <b>Plan for…</b> on an issue or drop a session here.</div>`}${closedFoldHtml(g)}`).join('')
 			+ (groups.length ? '' : '<div class="empty"><i class="codicon codicon-check-all" aria-hidden="true"></i>All done in this batch</div>') + doneHtml
 		: ui.state?.indexing?.state === 'running' && ['queue', 'cleanup', 'implement'].includes(ui.tab) && (ui.state.indexing.firstRun || !ui.state.hasIndex)
 			? '<div class="empty cd">My Work and Notifications already work while the index is built.</div>'
@@ -2439,6 +2472,10 @@ $('batchbar').addEventListener('change', e => {
 	syncBulkBar();
 });
 $('list').addEventListener('click', e => {
+	const fold = e.target.closest('[data-closed-fold]');
+	if (fold) { ui.closedOpen ??= {}; ui.closedOpen[fold.dataset.closedFold] = !ui.closedOpen[fold.dataset.closedFold]; renderList(); return; }
+	const clr = e.target.closest('[data-clear-done]');
+	if (clr) { clearDone(clr.dataset.clearDone); return; }
 	if (e.target.closest('[data-done-toggle]')) { ui.showDone = !ui.showDone; renderList(); return; }
 	if (e.target.closest('[data-group-toggle="recent"]')) { ui.state.settings.recentCollapsed = !ui.state.settings.recentCollapsed; renderList(); saveSettings({ recentCollapsed: ui.state.settings.recentCollapsed }); return; }
 	if (e.target.closest('.row-check')) { ui.shiftPick = e.shiftKey; return; }

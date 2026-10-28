@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.7 (2026-10-28)
+
+- My Work shows when work is finished instead of dropping it silently:
+  - Issues and PRs you added locally or to My priorities get a **Closed** / **Merged** tag; sessions get **Done** (marked done in the Agents window) or **PR merged** / **PR closed** from their latest pull request.
+  - Finished rows are dimmed and stay until you clear them, with a **Clear** quick action on each and **Clear done** on the group.
+  - Issues closed in the current or next milestone in the last 7 days fold into a **Closed this week** line at the bottom of the group.
+
 ## 1.0.6 (2026-10-28)
 
 - Issue chats and work sessions are nested under your My Work session. The first message about an issue creates its chat there (no workspace), even when the panel is open in another session; Start session, Start another session, Implement and starting from a notification create nested sessions with their own worktree. MSRC sessions stay separate.
