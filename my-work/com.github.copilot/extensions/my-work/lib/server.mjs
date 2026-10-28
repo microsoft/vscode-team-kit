@@ -391,6 +391,10 @@ export class TriageServer {
 				}
 				if (body.recentCollapsed !== undefined) patch.recentCollapsed = !!body.recentCollapsed;
 				if (body.browse !== undefined) patch.browse = cleanBrowse(body.browse);
+				if (body.collapsedGroups !== undefined) {
+					if (!Array.isArray(body.collapsedGroups) || body.collapsedGroups.length > 20 || !body.collapsedGroups.every(r => typeof r === 'string' && /^[a-z][a-z0-9-]{0,30}$/.test(r))) throw bad('invalid collapsedGroups');
+					patch.collapsedGroups = [...new Set(body.collapsedGroups)];
+				}
 				if (body.browseHistory !== undefined) {
 					if (!Array.isArray(body.browseHistory)) throw bad('invalid browseHistory');
 					patch.browseHistory = body.browseHistory.slice(0, 15).map(h => ({ ...cleanBrowse(h), at: typeof h?.at === 'string' && !Number.isNaN(Date.parse(h.at)) ? h.at : new Date().toISOString() })).filter(h => h.refine);

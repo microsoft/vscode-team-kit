@@ -285,7 +285,8 @@ function listGroups() {
 		const recent = (ui.work.data.recentSessions || []).filter(z => z.id !== ui.work.data.myWorkChat?.split('/').pop()).slice(0, 10);
 		const collapsed = !!ui.state?.settings?.recentCollapsed;
 		const recentGroup = recent.length ? [{ header: 'Active sessions', role: 'recent', collapsible: true, collapsed, keepEmpty: true, count: recent.length, items: collapsed ? [] : recent.map(z => ({ kind: 'recentsess', id: z.id, z })) }] : [];
-		return [...msrcGroup, ...ui.work.data.milestones.map(m => ({ header: label(m), role: m.role, keepEmpty: true, drop: true,
+		const folded = new Set(ui.state?.settings?.collapsedGroups || []);
+		return [...msrcGroup.map(g => ({ ...g, toggle: true, collapsed: folded.has(g.role) })), ...ui.work.data.milestones.map(m => ({ header: label(m), role: m.role, keepEmpty: true, drop: true, toggle: true, collapsed: folded.has(m.role),
 			items: m.role === 'priorities' ? prioItems(m) : [...m.items.filter(w => !w.state).map(w => ({ kind: 'work', id: w.key, w, milestone: m, group: m.role })), ...issuesIn(m.role), ...sessIn(m.role)],
 			// Issues closed this week in the milestone: folded into one line at the bottom of the group.
 			closed: m.role === 'priorities' ? [] : m.items.filter(w => w.state).map(w => ({ kind: 'work', id: w.key, w, milestone: m, group: m.role })) })), ...recentGroup];
@@ -811,7 +812,7 @@ function renderList() {
 		? `<button type="button" class="group-h done-toggle" data-done-toggle aria-expanded="${!!ui.showDone}"><i class="codicon codicon-chevron-right" aria-hidden="true"></i>Done<span class="group-n">${done.length}</span></button>${ui.showDone ? done.map(rowHtml).join('') : ''}`
 		: '';
 	$('list').innerHTML = groups.length || done.length
-		? groups.map(g => `${g.collapsible ? `<button type="button" class="group-h done-toggle" data-group-toggle="${esc(g.role)}" aria-expanded="${!g.collapsed}"><i class="codicon codicon-chevron-right" aria-hidden="true"></i>${esc(g.header)}<span class="group-n">${g.count}</span></button>` : g.header ? `<div class="group-h"${g.drop ? ` data-drop-group="${esc(g.role)}"` : ''}>${esc(g.header)}<span class="group-n">${g.items.filter(i => !isHandled(i) && !clearableDone(i) && !i.w?.state).length || ''}</span>${g.items.some(clearableDone) ? `<button type="button" class="link-btn group-clear" data-clear-done="${esc(g.role)}" title="Remove the finished items in this group from My Work">Clear done</button>` : ''}</div>` : ''}${g.collapsed ? '' : g.items.length ? g.items.map(rowHtml).join('') : g.role === 'priorities' ? '<div class="cd empty-group" data-drop-group="priorities">Your own ordered list, kept locally (milestones on GitHub are untouched). Paste <b>#123</b> or an issue link into the chat below, or use <b>Add to my priorities</b> on any issue.</div>' : `<div class="cd empty-group"${g.drop ? ` data-drop-group="${esc(g.role)}"` : ''}>Nothing planned yet. Use <b>Plan for…</b> on an issue or drop a session here.</div>`}${closedFoldHtml(g)}`).join('')
+		? groups.map(g => `${g.collapsible ? `<button type="button" class="group-h done-toggle" data-group-toggle="${esc(g.role)}" aria-expanded="${!g.collapsed}"><i class="codicon codicon-chevron-right" aria-hidden="true"></i>${esc(g.header)}<span class="group-n">${g.count}</span></button>` : g.header ? `<div class="group-h${g.toggle ? ' can-toggle' : ''}"${g.drop ? ` data-drop-group="${esc(g.role)}"` : ''}>${g.toggle ? `<button type="button" class="group-toggle" data-group-toggle="${esc(g.role)}" aria-expanded="${!g.collapsed}"><i class="codicon codicon-chevron-right" aria-hidden="true"></i>${esc(g.header)}</button>` : esc(g.header)}<span class="group-n">${g.items.filter(i => !isHandled(i) && !clearableDone(i) && !i.w?.state).length || ''}</span>${g.items.some(clearableDone) ? `<button type="button" class="link-btn group-clear" data-clear-done="${esc(g.role)}" title="Remove the finished items in this group from My Work">Clear done</button>` : ''}</div>` : ''}${g.collapsed ? '' : g.items.length ? g.items.map(rowHtml).join('') : g.role === 'priorities' ? '<div class="cd empty-group" data-drop-group="priorities">Your own ordered list, kept locally (milestones on GitHub are untouched). Paste <b>#123</b> or an issue link into the chat below, or use <b>Add to my priorities</b> on any issue.</div>' : `<div class="cd empty-group"${g.drop ? ` data-drop-group="${esc(g.role)}"` : ''}>Nothing planned yet. Use <b>Plan for…</b> on an issue or drop a session here.</div>`}${g.collapsed ? '' : closedFoldHtml(g)}`).join('')
 			+ (groups.length ? '' : '<div class="empty"><i class="codicon codicon-check-all" aria-hidden="true"></i>All done in this batch</div>') + doneHtml
 		: ui.state?.indexing?.state === 'running' && ['queue', 'cleanup', 'implement'].includes(ui.tab) && (ui.state.indexing.firstRun || !ui.state.hasIndex)
 			? '<div class="empty cd">My Work and Notifications already work while the index is built.</div>'
@@ -2477,6 +2478,16 @@ $('list').addEventListener('click', e => {
 	const clr = e.target.closest('[data-clear-done]');
 	if (clr) { clearDone(clr.dataset.clearDone); return; }
 	if (e.target.closest('[data-done-toggle]')) { ui.showDone = !ui.showDone; renderList(); return; }
+	const tg = e.target.closest('[data-group-toggle]:not([data-group-toggle="recent"])');
+	if (tg) {
+		const role = tg.dataset.groupToggle;
+		const set = new Set(ui.state.settings.collapsedGroups || []);
+		if (set.has(role)) set.delete(role); else set.add(role);
+		ui.state.settings.collapsedGroups = [...set];
+		renderList();
+		saveSettings({ collapsedGroups: ui.state.settings.collapsedGroups });
+		return;
+	}
 	if (e.target.closest('[data-group-toggle="recent"]')) { ui.state.settings.recentCollapsed = !ui.state.settings.recentCollapsed; renderList(); saveSettings({ recentCollapsed: ui.state.settings.recentCollapsed }); return; }
 	if (e.target.closest('.row-check')) { ui.shiftPick = e.shiftKey; return; }
 	const b = e.target.closest('.row');

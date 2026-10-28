@@ -865,3 +865,8 @@ html.narrow .title-sub { gap: 8px; }
 .closed-fold .codicon-chevron-right { transition: transform .12s; font-size: 12px; }
 .closed-fold[aria-expanded="true"] .codicon-chevron-right { transform: rotate(90deg); }
 .closed-fold .codicon-pass-filled { color: var(--good, #2da44e); font-size: 12px; }
+/* Collapsible My Work sections: the header text is a toggle; extra header buttons stay on the right. */
+.group-toggle { display: inline-flex; align-items: center; gap: 4px; border: 0; background: none; padding: 0; font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; cursor: pointer; }
+.group-toggle:hover { color: var(--muted); }
+.group-toggle .codicon { font-size: 12px; transition: transform .12s; }
+.group-toggle[aria-expanded="true"] .codicon { transform: rotate(90deg); }
