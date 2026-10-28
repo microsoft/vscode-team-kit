@@ -1878,8 +1878,10 @@ function renderFindWorkInto(el) {
 		<div class="detail-body find-view">
 			<div class="find-tools">
 				<div class="seg" role="group" aria-label="Source">${pills}</div>${areaSel}
-				<button type="button" class="btn sm icon${ui.find?.loading ? ' busy' : ''}" data-find-refresh title="Run this search again on GitHub" aria-label="Refresh results"><i class="codicon codicon-refresh${ui.find?.loading ? ' spin' : ''}" aria-hidden="true"></i></button>
-				<button type="button" class="btn sm icon${ui.findHistoryOpen ? ' on' : ''}" data-find-history aria-expanded="${!!ui.findHistoryOpen}" title="Recent filters" aria-label="Recent filters"><i class="codicon codicon-history" aria-hidden="true"></i></button>
+				<span class="find-tools-end">
+					<button type="button" class="btn sm icon${ui.find?.loading ? ' busy' : ''}" data-find-refresh title="Run this search again on GitHub" aria-label="Refresh results"><i class="codicon codicon-refresh${ui.find?.loading ? ' spin' : ''}" aria-hidden="true"></i></button>
+					<button type="button" class="btn sm icon${ui.findHistoryOpen ? ' on' : ''}" data-find-history aria-expanded="${!!ui.findHistoryOpen}" title="Recent filters" aria-label="Recent filters"><i class="codicon codicon-history" aria-hidden="true"></i></button>
+				</span>
 				<div class="find-search"><i class="codicon codicon-search" aria-hidden="true"></i><label class="sr-only" for="find-filter">Filter, press Enter to apply</label><input id="find-filter" type="search" placeholder="Filter, press Enter to apply (e.g. created by ${esc(ui.state.me || 'octocat')})" value="${esc(ui.findFilter || '')}"></div>
 			</div>
 			${ui.findHistoryOpen ? browseHistoryHtml() : ''}${queryBar}${asking}

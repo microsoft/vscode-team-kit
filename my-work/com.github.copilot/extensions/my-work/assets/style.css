@@ -850,3 +850,6 @@ html.narrow .title-sub { gap: 8px; }
 .row-quick .row-pin:hover { color: var(--fg); background: var(--surface-2); }
 .row-quick .row-pin .codicon { font-size: 14px; margin: 0; }
 @media (hover: none) { .row-quick { opacity: 1; pointer-events: auto; } }
+/* Browse toolbar: sources and actions on the first row, the filter on its own full-width row. */
+.find-tools-end { margin-left: auto; display: inline-flex; gap: 4px; }
+.find-tools .find-search { flex: 1 1 100%; }
