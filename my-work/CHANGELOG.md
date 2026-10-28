@@ -7,6 +7,7 @@
 - Fix and implement sessions (Start session, Start another session, Implement, and starting from a notification) are nested under your My Work session too, each with its own worktree. MSRC sessions stay separate.
 - Session rows (in issue, MSRC and session views) list everything the session created or linked: pull requests and issues, with their labels. **Summarize** asks the My Work chat for a short summary of what the session is doing, its state and next step, kept per session and flagged when the session has changed since.
 - A message the chat doesn't answer within 3 minutes (for example because the Agents window lost the nested chat) shows "No reply yet" with **Resend in a new chat**, instead of waiting forever.
+- Browse issues & PRs remembers where you were: switching to another view and back reopens it (or the issue you opened from it), and the source, area and filter are kept when the panel is reopened.
 - Browse issues & PRs: Refresh re-runs the search on GitHub (no 2-minute cache), and the list also re-runs when a chat changes something, e.g. closes an issue.
 - Issue chats get the helper script's exact path, so they can record decisions without relying on personal instructions.
 

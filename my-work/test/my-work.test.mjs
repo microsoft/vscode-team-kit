@@ -308,3 +308,24 @@ test('any session can get a summary from the My Work chat', async () => {
 	assert.doesNotMatch(msg, /"issue": "owner\/repo#N"/, 'only pinned sessions are swapped for their issue');
 	assert.match(prompts.describeSessionMessage(link, 'Fix #1'), /"issue": "owner\/repo#N"/);
 });
+
+test('Browse keeps its last source and filter across panel reloads', async () => {
+	const http = await import('node:http');
+	const { TriageServer } = await import(new URL('lib/server.mjs', ext));
+	const server = new TriageServer(() => { }, null);
+	const base = await server.start();
+	const post = body => new Promise((resolve, reject) => {
+		const req = http.request(new URL('/api/settings', base), { method: 'POST', headers: { 'content-type': 'application/json', 'x-triage-token': server.token } }, res => {
+			let d = ''; res.on('data', c => d += c); res.on('end', () => resolve(JSON.parse(d || '{}')));
+		});
+		req.on('error', reject); req.end(JSON.stringify(body));
+	});
+	try {
+		await post({ browse: { source: 'area', area: 'agents-window', refine: { query: 'author:alexdima', text: 'created by alexdima', note: '', extra: 'x' } } });
+		assert.deepEqual((await data.getSettings()).browse, { source: 'area', area: 'agents-window', refine: { query: 'author:alexdima', text: 'created by alexdima', note: '' } });
+		await post({ browse: { source: 'evil', area: '../x', refine: { query: ' ' } } });
+		assert.deepEqual((await data.getSettings()).browse, { source: 'bugs', area: '', refine: null }, 'unknown values fall back to defaults');
+	} finally {
+		await server.stop();
+	}
+});

@@ -237,6 +237,7 @@ export async function setSettings(patch) {
 	if (patch.listHeight !== undefined) next.listHeight = patch.listHeight;
 	if (patch.areaFilter !== undefined) next.areaFilter = patch.areaFilter;
 	if (patch.recentCollapsed !== undefined) next.recentCollapsed = patch.recentCollapsed;
+	if (patch.browse !== undefined) next.browse = patch.browse;
 	await writeStore('settings', SETTINGS_FILE, next);
 	if (patch.popularThreshold !== undefined) checksCache.clear();
 	return { ...DEFAULT_SETTINGS, ...next };

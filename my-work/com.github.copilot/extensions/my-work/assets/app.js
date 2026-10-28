@@ -1742,6 +1742,7 @@ async function loadFindWork(fresh = false) {
 }
 function setFindRefine(refine) {
 	ui.findRefine = refine;
+	saveBrowse();
 	ui.findAsking = null;
 	ui.findFilter = refine?.text || refine?.query || '';
 	if (ui.selected?.kind === 'worksrc') renderDetail(false, true);
@@ -1756,6 +1757,7 @@ async function applyFindFilter(text) {
 	catch (error) { ui.findAsking = null; renderDetail(false, true); toast(`Could not ask the chat: ${error.message}`, true); }
 }
 function renderFindWorkInto(el) {
+	restoreBrowse();
 	const src = ui.findSource || 'bugs';
 	const areas = (ui.state.areas || []).filter(a => a.labels?.length);
 	const area = ui.findArea || areas[0]?.id || '';
@@ -2149,7 +2151,11 @@ async function act(button) {
 }
 
 // ---------- events ----------
+// Browse is a view you come back to: leaving My Work remembers it was open, and returning reopens it.
+const BROWSE_KINDS = ['worksrc', 'browseitem'];
 function switchTab(tab) {
+	if (ui.tab === 'work' && tab !== 'work') ui.browseOpen = BROWSE_KINDS.includes(ui.selected?.kind) ? { kind: ui.selected.kind, id: ui.selected.id } : null;
+	const reopen = tab === 'work' && ui.tab !== 'work' ? ui.browseOpen : null;
 	ui.tab = tab;
 	ui.notifFilter = null;
 	ui.routeFilter = false;
@@ -2157,6 +2163,21 @@ function switchTab(tab) {
 	ui.selected = null;
 	$('detail').innerHTML = '<div class="empty">Select an item to see details and actions.</div>';
 	render();
+	if (reopen) select(reopen.kind, reopen.id).then(() => renderAreaBar());
+}
+function saveBrowse() {
+	const browse = { source: ui.findSource || 'bugs', area: ui.findArea || '', refine: ui.findRefine || null };
+	if (ui.state?.settings) ui.state.settings.browse = browse;
+	api('/api/settings', { browse }).catch(() => { });
+}
+function restoreBrowse() {
+	const b = ui.state?.settings?.browse;
+	if (!b || ui.browseRestored) return;
+	ui.browseRestored = true;
+	ui.findSource = b.source || 'bugs';
+	ui.findArea = b.area || '';
+	ui.findRefine = b.refine?.query ? b.refine : null;
+	ui.findFilter = ui.findRefine ? (ui.findRefine.text || ui.findRefine.query) : '';
 }
 document.querySelector('.rail-nav').addEventListener('click', e => {
 	const b = e.target.closest('button[data-tab]');
@@ -2540,7 +2561,7 @@ $('detail').addEventListener('click', e => {
 		return;
 	}
 	const p = e.target.closest('[data-find-src]');
-	if (p) { ui.findSource = p.dataset.findSrc; renderDetail(false, true); document.querySelector(`[data-find-src="${p.dataset.findSrc}"]`)?.focus(); return; }
+	if (p) { ui.findSource = p.dataset.findSrc; saveBrowse(); renderDetail(false, true); document.querySelector(`[data-find-src="${p.dataset.findSrc}"]`)?.focus(); return; }
 	if (e.target.closest('[data-find-query-clear]')) { setFindRefine(null); document.getElementById('find-filter')?.focus(); return; }
 	if (e.target.closest('[data-find-ask-cancel]')) { ui.findAsking = null; renderDetail(false, true); }
 });
@@ -2555,7 +2576,7 @@ $('detail').addEventListener('keydown', e => {
 	} else applyFindFilter(text.slice(0, 300));
 });
 $('detail').addEventListener('change', e => {
-	if (e.target.id === 'find-area') { ui.findArea = e.target.value; renderDetail(false, true); document.getElementById('find-area')?.focus(); }
+	if (e.target.id === 'find-area') { ui.findArea = e.target.value; saveBrowse(); renderDetail(false, true); document.getElementById('find-area')?.focus(); }
 });
 // The filter applies on Enter; clearing the search box (its × button) removes it.
 $('detail').addEventListener('input', e => {

@@ -110,6 +110,16 @@ function openExternal(url) {
 	});
 }
 
+// The Browse view's last source, area and filter, kept with the settings so it survives reopening the panel.
+function cleanBrowse(b) {
+	if (!b || typeof b !== 'object') throw Object.assign(new Error('invalid browse'), { status: 400 });
+	const str = (v, max) => typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, max) : '';
+	const source = ['bugs', 'features', 'area', 'reviews', 'mine'].includes(b.source) ? b.source : 'bugs';
+	const area = /^[a-z0-9_-]{0,40}$/.test(b.area || '') ? (b.area || '') : '';
+	const refine = b.refine && str(b.refine.query, 300) ? { query: str(b.refine.query, 300), text: str(b.refine.text, 300), note: str(b.refine.note, 300) } : null;
+	return { source, area, refine };
+}
+
 export class TriageServer {
 	/** Send to the nested My Work chat, creating it (via the triage chat) the first time. */
 	async sendToMyWorkChat(text) {
@@ -363,6 +373,7 @@ export class TriageServer {
 					patch.popularThreshold = body.popularThreshold;
 				}
 				if (body.recentCollapsed !== undefined) patch.recentCollapsed = !!body.recentCollapsed;
+				if (body.browse !== undefined) patch.browse = cleanBrowse(body.browse);
 				if (body.theme !== undefined) {
 					if (!THEMES.has(body.theme)) throw bad('invalid theme');
 					patch.theme = body.theme;
