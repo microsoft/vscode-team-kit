@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.3 (2026-10-28)
+
+- Develop locally: set `devSource` in `my-work.config.json` to a my-work checkout and the installed panel runs that checkout's code, assets and scripts, titled "My Work (dev)". Asset edits reload the open panel.
+
 ## 1.0.2 (2026-10-28)
 
 - Browse issues & PRs: clicking a title opens the issue in the panel (details, discussion, Start session, add to current/next/My priorities) with Back to results; the GitHub link is still on the issue number.

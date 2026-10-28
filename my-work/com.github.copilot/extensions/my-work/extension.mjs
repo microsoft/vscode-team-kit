@@ -1,6 +1,27 @@
 import { CanvasError, createCanvas, joinSession } from '@github/copilot-sdk/extension';
-import { actionDefinitions, TriageRuntime } from './lib/runtime.mjs';
-import { CANVAS_ID } from './lib/data.mjs';
+import { existsSync, readFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+// Developer mode: "devSource" in my-work.config.json points at a my-work checkout, and the panel runs
+// from there (its own lib and assets), so changes can be tried without publishing the plugin. Asset
+// edits reload the open panel; lib edits need an extensions reload.
+function libBase() {
+	const home = process.env.COPILOT_HOME || path.join(os.homedir(), '.copilot');
+	try {
+		const { devSource } = JSON.parse(readFileSync(path.join(home, 'project-boards', 'my-work.config.json'), 'utf8'));
+		if (typeof devSource === 'string' && devSource) {
+			const dir = path.join(devSource.replace(/^~(?=$|\/)/, os.homedir()), 'com.github.copilot', 'extensions', 'my-work');
+			if (existsSync(path.join(dir, 'lib', 'runtime.mjs'))) return pathToFileURL(dir + path.sep).href;
+		}
+	} catch { /* no config or no devSource */ }
+	return new URL('./', import.meta.url).href;
+}
+const base = libBase();
+const { actionDefinitions, TriageRuntime } = await import(new URL('lib/runtime.mjs', base).href);
+const { CANVAS_ID } = await import(new URL('lib/data.mjs', base).href);
+const devMode = base !== new URL('./', import.meta.url).href;
 
 let session;
 const log = (message, level = 'info') => {
@@ -35,7 +56,7 @@ session = await joinSession({
 	canvases: [
 		createCanvas({
 			id: CANVAS_ID,
-			displayName: 'My Work',
+			displayName: devMode ? 'My Work (dev)' : 'My Work',
 			description: 'My Work board: planned work and priorities, MSRC items, GitHub notifications, the issue queue and Sweeper-backed cleanup, with work sessions per item.',
 			actions: actionDefinitions.map(action => ({
 				...action,
