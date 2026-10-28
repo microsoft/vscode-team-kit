@@ -9,6 +9,7 @@
 - A message the chat doesn't answer within 3 minutes (for example because the Agents window lost the nested chat) shows "No reply yet" with **Resend in a new chat**, instead of waiting forever.
 - Browse issues & PRs: **Recent filters** (history button) re-runs any of your last 15 filters with its list, and a refresh button re-runs the current search on GitHub.
 - Paste screenshots into the issue conversation or My Work chat box. They're saved privately in the My Work data folder (kept 30 days), shown as thumbnails, and passed to the chat as file paths it can open.
+- Drag a session from **Active sessions** into Current, Next or My priorities to add it to My Work there (a session that works on an issue adds that issue).
 - Quick actions on My Work rows, shown on hover or keyboard focus: issues get Start / Open session, Open on GitHub (and Remove for locally added ones); sessions get Open session and Remove; MSRC items get Start / Open session and Open in IcM.
 - Items in My Work and Browse are normal clickable boxes (pointer cursor); clicking anywhere on a Browse row opens it. Dragging uses the grip that appears on the left on hover.
 - **Open chat** works for nested chats (such as the My Work chat), not only top-level sessions.

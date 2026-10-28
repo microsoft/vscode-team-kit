@@ -691,7 +691,7 @@ function rowHtml(item) {
 	}
 	if (item.kind === 'recentsess') {
 		const z = item.z;
-		return `<div class="row-wrap"><button type="button" class="${cls}${!z.read ? ' dot-action' : ''}" data-kind="recentsess" data-id="${esc(z.id)}" aria-current="${!!current}">
+		return `<div class="row-wrap"><button type="button" class="${cls}${!z.read ? ' dot-action' : ''} prio-row" data-kind="recentsess" data-id="${esc(z.id)}" data-recent-sess="${esc(z.id)}" draggable="true" title="Drag into Current, Next or My priorities to add it to My Work" aria-current="${!!current}"><span class="row-grip" aria-hidden="true" title="Drag to move"><i class="codicon codicon-gripper"></i></span>
 			<span class="row-title" title="${esc(z.title || '')}"><i class="codicon codicon-comment-discussion" aria-hidden="true"></i> ${esc(z.title || 'Untitled session')}</span>
 			<span class="row-meta">${z.project ? `<span>${esc(z.project)}</span>` : ''}${z.modified ? `<span>active ${esc(agoText(new Date(z.modified).toISOString()))}</span>` : ''}${!z.read ? '<span class="tag acc">unread</span>' : ''}</span>
 		</button><span class="row-tools"><button type="button" class="row-pin" data-act="pin-session" data-key="${esc(z.id)}" title="Add to My Work" aria-label="Add ${esc(z.title || 'session')} to My Work"><i class="codicon codicon-add" aria-hidden="true"></i></button><button type="button" class="row-pin" data-act="hide-session" data-key="${esc(z.id)}" title="Not relevant: hide from Active sessions" aria-label="Hide ${esc(z.title || 'session')} from Active sessions"><i class="codicon codicon-close" aria-hidden="true"></i></button></span></div>`;
@@ -2471,15 +2471,15 @@ function dropTarget(e) {
 	if (!t || !drag) return null;
 	const group = t.dataset.group || t.dataset.dropGroup;
 	if (!['current', 'next', 'priorities'].includes(group)) return null;
-	if (!drag.sess && !drag.pinIssue && group !== 'priorities') return null;
+	if (!drag.sess && !drag.pinIssue && !drag.recent && group !== 'priorities') return null;
 	return { el: t, group, row: t.matches('[data-prio]') ? t : null };
 }
 $('list').addEventListener('dragstart', e => {
-	const row = e.target.closest?.('[data-prio], [data-sess], [data-pin-issue]');
+	const row = e.target.closest?.('[data-prio], [data-sess], [data-pin-issue], [data-recent-sess]');
 	if (!row) return;
-	drag = { prio: row.dataset.prio || null, sess: row.dataset.sess || null, pinIssue: row.dataset.pinIssue || null, from: row.dataset.group || null };
+	drag = { prio: row.dataset.prio || null, sess: row.dataset.sess || null, pinIssue: row.dataset.pinIssue || null, recent: row.dataset.recentSess || null, from: row.dataset.group || null };
 	e.dataTransfer.effectAllowed = 'move';
-	e.dataTransfer.setData('text/plain', drag.prio || drag.sess);
+	e.dataTransfer.setData('text/plain', drag.prio || drag.sess || drag.recent || drag.pinIssue);
 	row.classList.add('dragging');
 });
 $('list').addEventListener('dragover', e => {
@@ -2504,6 +2504,13 @@ $('list').addEventListener('drop', e => {
 		if (idx < 0) idx = undefined;
 	}
 	clearDrop();
+	// An active (not yet added) session dropped on a group is added to My Work there.
+	if (d.recent) {
+		api('/api/work-pin', { op: 'add', id: d.recent, bucket: t.group, ...(t.group === 'priorities' ? { to: idx ?? 'top' } : {}) })
+			.then(r => loadWork().then(() => toast(r?.issue ? `Added ${shortKey(r.issue)} to ${groupLabel(t.group)}: this session works on it` : `Added to ${groupLabel(t.group)}`)))
+			.catch(error => toast(error.message, true));
+		return;
+	}
 	const run = d.prio && t.group === 'priorities' && d.from === 'priorities'
 		? updatePriority(d.prio, 'move', idx ?? 'top')
 		: d.pinIssue && t.group !== d.from
