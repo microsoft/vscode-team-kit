@@ -2755,7 +2755,7 @@ events.addEventListener('changed', e => {
 	load();
 	if (ui.work) loadWork();
 	// A chat changed something (e.g. closed an issue): re-run the Browse search so the list matches GitHub.
-	if (ui.selected?.kind === 'worksrc' && JSON.parse(e.data || '{}').by === 'agent') loadFindWork(true);
+	if (ui.selected?.kind === 'worksrc' && ['agent', 'decision'].includes(JSON.parse(e.data || '{}').by)) loadFindWork(true);
 });
 // The panel's files changed: reload, keeping the current view and selection.
 events.addEventListener('reload', () => {
