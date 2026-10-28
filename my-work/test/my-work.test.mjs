@@ -249,6 +249,7 @@ test('discussing an issue uses its own chat, and Start session turns that chat i
 		assert.match(sent.at(-1), /create the chat for octo\/app#42/);
 		assert.match(sent.at(-1), /relationship "independent", title "#42: Crash on save", no workspace/);
 		assert.match(sent.at(-1), /setIssueChat/);
+		assert.ok(sent.at(-1).includes(`${config.scriptCommand()} record octo/app#42`), 'the issue chat gets the helper script\'s exact path');
 		assert.ok(sent.at(-1).includes('why does this crash?'));
 
 		await workSessions.setIssueChat(key, 'agent-host-session://ahp-session/aaaaaaaa-1111-2222-3333-444444444444');

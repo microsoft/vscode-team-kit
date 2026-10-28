@@ -108,6 +108,7 @@ function issueChatInstructions({ key, url, title }) {
 		`You are the chat for ${key} ${q(title)} (${url}): the user discusses this issue with you from the My Work panel, and when they click Start session you become its work session.`,
 		UNTRUSTED,
 		`Fetch the live issue and its latest comments before answering, and follow the my-issues skill. ${rulesHint()}.`,
+		`The skill's helper script is \`${scriptCommand()}\` (use this exact path). After a decision the user approved is done on GitHub, record it: \`${scriptCommand()} record ${key} --decision <decision> --note "<short reason>"\`.`,
 		'Anything that changes GitHub (comments, labels, milestones, closing, pushes, pull requests) needs the user\'s explicit approval in this conversation first.',
 		`Answer every message in the panel too: before your first canvas action, call list_canvas_capabilities for canvasId "my-issues-triage" and open_canvas with canvasId "my-issues-triage", instanceId "issue-${num}", input {} (once per chat). Then call replyToIssue {"key": "${key}", "text": "<concise markdown, at most ~1500 characters>", "choices": [...]}. Whenever you ask the user to approve, choose or confirm, add 2-4 choices with the exact replies they would type, the recommended one as style "primary". Button clicks come back to you as the user's next message.`,
 		'To dismiss a notification, use the canvas action dismissNotifications {"ids": [...]}, not the GitHub API.',
