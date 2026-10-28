@@ -1700,11 +1700,11 @@ function findSourceParams() {
 function findQueryString() {
 	return `${findSourceParams()}${ui.findRefine ? `&refine=${encodeURIComponent(ui.findRefine.query)}` : ''}`;
 }
-async function loadFindWork() {
+async function loadFindWork(fresh = false) {
 	const q = findQueryString();
 	ui.find = { q, loading: true, items: ui.find?.q === q ? ui.find.items : null };
 	if (ui.selected?.kind === 'worksrc') renderDetail(false, true);
-	try { ui.find = { q, items: (await api(`/api/work-source?${q}`)).items }; }
+	try { ui.find = { q, items: (await api(`/api/work-source?${q}${fresh ? '&fresh=1' : ''}`)).items }; }
 	catch (error) { ui.find = { q, error: error.message }; }
 	if (ui.selected?.kind === 'worksrc') renderDetail(false, true);
 }
@@ -2742,7 +2742,7 @@ async function refreshNow() {
 	ui.refreshing = true;
 	renderAreaBar();
 	try {
-		if (ui.tab === 'work') { await loadWork(true); toast('My Work refreshed'); }
+		if (ui.tab === 'work') { await Promise.all([loadWork(true), ui.selected?.kind === 'worksrc' ? loadFindWork(true) : null]); toast('My Work refreshed'); }
 		else { await load(true); toast('Refreshed from GitHub'); }
 	} finally { ui.refreshing = false; if (ui.state) renderAreaBar(); }
 }
@@ -2751,7 +2751,12 @@ $('refresh').addEventListener('click', () => { if (!ui.refreshing) refreshNow();
 setInterval(() => { if (ui.state && !ui.refreshing && ui.tab === 'notifications' && document.activeElement?.id !== 'area-filter') renderAreaBar(); }, 30_000);
 
 const events = new EventSource(`/api/events?t=${encodeURIComponent(TOKEN)}`);
-events.addEventListener('changed', () => { load(); if (ui.work) loadWork(); });
+events.addEventListener('changed', e => {
+	load();
+	if (ui.work) loadWork();
+	// A chat changed something (e.g. closed an issue): re-run the Browse search so the list matches GitHub.
+	if (ui.selected?.kind === 'worksrc' && JSON.parse(e.data || '{}').by === 'agent') loadFindWork(true);
+});
 // The panel's files changed: reload, keeping the current view and selection.
 events.addEventListener('reload', () => {
 	// A burst of file events can trigger a second reload before the view was restored: keep the saved view then.

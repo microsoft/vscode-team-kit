@@ -271,7 +271,7 @@ export class TriageServer {
 		}
 		if (route === 'GET /api/work-source') {
 			const { source, labels } = await this.browseSource(url.searchParams.get('source'), url.searchParams.get('area'));
-			this.json(res, 200, { source, items: await workSource(source, { labels, refine: url.searchParams.get('refine') || '' }) });
+			this.json(res, 200, { source, items: await workSource(source, { labels, refine: url.searchParams.get('refine') || '', fresh: url.searchParams.get('fresh') === '1' }) });
 			return;
 		}
 		if (route === 'GET /api/session-info') {

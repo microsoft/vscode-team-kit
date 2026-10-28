@@ -149,11 +149,11 @@ export async function sourceQuery(source, { labels = [], refine = '' } = {}) {
 						: null;
 	return q && extra ? `${q} ${extra}` : q;
 }
-export async function workSource(source, { labels = [], refine = '' } = {}) {
+export async function workSource(source, { labels = [], refine = '', fresh = false } = {}) {
 	const q = await sourceQuery(source, { labels, refine });
 	if (!q) throw Object.assign(new Error('unknown source'), { status: 400 });
 	const hit = sourceCache.get(q);
-	if (hit && Date.now() - hit.at < 2 * 60 * 1000) return hit.items;
+	if (hit && !fresh && Date.now() - hit.at < 2 * 60 * 1000) return hit.items;
 	const out = await gh(['api', '-X', 'GET', 'search/issues', '-f', `q=${q}`, '-f', 'sort=updated', '-f', 'per_page=100', '--jq',
 		'[.items[] | {key: ((.repository_url | sub("https://api.github.com/repos/"; "")) + "#" + (.number|tostring)), title, url: .html_url, updatedAt: .updated_at, labels: [.labels[].name], isPr: (.pull_request != null), milestone: .milestone.title, author: .user.login}]']);
 	const items = JSON.parse(out);
