@@ -126,6 +126,32 @@ export async function setMyWorkChat(link) {
 	await fs.rename(tmp, CHAT_FILE);
 }
 
+// Short summaries of sessions (what each is doing), written by the My Work chat on request. Any session, pinned or not.
+const SUMMARIES_FILE = path.join(MY_WORK_DIR, 'session-summaries.json');
+export async function getSessionSummaries() {
+	try {
+		const d = JSON.parse(await fs.readFile(SUMMARIES_FILE, 'utf8'));
+		return d?.format === 'my-work/session-summaries' && d.summaries && typeof d.summaries === 'object' ? d.summaries : {};
+	} catch { return {}; }
+}
+async function updateSessionSummary(id, change) {
+	const summaries = await getSessionSummaries();
+	summaries[id] = { ...(summaries[id] || {}), ...change };
+	// Keep the file small: the most recently touched 200 sessions.
+	const kept = Object.entries(summaries).sort((a, b) => String(b[1].at || b[1].requestedAt).localeCompare(String(a[1].at || a[1].requestedAt))).slice(0, 200);
+	await fs.mkdir(MY_WORK_DIR, { recursive: true, mode: 0o700 });
+	const tmp = path.join(MY_WORK_DIR, `.tmp-${process.pid}-${randomUUID()}.json`);
+	await fs.writeFile(tmp, JSON.stringify({ format: 'my-work/session-summaries', version: 1, summaries: Object.fromEntries(kept) }, null, 2), { mode: 0o600 });
+	await fs.rename(tmp, SUMMARIES_FILE);
+	return summaries[id];
+}
+export function recordSessionSummary(id, summary) {
+	return updateSessionSummary(id, { summary, at: new Date().toISOString(), requestedAt: null });
+}
+export function markSessionSummaryRequested(id) {
+	return updateSessionSummary(id, { requestedAt: new Date().toISOString() });
+}
+
 // Each issue's own chat: where its discussion happens and, after Start session, its work session.
 const ISSUE_CHATS_FILE = path.join(MY_WORK_DIR, 'issue-chats.json');
 export async function listIssueChats() {

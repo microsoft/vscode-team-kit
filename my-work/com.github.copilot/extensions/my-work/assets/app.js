@@ -577,6 +577,23 @@ function sessTag(key) {
 	const list = sessionsOf(key).filter(s => !s.archived);
 	return list.length ? `<span class="tag sess" title="${esc(list.map(s => s.title).join('\n'))}"><i class="codicon codicon-comment-discussion" aria-hidden="true"></i>${list.length > 1 ? list.length : 'session'}</span>` : '';
 }
+// PRs and issues the session created or linked.
+function linkedItemsHtml(s) {
+	const items = s.linked?.length ? s.linked : (s.prs || []).map(p => ({ ...p, kind: 'pr' }));
+	if (!items.length) return '';
+	return `<div class="sess-prs">${items.map(i => `<a href="${esc(safeUrl(i.url))}" target="_blank" rel="noopener" title="${esc(i.url)}"><i class="codicon codicon-${i.kind === 'pr' ? 'git-pull-request' : 'issues'}" aria-hidden="true"></i>${esc(i.label)}</a>`).join('')}</div>`;
+}
+// A short summary of what the session is doing, written by the My Work chat when asked.
+function sessionSummaryHtml(s) {
+	const x = (ui.state?.sessionSummaries || ui.work?.data?.sessionSummaries || {})[s.id];
+	const pending = x?.requestedAt && (!x.at || x.requestedAt > x.at) && Date.now() - Date.parse(x.requestedAt) < 10 * 60 * 1000;
+	const stale = x?.at && s.modified && s.modified > Date.parse(x.at) + 60_000;
+	const btn = pending ? '<span class="cd"><i class="codicon codicon-loading spin" aria-hidden="true"></i> Summarizing…</span>'
+		: `<button type="button" class="link-btn" data-act="describe-session" data-key="${esc(s.id)}" title="Ask the My Work chat for a short summary of this session">${x?.summary ? (stale ? 'Update summary' : 'Refresh') : 'Summarize'}</button>`;
+	return x?.summary
+		? `<div class="sess-summary"><span class="cd">Summary · ${esc(agoText(x.at))}${stale ? ' · session changed since' : ''}</span> ${btn}<p>${linkify(x.summary)}</p></div>`
+		: `<div class="sess-summary">${btn}</div>`;
+}
 // The session's last message, shown on session cards (lazy-loaded from its local transcript).
 function sessionLastHtml(id) {
 	const st = ui.sessInfo?.[id];
@@ -592,7 +609,8 @@ function sessionsHtml(list, heading = 'Sessions') {
 		<div class="sess-main">
 			<div class="sess-title">${esc(s.title || 'Untitled session')}${s.archived ? ' <span class="tag">archived</span>' : !s.read ? ' <span class="tag acc">unread</span>' : ''}</div>
 			<div class="sess-meta cd">${[s.branch ? `<code>${esc(s.branch)}</code>` : '', s.changes ? `<span class="add">+${esc(s.changes.additions)}</span> <span class="del">−${esc(s.changes.deletions)}</span>` : '', s.modified ? `active ${esc(agoText(new Date(s.modified).toISOString()))}` : ''].filter(Boolean).join(' · ')}</div>
-			${s.prs?.length ? `<div class="sess-prs">${s.prs.map(p => `<a href="${esc(safeUrl(p.url))}" target="_blank" rel="noopener"><i class="codicon codicon-git-pull-request" aria-hidden="true"></i>${esc(p.label)}</a>`).join('')}</div>` : ''}
+			${linkedItemsHtml(s)}
+			${!s.archived && s.id ? sessionSummaryHtml(s) : ''}
 			${!s.archived && s.id && heading !== 'Session' ? sessionLastHtml(s.id) : ''}
 		</div>
 		<button type="button" class="btn sm" data-open-session="${esc(s.link)}" title="Open this chat in the Agents window"><i class="codicon codicon-comment-discussion" aria-hidden="true"></i>Open</button>

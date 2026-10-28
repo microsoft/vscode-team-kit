@@ -12,7 +12,7 @@ import { getMyWork, moveToMilestone, issueDetails, closingIssues, workSource, so
 import { config } from './config.mjs';
 import { listMsrcItems, saveMsrcItem, removeMsrcItem, getMsrcItem, parseIncident, INCIDENT_RE } from './msrcItems.mjs';
 import { sessionsFor, sessionsMentioning, sessionsById, recentSessions, issueCandidates, sessionTranscript } from './sessions.mjs';
-import { listPinned, pinSession, unpinSessions, parseSessionRef, getMyWorkChat, getHiddenSessions, setSessionHidden, setSessionBucket, BUCKETS, listPinnedIssues, pinIssue, setIssueBucket, unpinIssues, markSummaryRequested, getIssueChat, setIssueChat, setMyWorkChat } from './workSessions.mjs';
+import { listPinned, pinSession, unpinSessions, parseSessionRef, getMyWorkChat, getHiddenSessions, setSessionHidden, setSessionBucket, BUCKETS, listPinnedIssues, pinIssue, setIssueBucket, unpinIssues, markSummaryRequested, markSessionSummaryRequested, getSessionSummaries, getIssueChat, setIssueChat, setMyWorkChat } from './workSessions.mjs';
 
 const ASSETS = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'assets');
 // Scripts, styles and data come only from this server; images and videos only from GitHub's own hosts
@@ -318,7 +318,7 @@ export class TriageServer {
 				const list = sessions[p.key] ||= [];
 				if (!list.some(x => x.id === sid)) list.unshift({ ...z, link: `agent-host-session://ahp-session/${sid}` });
 			}
-			this.json(res, 200, { ...work, msrcEnabled: config().msrc.enabled !== false, msrcItems, pinnedSessions, pinnedIssues, recentSessions: recent, myWorkChat: await getMyWorkChat(), msrcSessions: await sessionsMentioning(msrcItems.map(i => i.incidentId)).catch(() => ({})), sessions });
+			this.json(res, 200, { ...work, msrcEnabled: config().msrc.enabled !== false, msrcItems, pinnedSessions, pinnedIssues, recentSessions: recent, myWorkChat: await getMyWorkChat(), sessionSummaries: await getSessionSummaries(), msrcSessions: await sessionsMentioning(msrcItems.map(i => i.incidentId)).catch(() => ({})), sessions });
 			return;
 		}
 		if (route === 'GET /api/github') {
@@ -609,8 +609,11 @@ export class TriageServer {
 				if (!id) throw bad('invalid session');
 				if (!this.sendToChat) throw Object.assign(new Error('This canvas is not attached to a chat'), { status: 409 });
 				const z = (await sessionsById([id]))[id];
-				await this.sendToMyWorkChat(describeSessionMessage(`agent-host-session://ahp-session/${id}`, z?.title || id), { thread: false });
-				await markSummaryRequested(id);
+				const pinned = (await listPinned()).some(p => p.id === id);
+				await this.sendToMyWorkChat(describeSessionMessage(`agent-host-session://ahp-session/${id}`, z?.title || id, { pinned }), { thread: false });
+				if (pinned) await markSummaryRequested(id);
+				await markSessionSummaryRequested(id);
+				this.push('changed', { by: 'summary', work: true });
 				result = { sent: true };
 				break;
 			}

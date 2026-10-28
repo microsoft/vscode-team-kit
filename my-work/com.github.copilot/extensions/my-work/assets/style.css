@@ -819,3 +819,6 @@ html.narrow .title-sub { gap: 8px; }
 .index-bar > span { display: block; height: 100%; background: var(--accent); transition: width .3s; }
 .waiting.stalled { color: var(--warn, var(--fg)); }
 .waiting.stalled .link-btn { margin-left: 4px; }
+.sess-summary { margin-top: 6px; font-size: 12.5px; }
+.sess-summary p { margin: 2px 0 0; line-height: 1.45; }
+.sess-summary .link-btn { font-size: 12px; }

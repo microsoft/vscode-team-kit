@@ -250,12 +250,12 @@ export function forwardToMyWorkChatPrompt(link, text) {
 	].join('\n');
 }
 
-/** Ask the My Work chat what a pinned session is implementing (and which issue, if any). */
-export function describeSessionMessage(link, title) {
+/** Ask the My Work chat what a session is doing (and, for a pinned session, which issue it works on). */
+export function describeSessionMessage(link, title, { pinned = true } = {}) {
 	return [
-		`Describe the session ${q(title)} (${link}) that I added to My Work: read it with get_session_context (detail "digest") and list_sessions.`,
+		`Describe the session ${q(title)} (${link})${pinned ? ' that I added to My Work' : ''}: read it with get_session_context (detail "digest") and list_sessions.`,
 		'Then call the canvas action updateMyWork {"op": "describeSession", "session": "<link>", "summary": "<2-4 short sentences: what it is implementing or investigating, current state (e.g. PR open, tests failing, waiting on me), and the next step>"}.',
-		'If the session clearly works on a GitHub issue, also pass "issue": "owner/repo#N" (only with explicit evidence such as the issue link or number in the conversation) — the panel then shows that issue instead.',
+		pinned ? 'If the session clearly works on a GitHub issue, also pass "issue": "owner/repo#N" (only with explicit evidence such as the issue link or number in the conversation) — the panel then shows that issue instead.' : '',
 		'Do not reply in the panel for this; the summary shows on the session.',
-	].join('\n');
+	].filter(Boolean).join('\n');
 }

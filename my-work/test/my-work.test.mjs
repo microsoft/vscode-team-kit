@@ -294,3 +294,17 @@ test('discussing an issue uses its own chat, and Start session turns that chat i
 		await server.stop();
 	}
 });
+
+test('any session can get a summary from the My Work chat', async () => {
+	const { TriageRuntime } = await import(new URL('lib/runtime.mjs', ext));
+	const runtime = new TriageRuntime({ log: () => { }, sendToChat: async () => { } });
+	const link = 'agent-host-session://ahp-session/eeeeeeee-1111-2222-3333-444444444444';
+	await runtime.invoke('x', 'updateMyWork', { op: 'describeSession', session: link, summary: 'Fixing the crash; PR open, waiting on review.' });
+	const s = (await workSessions.getSessionSummaries())['eeeeeeee-1111-2222-3333-444444444444'];
+	assert.equal(s.summary, 'Fixing the crash; PR open, waiting on review.', 'an unpinned session keeps its summary');
+	assert.ok(s.at);
+	const msg = prompts.describeSessionMessage(link, 'Fix #1', { pinned: false });
+	assert.doesNotMatch(msg, /that I added to My Work/);
+	assert.doesNotMatch(msg, /"issue": "owner\/repo#N"/, 'only pinned sessions are swapped for their issue');
+	assert.match(prompts.describeSessionMessage(link, 'Fix #1'), /"issue": "owner\/repo#N"/);
+});
