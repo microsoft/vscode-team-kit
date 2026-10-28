@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.4 (2026-10-28)
+
+- Browse issues & PRs: describe a search in the filter box and press Enter ("created by alexdima"). The chat turns it into a GitHub query, resolving names with your memory, and the panel runs it live and shows the query to edit. GitHub search syntax runs directly; typing without Enter still filters the loaded rows.
+
 ## 1.0.3 (2026-10-28)
 
 - Develop locally: set `devSource` in `my-work.config.json` to a my-work checkout and the installed panel runs that checkout's code, assets and scripts, titled "My Work (dev)". Asset edits reload the open panel.

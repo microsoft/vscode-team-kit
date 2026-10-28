@@ -1,4 +1,4 @@
-import { getMyWork } from './work.mjs';
+import { getMyWork, scopeQuery } from './work.mjs';
 import { listMsrcItems, saveMsrcItem, parseIncident } from './msrcItems.mjs';
 import { listPinned, pinSession, unpinSessions, parseSessionRef, getMyWorkChat, setMyWorkChat, MY_WORK_DIR, setSessionBucket, setSessionSummary, pinIssue, setIssueBucket } from './workSessions.mjs';
 import { watch as fsWatch, mkdirSync } from 'node:fs';
@@ -49,6 +49,20 @@ export const actionDefinitions = [
 		inputSchema: {
 			type: 'object',
 			properties: { since: { type: 'string', description: 'ISO timestamp; defaults to start of today' } },
+			additionalProperties: false,
+		},
+	},
+	{
+		name: 'setBrowseQuery',
+		description: 'Run a GitHub search query in the panel\'s Browse view (answer to a "turn my Browse search into a GitHub issue search query" panel request). The panel shows the query so the user can edit it.',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				text: { type: 'string', maxLength: 300, description: 'The user\'s original words' },
+				query: { type: 'string', minLength: 1, maxLength: 400, description: 'GitHub issue search query, e.g. "org:microsoft is:open author:alexdima"' },
+				note: { type: 'string', maxLength: 300, description: 'Optional: how names were resolved, or what was guessed' },
+			},
+			required: ['query'],
 			additionalProperties: false,
 		},
 	},
@@ -322,6 +336,12 @@ export class TriageRuntime {
 			case 'focus':
 				this.instance(instanceId).server.setFocus({ kind: input.kind, id: input.id });
 				return { focused: input };
+			case 'setBrowseQuery': {
+				const query = scopeQuery(input.query);
+				const payload = { query, text: String(input.text || '').slice(0, 300), note: String(input.note || '').slice(0, 300) };
+				for (const inst of this.instances.values()) inst.server.push('browse-query', payload);
+				return { query, shown: this.instances.size > 0 };
+			}
 			case 'getSummary':
 				return summarize(await data.getState());
 			case 'getConfig':

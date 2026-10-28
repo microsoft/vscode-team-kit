@@ -6,9 +6,9 @@ import path from 'node:path';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import * as data from './data.mjs';
-import { spawnJudgeRequest, implementPrompt, issueMessagePrompt, notificationIssueActionPrompt, notificationTriagePrompt, issueRulesPrompt, workSessionPrompt, msrcItemSessionPrompt, createMyWorkChatPrompt, forwardToMyWorkChatPrompt, describeSessionMessage } from './prompts.mjs';
+import { spawnJudgeRequest, implementPrompt, issueMessagePrompt, notificationIssueActionPrompt, notificationTriagePrompt, issueRulesPrompt, browseQueryPrompt, workSessionPrompt, msrcItemSessionPrompt, createMyWorkChatPrompt, forwardToMyWorkChatPrompt, describeSessionMessage } from './prompts.mjs';
 import { getVsCodeTheme, watchVsCodeTheme } from './vscodeTheme.mjs';
-import { getMyWork, moveToMilestone, issueDetails, closingIssues, workSource } from './work.mjs';
+import { getMyWork, moveToMilestone, issueDetails, closingIssues, workSource, myLogin } from './work.mjs';
 import { config } from './config.mjs';
 import { listMsrcItems, saveMsrcItem, removeMsrcItem, getMsrcItem, parseIncident, INCIDENT_RE } from './msrcItems.mjs';
 import { sessionsFor, sessionsMentioning, sessionsById, recentSessions, issueCandidates, sessionTranscript } from './sessions.mjs';
@@ -268,7 +268,8 @@ export class TriageServer {
 				if (!area?.labels?.length) throw bad('unknown area');
 				labels = area.labels;
 			}
-			this.json(res, 200, { source, items: await workSource(source, { labels }) });
+			const query = source === 'query' ? String(url.searchParams.get('q') || '') : '';
+			this.json(res, 200, { source, items: await workSource(source, { labels, query }) });
 			return;
 		}
 		if (route === 'GET /api/session-info') {
@@ -407,6 +408,14 @@ export class TriageServer {
 				// Respond directly: reading the clipboard changes nothing, so no 'changed' push (it would re-render the panel).
 				this.json(res, 200, { text: process.platform === 'win32' ? text.replace(/\r?\n$/, '') : text });
 				return;
+			}
+			case '/api/browse-ask': {
+				if (!this.sendToChat) throw Object.assign(new Error('This canvas is not attached to a chat'), { status: 409 });
+				const text = String(body.text ?? '').replace(/\s+/g, ' ').trim();
+				if (!text || text.length > 300) throw bad('text must be 1-300 characters');
+				await this.sendToChat(browseQueryPrompt({ text, org: config().org, me: await myLogin() }));
+				result = { sent: true };
+				break;
 			}
 			case '/api/issue-rules': {
 				if (!this.sendToChat) throw Object.assign(new Error('This canvas is not attached to a chat'), { status: 409 });

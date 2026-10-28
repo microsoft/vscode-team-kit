@@ -36,7 +36,7 @@ export async function planMilestones() {
 }
 
 let login;
-async function myLogin() {
+export async function myLogin() {
 	login ??= gh(['api', 'user', '--jq', '.login']).then(s => s.trim()).catch(e => { login = undefined; throw e; });
 	return login;
 }
@@ -128,10 +128,17 @@ export async function closingIssues(prUrl) {
 
 // "Find work" sources for My Work: live GitHub searches across the configured org.
 const sourceCache = new Map(); // query -> { at, items }
-export async function workSource(source, { labels = [] } = {}) {
+/** A free-form Browse query, scoped to the configured org unless it names its own org, repo or user. */
+export function scopeQuery(query) {
+	const text = String(query ?? '').replace(/\s+/g, ' ').trim();
+	if (!text || text.length > 400) throw Object.assign(new Error('query must be 1-400 characters'), { status: 400 });
+	return /(^|\s)-?(org|repo|user):/i.test(text) ? text : `org:${config().org} ${text}`;
+}
+export async function workSource(source, { labels = [], query = '' } = {}) {
 	const me = await myLogin();
 	const base = `org:${config().org} is:open archived:false`;
-	const q = source === 'bugs' ? `${base} is:issue assignee:${me} label:bug`
+	const q = source === 'query' ? scopeQuery(query)
+		: source === 'bugs' ? `${base} is:issue assignee:${me} label:bug`
 		: source === 'features' ? `${base} is:issue assignee:${me} label:feature-request`
 			: source === 'mine' ? `${base} is:issue assignee:${me}`
 				: source === 'reviews' ? `${base} is:pr user-review-requested:${me}`
