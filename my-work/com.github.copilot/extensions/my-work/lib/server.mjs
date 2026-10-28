@@ -12,7 +12,7 @@ import { getMyWork, moveToMilestone, issueDetails, closingIssues, workSource, so
 import { config } from './config.mjs';
 import { listMsrcItems, saveMsrcItem, removeMsrcItem, getMsrcItem, parseIncident, INCIDENT_RE } from './msrcItems.mjs';
 import { sessionsFor, sessionsMentioning, sessionsById, recentSessions, issueCandidates, sessionTranscript } from './sessions.mjs';
-import { listPinned, pinSession, unpinSessions, parseSessionRef, getMyWorkChat, getHiddenSessions, setSessionHidden, setSessionBucket, BUCKETS, listPinnedIssues, pinIssue, setIssueBucket, unpinIssues, markSummaryRequested, getIssueChat } from './workSessions.mjs';
+import { listPinned, pinSession, unpinSessions, parseSessionRef, getMyWorkChat, getHiddenSessions, setSessionHidden, setSessionBucket, BUCKETS, listPinnedIssues, pinIssue, setIssueBucket, unpinIssues, markSummaryRequested, getIssueChat, setIssueChat, setMyWorkChat } from './workSessions.mjs';
 
 const ASSETS = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'assets');
 // Scripts, styles and data come only from this server; images and videos only from GitHub's own hosts
@@ -645,11 +645,15 @@ export class TriageServer {
 				const text = typeof body.text === 'string' ? body.text.trim() : '';
 				if (!text || text.length > 4000) throw bad('message must be 1-4000 characters');
 				if (!this.sendToChat) throw Object.assign(new Error('This canvas is not attached to a chat'), { status: 409 });
+				// fresh: the previous chat never answered, so forget it and resend (the message is already in the thread).
+				const fresh = body.fresh === true;
 				if (body.key === 'my-work') {
+					if (fresh) await setMyWorkChat(null);
 					await this.sendToMyWorkChat(text);
-					result = { key: body.key, entries: await data.appendThread(body.key, 'user', text) };
+					result = { key: body.key, entries: fresh ? await data.getThread(body.key) : await data.appendThread(body.key, 'user', text) };
 					break;
 				}
+				if (fresh) await setIssueChat(body.key, null);
 				const [owner, rest] = body.key.split('/');
 				const [repo, number] = rest.split('#');
 				const title = typeof body.title === 'string' ? body.title.slice(0, 300) : '';
@@ -657,7 +661,7 @@ export class TriageServer {
 				await this.sendToChat(chat
 					? forwardToIssueChatPrompt({ link: chat.link, key: body.key, text })
 					: createIssueChatPrompt({ key: body.key, url: `https://github.com/${owner}/${repo}/issues/${number}`, title, text }));
-				result = { key: body.key, entries: await data.appendThread(body.key, 'user', text) };
+				result = { key: body.key, entries: fresh ? await data.getThread(body.key) : await data.appendThread(body.key, 'user', text) };
 				break;
 			}
 			case '/api/cancel-opinion':

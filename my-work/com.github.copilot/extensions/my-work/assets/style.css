@@ -817,3 +817,5 @@ html.narrow .title-sub { gap: 8px; }
 .index-banner > span:not(.index-bar) { flex: 1 1 200px; }
 .index-bar { flex: 1 1 100%; height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
 .index-bar > span { display: block; height: 100%; background: var(--accent); transition: width .3s; }
+.waiting.stalled { color: var(--warn, var(--fg)); }
+.waiting.stalled .link-btn { margin-left: 4px; }

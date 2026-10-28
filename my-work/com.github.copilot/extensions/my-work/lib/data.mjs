@@ -301,6 +301,11 @@ export async function getThreads() {
 	return out;
 }
 
+export async function getThread(key) {
+	const value = await readJsonFile(threadFile(key)).catch(() => undefined);
+	return value?.format === THREAD_FORMAT && Array.isArray(value.entries) ? value.entries : [];
+}
+
 export async function appendThread(key, role, text, choices) {
 	const file = threadFile(key);
 	const current = await readJsonFile(file);
