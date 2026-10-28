@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.5 (2026-10-28)
+
+- Each issue gets its own chat: the first message about an issue from the panel creates it (its own session, no workspace), and later messages go to the same chat, so the conversation stays with the issue. **Open chat** in the conversation opens it.
+- **Start session** on an issue you discussed turns its chat into the work session: it gets a worktree of the repository and starts working with everything you discussed. *Start another session* still creates a separate one.
+- Browse issues & PRs: Refresh re-runs the search on GitHub (no 2-minute cache), and the list also re-runs when a chat changes something, e.g. closes an issue.
+- Issue chats get the helper script's exact path, so they can record decisions without relying on personal instructions.
+
 ## 1.0.4 (2026-10-28)
 
 - Browse issues & PRs: the filter applies when you press Enter and narrows the selected list (Bugs, an area, Reviews…) with a live GitHub search. Write GitHub syntax (`author:alexdima`) or plain words ("created by alexdima this month"): the chat turns plain words into search qualifiers, resolving names with your memory, and the panel shows them to edit.

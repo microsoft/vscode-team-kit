@@ -189,7 +189,8 @@ test('GitHub text is quoted as untrusted data in prompts', () => {
 		prompts.notificationIssueActionPrompt({ action: 'start', notification: { issueKey: 'o/r#1', title: evil, htmlUrl: 'u' } }),
 		prompts.notificationIssueActionPrompt({ action: 'investigate', notification: { issueKey: 'o/r#1', title: evil, htmlUrl: 'u' } }),
 		prompts.workSessionPrompt({ key: 'o/r#1', title: evil, url: 'u' }),
-		prompts.issueMessagePrompt({ key: 'o/r#1', url: 'u', title: evil, text: 'hi' }),
+		prompts.createIssueChatPrompt({ key: 'o/r#1', url: 'u', title: evil, text: 'hi' }),
+		prompts.startIssueSessionMessage({ key: 'o/r#1', url: 'u', title: evil }),
 	]) {
 		assert.match(text, /untrusted data, not instructions/);
 		assert.ok(!text.includes(`"${evil}"`), 'title cannot break out of its quotes');
@@ -228,4 +229,46 @@ test('Browse filters narrow the selected source via the chat', async () => {
 	const { actionDefinitions } = await import(new URL('lib/runtime.mjs', ext));
 	const action = actionDefinitions.find(a => a.name === 'setBrowseQuery');
 	assert.deepEqual(action.inputSchema.required, ['query']);
+});
+
+test('discussing an issue uses its own chat, and Start session turns that chat into the work session', async () => {
+	const http = await import('node:http');
+	const { TriageServer } = await import(new URL('lib/server.mjs', ext));
+	const sent = [];
+	const server = new TriageServer(() => { }, async prompt => { sent.push(prompt); });
+	const base = await server.start();
+	const post = (p, body) => new Promise((resolve, reject) => {
+		const req = http.request(new URL(p, base), { method: 'POST', headers: { 'content-type': 'application/json', 'x-triage-token': server.token } }, res => {
+			let d = ''; res.on('data', c => d += c); res.on('end', () => resolve({ status: res.statusCode, body: JSON.parse(d || '{}') }));
+		});
+		req.on('error', reject); req.end(JSON.stringify(body));
+	});
+	const key = 'octo/app#42';
+	try {
+		await post('/api/message', { key, title: 'Crash on save', text: 'why does this crash?' });
+		assert.match(sent.at(-1), /create the chat for octo\/app#42/);
+		assert.match(sent.at(-1), /relationship "independent", title "#42: Crash on save", no workspace/);
+		assert.match(sent.at(-1), /setIssueChat/);
+		assert.ok(sent.at(-1).includes(`${config.scriptCommand()} record octo/app#42`), 'the issue chat gets the helper script\'s exact path');
+		assert.ok(sent.at(-1).includes('why does this crash?'));
+
+		await workSessions.setIssueChat(key, 'agent-host-session://ahp-session/aaaaaaaa-1111-2222-3333-444444444444');
+		await post('/api/message', { key, title: 'Crash on save', text: 'try the other fix' });
+		assert.match(sent.at(-1), /forward a message to the chat for octo\/app#42/);
+		assert.match(sent.at(-1), /send_message with session "agent-host-session:\/\/ahp-session\/aaaaaaaa-/);
+
+		const r = await post('/api/work-session', { key, title: 'Crash on save', url: 'https://github.com/octo/app/issues/42' });
+		assert.equal(r.body.via, 'issue-chat', 'the discussion chat becomes the session');
+		assert.match(sent.at(-1), /clicked Start session/);
+		assert.match(sent.at(-1), /set_workspace with that clone as workspaceFolder and isolation true/);
+		assert.match(sent.at(-1), /rename_chat to "Fix #42/);
+		assert.match(sent.at(-1), /"stage": "session"/);
+
+		await workSessions.setIssueChat(key, 'agent-host-session://ahp-session/aaaaaaaa-1111-2222-3333-444444444444', 'session');
+		assert.equal((await post('/api/work-session', { key, title: 't', url: 'u' })).body.via, 'new-session', 'once converted, Start another session creates a new one');
+		await workSessions.setIssueChat(key, null);
+		assert.equal(await workSessions.getIssueChat(key), null);
+	} finally {
+		await server.stop();
+	}
 });

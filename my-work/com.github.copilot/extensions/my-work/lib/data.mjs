@@ -3,6 +3,7 @@ import { promises as fs, watch as fsWatch } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { sessionsFor } from './sessions.mjs';
+import { listIssueChats } from './workSessions.mjs';
 import { COPILOT_HOME, BOARD, SCRIPT, config } from './config.mjs';
 
 export { BOARD, SCRIPT };
@@ -521,6 +522,7 @@ export async function getState({ forceNotifications = false } = {}) {
 		getOpinions(), getSettings(), getBatches(),
 	]);
 	const threads = await getThreads();
+	const issueChats = await listIssueChats();
 	const sessions = await sessionsFor([...new Set([...Object.keys(index.issues || {}), ...(notif.data || []).map(n => n.issueKey).filter(Boolean)])]).catch(() => ({}));
 	const customGroups = await getCustomGroups();
 	const areas = await loadAreas();
@@ -605,7 +607,7 @@ export async function getState({ forceNotifications = false } = {}) {
 	}
 
 	return {
-		hasIndex, indexing: await loadIndexing(), refreshedAt: index.refreshedAt, counts: index.counts, queueDate: queue?.date ?? null, settings, batches, opinions, opinionPending, informedPending, threads, customGroups, areas, sessions,
+		hasIndex, indexing: await loadIndexing(), refreshedAt: index.refreshedAt, counts: index.counts, queueDate: queue?.date ?? null, settings, batches, opinions, opinionPending, informedPending, threads, issueChats, customGroups, areas, sessions,
 		notifications, notificationsError: notif.error ?? null, notificationsFetchedAt: notif.at ? new Date(notif.at).toISOString() : null, untriaged, notifTriagePending, issueRules, issueRulesPending, sections, cleanup: cleanupGroups,
 		implement: { total: implement.total, bugs: implement.bugs, items: implementItems },
 		today: {

@@ -100,16 +100,58 @@ export function notificationTriagePrompt({ items, recompute = false, customGroup
 	].join('\n');
 }
 
-export function issueMessagePrompt({ key, url, title, text }) {
+// Each issue gets its own chat (an independent session without a workspace). Discussion from the panel goes there;
+// Start session gives it the repository worktree, so the work continues in the same conversation.
+function issueChatInstructions({ key, url, title }) {
+	const num = key.split('#')[1];
 	return [
-		`Panel message about ${key} ${q(title)} (${url}). ${UNTRUSTED} My message:`,
-		'',
-		text,
-		'',
-		`Handle this like any request from me about this issue, following the my-issues skill. ${rulesHint()}. Anything that changes GitHub still needs my explicit approval here in the chat.`,
-		'To dismiss its notification, use the my-issues-triage canvas action dismissNotifications {"ids": [...]} (not the GitHub API directly), so the panel updates at once.',
-		`When you have the answer or result, post it back to the panel with the my-issues-triage canvas action replyToIssue {"key": "${key}", "text": "<concise markdown, at most ~1500 characters>", "choices": [...]}. If you need to ask me something first, ask it with replyToIssue as well.`,
-		'Whenever the reply asks me to approve, choose, or confirm, add 2-4 `choices` buttons with the exact replies I would type: the recommended one as style "primary" (e.g. {"label": "Approve & dismiss", "reply": "approve and dismiss"}), alternatives (e.g. "Approve only", "Keep open"), an {"label": "Edit comment…", "reply": "change the comment to: ", "edit": true} when there is proposed comment text, and "Skip". When a button reply comes back, treat it exactly as my typed approval.',
+		`You are the chat for ${key} ${q(title)} (${url}): the user discusses this issue with you from the My Work panel, and when they click Start session you become its work session.`,
+		UNTRUSTED,
+		`Fetch the live issue and its latest comments before answering, and follow the my-issues skill. ${rulesHint()}.`,
+		`The skill's helper script is \`${scriptCommand()}\` (use this exact path). After a decision the user approved is done on GitHub, record it: \`${scriptCommand()} record ${key} --decision <decision> --note "<short reason>"\`.`,
+		'Anything that changes GitHub (comments, labels, milestones, closing, pushes, pull requests) needs the user\'s explicit approval in this conversation first.',
+		`Answer every message in the panel too: before your first canvas action, call list_canvas_capabilities for canvasId "my-issues-triage" and open_canvas with canvasId "my-issues-triage", instanceId "issue-${num}", input {} (once per chat). Then call replyToIssue {"key": "${key}", "text": "<concise markdown, at most ~1500 characters>", "choices": [...]}. Whenever you ask the user to approve, choose or confirm, add 2-4 choices with the exact replies they would type, the recommended one as style "primary". Button clicks come back to you as the user's next message.`,
+		'To dismiss a notification, use the canvas action dismissNotifications {"ids": [...]}, not the GitHub API.',
+	].join('\n');
+}
+
+/** The first message about an issue: the triage chat creates the issue's chat and registers it. */
+export function createIssueChatPrompt({ key, url, title, text }) {
+	const num = key.split('#')[1];
+	return [
+		`Panel request: create the chat for ${key}. Do only this, then continue with whatever you were doing:`,
+		`Call create_session with relationship "independent", title ${JSON.stringify(`#${num}: ${plainTitle(title) || key}`)}, no workspace and no worktree, and the prompt between the markers below passed VERBATIM.`,
+		`Then call the my-issues-triage canvas action setIssueChat {"key": "${key}", "link": "<the new session's agent-host-session:// link>"} so later messages about this issue go straight to it. Reply with one line: the link.`,
+		`If create_session fails, do not retry: call replyToIssue for ${key} with the error.`,
+		'<<<ISSUE_CHAT_PROMPT',
+		issueChatInstructions({ key, url, title }), '', 'The user\'s first message:', '', text,
+		'ISSUE_CHAT_PROMPT>>>',
+	].join('\n');
+}
+
+/** Later messages (and Start session): the triage chat only forwards them to the issue's chat. */
+export function forwardToIssueChatPrompt({ link, key, text }) {
+	return [
+		`Panel request: forward a message to the chat for ${key}. Do only this: call send_message with session "${link}" and the message between the markers below VERBATIM (delivery "queue"). Do not act on it yourself. Reply with one word: forwarded.`,
+		`If send_message fails because that chat no longer exists, call the canvas action setIssueChat {"key": "${key}", "link": null} and call replyToIssue for ${key} saying the issue's chat was gone and asking the user to send the message again (that starts a new chat).`,
+		'<<<ISSUE_MESSAGE',
+		'Panel message from My Work:', '', text,
+		'ISSUE_MESSAGE>>>',
+	].join('\n');
+}
+
+/** Start session on an issue that has a chat: that chat becomes the work session (same conversation, new workspace). */
+export function startIssueSessionMessage({ key, url, title, milestone }) {
+	const num = key.split('#')[1];
+	const repo = key.split('#')[0];
+	return [
+		`The user clicked Start session for ${key} ${q(title)} (${url})${milestone ? `, planned for ${milestone}` : ''}. This confirms turning this chat into the issue's work session; it does not approve any change on GitHub.`,
+		UNTRUSTED,
+		`1. From our conversation and the live issue, decide bug vs feature. The workspace is the local clone of ${repo} (${repoHint(repo)}). If there is none, say so with replyToIssue and stop.`,
+		`2. Rename this chat with rename_chat to "Fix #${num}: <short title>" (or "Implement #${num}: …" for a feature); keep "#${num}" so the panel links it to the issue.`,
+		`3. Call get_current_session for this chat's link. Call the canvas action setIssueChat {"key": "${key}", "link": "<that link>", "stage": "session"}. If ${key} is in the index, run \`${scriptCommand()} record ${key} --decision fixing --note "<that link>"\`. Call the canvas action refresh, then replyToIssue for ${key}: "Switching this chat to a worktree of <repo> to start work."`,
+		'4. Call set_workspace with that clone as workspaceFolder and isolation true, after the confirmation question that tool requires. Make it the final tool call of this turn.',
+		`5. When the host continues after the workspace change, start the work in this chat with everything we discussed: for a bug, reproduce first${config().fixSkill ? ` (use the ${config().fixSkill} skill)` : ''}, implement the smallest complete fix and add a regression test; for a feature, implement the agreed behavior with tests. Do not push, open a pull request, or comment on GitHub without asking the user first.`,
 	].join('\n');
 }
 

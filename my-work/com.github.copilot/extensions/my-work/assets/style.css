@@ -296,6 +296,7 @@ body.resizing { cursor: ns-resize; user-select: none; }
 .dock-head { display: flex; align-items: center; gap: 4px; width: 100%; border: none; background: none; padding: 0 0 8px; cursor: pointer; font-size: 12px; font-weight: 600; color: var(--fg); text-align: left; }
 .dock-head .codicon { font-size: 14px; transition: transform .15s; transform: rotate(90deg); vertical-align: 0; }
 .thread.collapsed .dock-head { padding-bottom: 8px; }
+.thread-chat { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; margin: 0 0 8px; }
 .thread.collapsed .dock-head .codicon { transform: rotate(0deg); }
 .thread.collapsed .bubbles { display: none; }
 .thread.collapsed .dock-resize { display: none; }
