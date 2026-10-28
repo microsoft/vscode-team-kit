@@ -141,7 +141,7 @@
       "name": "my-work",
       "source": "./my-work/",
       "description": "Plan and run your day in one canvas: current and next milestone, your own priorities, linked Agents window sessions, GitHub notifications and Sweeper-assisted issue cleanup.",
-      "version": "1.0.4",
+      "version": "1.0.5",
       "categories": ["workflow"],
       "status": "experimental",
       "maintainers": ["sandy081"],

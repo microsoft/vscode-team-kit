@@ -599,8 +599,14 @@ function sessionsHtml(list, heading = 'Sessions') {
 	</li>`).join('');
 	return `<section class="linked dcard sess-card"><div class="linked-head"><span class="section-label">${esc(heading)} · ${list.length}</span></div><ul class="sess-list">${rows}</ul></section>`;
 }
+// The issue's own chat (where the panel's messages about it go); stage "session" once it became the work session.
+function issueChat(key) {
+	return ui.state?.issueChats?.[key] || null;
+}
 function liveSession(key) {
-	return sessionsOf(key).find(s => !s.archived) || null;
+	const chat = issueChat(key);
+	const discussId = chat?.stage === 'discuss' ? chat.link.split('/').pop() : null;
+	return sessionsOf(key).find(s => !s.archived && s.id !== discussId) || null;
 }
 function inMyWork(key) {
 	const d = ui.work?.data;
@@ -1350,14 +1356,16 @@ function threadHtml(key, title) {
 		${e === last ? choices : ''}
 	</div>`).join('');
 	const count = entries.length ? `${entries.length} message${entries.length > 1 ? 's' : ''}` : 'No messages yet';
+	const chat = issueChat(key);
+	const openChat = chat ? `<button type="button" class="link-btn thread-chat" data-act="open-session" data-link="${esc(chat.link)}" title="${chat.stage === 'session' ? 'Open the work session for this issue (it holds this conversation)' : 'Open this issue\'s chat in the Agents window'}"><i class="codicon codicon-comment-discussion" aria-hidden="true"></i>${chat.stage === 'session' ? 'Open session' : 'Open chat'}</button>` : '';
 	return `<section class="thread${collapsed ? ' collapsed' : ''}" aria-label="Ask the chat about ${esc(shortKey(key))}">
 		${entries.length ? `<div class="dock-resize" role="separator" aria-orientation="horizontal" aria-label="Resize conversation" tabindex="0" title="Drag to resize"></div>` : ''}
 		${entries.length ? `<button type="button" class="dock-head" data-act="toggle-chat" aria-expanded="${!collapsed}">
 			<i class="codicon codicon-chevron-right" aria-hidden="true"></i><span>Conversation</span><span class="cd">· ${count}${waiting ? ' · waiting for reply' : ''}</span>
-		</button>` : ''}
+		</button>` : ''}${openChat}
 		${entries.length ? `<div class="bubbles" tabindex="0" aria-label="Conversation with the chat" style="height:${height}px">${bubbles}${waiting ? '<div class="cd waiting"><i class="codicon codicon-loading" aria-hidden="true"></i> Waiting for the chat…</div>' : ''}</div>` : ''}
 		<form class="composer" data-key="${esc(key)}" data-title="${esc(title || '')}">
-			<textarea class="ask-input" rows="1" aria-label="Message to the chat about this issue" placeholder="Ask the chat about ${esc(shortKey(key))}…" title="Enter to send · Shift+Enter for a new line"></textarea>
+			<textarea class="ask-input" rows="1" aria-label="Message to the chat about this issue" placeholder="${chat ? `Message the ${esc(shortKey(key))} chat…` : `Discuss ${esc(shortKey(key))} (starts its own chat)…`}" title="Enter to send · Shift+Enter for a new line"></textarea>
 			<button type="submit" class="send" aria-label="Send" title="Send (Enter)"><i class="codicon codicon-send" aria-hidden="true"></i></button>
 		</form>
 	</section>`;
@@ -1483,7 +1491,7 @@ async function renderUnindexedInto(el, key, opts = {}) {
 	const meta = `<div class="meta"><a class="num-link" href="${esc(safeUrl(url))}" target="_blank" rel="noopener">${esc(shortKey(key))}</a><span class="sep">·</span><span>${g?.isPr ? 'Pull request' : 'Issue'}</span><span class="sep">·</span><span class="cd">not in your issue index</span></div>`;
 	const live = liveSession(key);
 	const primary = opts.work ? (live ? { act: 'open-session', link: live.link, label: 'Open session', icon: 'comment-discussion' } : { act: 'work-session', key, label: 'Start session', icon: 'rocket' }) : null;
-	const menu = opts.work ? [...(live ? [{ act: 'work-session', key, label: 'Start another session' }] : []), ...workMenu(key, opts)] : [];
+	const menu = opts.work ? [...(live ? [{ act: 'work-session-new', key, label: 'Start another session' }] : []), ...workMenu(key, opts)] : [];
 	el.innerHTML = `<div class="detail-head">${titleBarHtml({ title: g?.title || key, url, meta, primary, menu })}</div>
 		<div class="detail-body">${recoSlot(key)}${sessionsHtml(sessionsOf(key))}${ghSlot(key)}</div>
 		<div class="footer">${threadHtml(key, g?.title || '')}</div>`;
@@ -1574,7 +1582,7 @@ async function renderIssueInto(el, key, fetchDetail, nested, silent = false, opt
 		// My Work: the work session is the main action; planning moves are in the menu.
 		const live = liveSession(key);
 		primary = live ? { act: 'open-session', link: live.link, label: 'Open session', icon: 'comment-discussion' } : { act: 'work-session', key, label: 'Start session', icon: 'rocket' };
-		menu = [...(live ? [{ act: 'work-session', key, label: 'Start another session' }] : []), ...workMenu(key, opts)];
+		menu = [...(live ? [{ act: 'work-session-new', key, label: 'Start another session' }] : []), ...workMenu(key, opts)];
 	} else if (!nested && ui.work?.data) {
 		menu = [...menu, ...planMenu(key, sel.detail?.milestone)];
 	}
@@ -1986,11 +1994,11 @@ async function act(button) {
 			await api('/api/open-session', { link: button.dataset.link });
 			msg = 'Opening the session in the Agents window';
 			move = false;
-		} else if (act === 'work-session') {
+		} else if (act === 'work-session' || act === 'work-session-new') {
 			const w = ui.work?.data?.milestones.flatMap(m => m.items.map(i => ({ ...i, milestone: m.title }))).find(i => i.key === key);
 			const d = ui.selected?.detail?.issue?.key === key ? ui.selected.detail.issue : null;
-			await api('/api/work-session', { key, title: w?.title || d?.title || ui.gh?.[key]?.data?.title || '', url: w?.url || d?.url || `https://github.com/${key.split('#')[0]}/issues/${key.split('#')[1]}`, milestone: w?.milestone || '' });
-			msg = `Asked the chat to start a session for ${shortKey(key)}`;
+			const r = await api('/api/work-session', { key, another: act === 'work-session-new', title: w?.title || d?.title || ui.gh?.[key]?.data?.title || '', url: w?.url || d?.url || `https://github.com/${key.split('#')[0]}/issues/${key.split('#')[1]}`, milestone: w?.milestone || '' });
+			msg = r.via === 'issue-chat' ? `Starting work in the ${shortKey(key)} chat: confirm the workspace there` : `Asked the chat to start a session for ${shortKey(key)}`;
 			move = false;
 		} else if (act === 'sess-move') {
 			await api('/api/work-pin', { op: 'move', id: key, bucket: button.dataset.milestone, ...(button.dataset.milestone === 'priorities' ? { to: 'top' } : {}) });

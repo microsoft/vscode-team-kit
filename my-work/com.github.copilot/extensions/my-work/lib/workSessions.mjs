@@ -126,6 +126,29 @@ export async function setMyWorkChat(link) {
 	await fs.rename(tmp, CHAT_FILE);
 }
 
+// Each issue's own chat: where its discussion happens and, after Start session, its work session.
+const ISSUE_CHATS_FILE = path.join(MY_WORK_DIR, 'issue-chats.json');
+export async function listIssueChats() {
+	try {
+		const d = JSON.parse(await fs.readFile(ISSUE_CHATS_FILE, 'utf8'));
+		return d?.format === 'my-work/issue-chats' && d.chats && typeof d.chats === 'object' ? d.chats : {};
+	} catch { return {}; }
+}
+export async function getIssueChat(key) {
+	return (await listIssueChats())[key] ?? null;
+}
+/** Register (or with link null, forget) an issue's chat; stage "session" once Start session turned it into the work session. */
+export async function setIssueChat(key, link, stage = 'discuss') {
+	const chats = await listIssueChats();
+	if (link) chats[key] = { link, stage, at: new Date().toISOString() };
+	else delete chats[key];
+	await fs.mkdir(MY_WORK_DIR, { recursive: true, mode: 0o700 });
+	const tmp = path.join(MY_WORK_DIR, `.tmp-${process.pid}-${randomUUID()}.json`);
+	await fs.writeFile(tmp, JSON.stringify({ format: 'my-work/issue-chats', version: 1, chats }, null, 2), { mode: 0o600 });
+	await fs.rename(tmp, ISSUE_CHATS_FILE);
+	return chats[key] ?? null;
+}
+
 // Sessions the user hid from the "Active sessions" suggestions (not deleted; just not suggested).
 const HIDDEN_FILE = path.join(MY_WORK_DIR, 'hidden-sessions.json');
 export async function getHiddenSessions() {

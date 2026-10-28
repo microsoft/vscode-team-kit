@@ -1,6 +1,6 @@
 import { getMyWork, cleanRefine } from './work.mjs';
 import { listMsrcItems, saveMsrcItem, parseIncident } from './msrcItems.mjs';
-import { listPinned, pinSession, unpinSessions, parseSessionRef, getMyWorkChat, setMyWorkChat, MY_WORK_DIR, setSessionBucket, setSessionSummary, pinIssue, setIssueBucket } from './workSessions.mjs';
+import { listPinned, pinSession, unpinSessions, parseSessionRef, getMyWorkChat, setMyWorkChat, setIssueChat, MY_WORK_DIR, setSessionBucket, setSessionSummary, pinIssue, setIssueBucket } from './workSessions.mjs';
 import { watch as fsWatch, mkdirSync } from 'node:fs';
 import { sessionsById, recentSessions } from './sessions.mjs';
 import { TriageServer } from './server.mjs';
@@ -157,6 +157,20 @@ export const actionDefinitions = [
 			type: 'object',
 			properties: { link: { type: ['string', 'null'], pattern: '^agent-host-session://', maxLength: 300 } },
 			required: ['link'],
+			additionalProperties: false,
+		},
+	},
+	{
+		name: 'setIssueChat',
+		description: 'Register the chat for an issue (its own session where the panel\'s messages about the issue go), or forget it with link null. Stage "session" once Start session turned that chat into the work session.',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				key: { type: 'string', pattern: '^[\\w.-]+/[\\w.-]+#\\d+$', description: 'Issue key owner/repo#number' },
+				link: { type: ['string', 'null'], pattern: '^agent-host-session://', maxLength: 300 },
+				stage: { type: 'string', enum: ['discuss', 'session'], description: 'discuss (default) or session' },
+			},
+			required: ['key', 'link'],
 			additionalProperties: false,
 		},
 	},
@@ -355,6 +369,11 @@ export class TriageRuntime {
 				await setMyWorkChat(input.link);
 				for (const inst of this.instances.values()) inst.server.push('changed', { by: 'agent', work: true });
 				return { link: input.link };
+			}
+			case 'setIssueChat': {
+				const chat = await setIssueChat(input.key, input.link, input.stage || 'discuss');
+				for (const inst of this.instances.values()) inst.server.push('changed', { by: 'agent', work: true });
+				return { key: input.key, chat };
 			}
 			case 'getMyWork': {
 				const [work, msrcItems, pinned, recent] = await Promise.all([getMyWork(), listMsrcItems(), listPinned(), recentSessions(15)]);

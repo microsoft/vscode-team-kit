@@ -6,13 +6,13 @@ import path from 'node:path';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import * as data from './data.mjs';
-import { spawnJudgeRequest, implementPrompt, issueMessagePrompt, notificationIssueActionPrompt, notificationTriagePrompt, issueRulesPrompt, browseQueryPrompt, workSessionPrompt, msrcItemSessionPrompt, createMyWorkChatPrompt, forwardToMyWorkChatPrompt, describeSessionMessage } from './prompts.mjs';
+import { spawnJudgeRequest, implementPrompt, createIssueChatPrompt, forwardToIssueChatPrompt, startIssueSessionMessage, notificationIssueActionPrompt, notificationTriagePrompt, issueRulesPrompt, browseQueryPrompt, workSessionPrompt, msrcItemSessionPrompt, createMyWorkChatPrompt, forwardToMyWorkChatPrompt, describeSessionMessage } from './prompts.mjs';
 import { getVsCodeTheme, watchVsCodeTheme } from './vscodeTheme.mjs';
 import { getMyWork, moveToMilestone, issueDetails, closingIssues, workSource, sourceQuery, myLogin } from './work.mjs';
 import { config } from './config.mjs';
 import { listMsrcItems, saveMsrcItem, removeMsrcItem, getMsrcItem, parseIncident, INCIDENT_RE } from './msrcItems.mjs';
 import { sessionsFor, sessionsMentioning, sessionsById, recentSessions, issueCandidates, sessionTranscript } from './sessions.mjs';
-import { listPinned, pinSession, unpinSessions, parseSessionRef, getMyWorkChat, getHiddenSessions, setSessionHidden, setSessionBucket, BUCKETS, listPinnedIssues, pinIssue, setIssueBucket, unpinIssues, markSummaryRequested } from './workSessions.mjs';
+import { listPinned, pinSession, unpinSessions, parseSessionRef, getMyWorkChat, getHiddenSessions, setSessionHidden, setSessionBucket, BUCKETS, listPinnedIssues, pinIssue, setIssueBucket, unpinIssues, markSummaryRequested, getIssueChat } from './workSessions.mjs';
 
 const ASSETS = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'assets');
 // Scripts, styles and data come only from this server; images and videos only from GitHub's own hosts
@@ -618,8 +618,16 @@ export class TriageServer {
 			case '/api/work-session': {
 				if (!this.sendToChat) throw Object.assign(new Error('This canvas is not attached to a chat'), { status: 409 });
 				if (!KEY_RE.test(body.key || '')) throw bad('invalid key');
-				await this.sendToChat(workSessionPrompt({ key: body.key, title: String(body.title || '').slice(0, 300), url: String(body.url || ''), milestone: String(body.milestone || '').slice(0, 80) }));
-				result = { sent: true, key: body.key };
+				const issue = { key: body.key, title: String(body.title || '').slice(0, 300), url: String(body.url || ''), milestone: String(body.milestone || '').slice(0, 80) };
+				// The issue's discussion chat becomes the work session; otherwise (or for another session) a new one is created.
+				const chat = body.another ? null : await getIssueChat(body.key);
+				if (chat?.stage === 'discuss') {
+					await this.sendToChat(forwardToIssueChatPrompt({ link: chat.link, key: body.key, text: startIssueSessionMessage(issue) }));
+					result = { sent: true, key: body.key, via: 'issue-chat' };
+				} else {
+					await this.sendToChat(workSessionPrompt(issue));
+					result = { sent: true, key: body.key, via: 'new-session' };
+				}
 				break;
 			}
 			case '/api/open': {
@@ -645,7 +653,10 @@ export class TriageServer {
 				const [owner, rest] = body.key.split('/');
 				const [repo, number] = rest.split('#');
 				const title = typeof body.title === 'string' ? body.title.slice(0, 300) : '';
-				await this.sendToChat(issueMessagePrompt({ key: body.key, url: `https://github.com/${owner}/${repo}/issues/${number}`, title, text }));
+				const chat = await getIssueChat(body.key);
+				await this.sendToChat(chat
+					? forwardToIssueChatPrompt({ link: chat.link, key: body.key, text })
+					: createIssueChatPrompt({ key: body.key, url: `https://github.com/${owner}/${repo}/issues/${number}`, title, text }));
 				result = { key: body.key, entries: await data.appendThread(body.key, 'user', text) };
 				break;
 			}
