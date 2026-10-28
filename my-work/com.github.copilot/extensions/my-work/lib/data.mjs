@@ -301,6 +301,13 @@ export async function getThreads() {
 	return out;
 }
 
+/** The My Work session (the reused daily triage chat registered with mark-chat), if any. */
+export async function myWorkSessionLink() {
+	const chats = await readJsonFile(path.join(BOARD, 'my-triage-chats.json')).catch(() => undefined);
+	const link = chats?.persistentChat?.link;
+	return typeof link === 'string' && link.startsWith('agent-host-session://') ? link : null;
+}
+
 export async function getThread(key) {
 	const value = await readJsonFile(threadFile(key)).catch(() => undefined);
 	return value?.format === THREAD_FORMAT && Array.isArray(value.entries) ? value.entries : [];

@@ -247,7 +247,8 @@ test('discussing an issue uses its own chat, and Start session turns that chat i
 	try {
 		await post('/api/message', { key, title: 'Crash on save', text: 'why does this crash?' });
 		assert.match(sent.at(-1), /create the chat for octo\/app#42/);
-		assert.match(sent.at(-1), /relationship "independent", title "#42: Crash on save", no workspace/);
+		assert.match(sent.at(-1), /title "#42: Crash on save"; omit relationship \(so the chat is nested under this My Work session\)/);
+		assert.doesNotMatch(sent.at(-1), /"independent"/, 'issue chats are nested, not top-level sessions');
 		assert.match(sent.at(-1), /setIssueChat/);
 		assert.ok(sent.at(-1).includes(`${config.scriptCommand()} record octo/app#42`), 'the issue chat gets the helper script\'s exact path');
 		assert.ok(sent.at(-1).includes('why does this crash?'));
@@ -268,6 +269,15 @@ test('discussing an issue uses its own chat, and Start session turns that chat i
 		assert.equal((await post('/api/work-session', { key, title: 't', url: 'u' })).body.via, 'new-session', 'once converted, Start another session creates a new one');
 		await workSessions.setIssueChat(key, null);
 		assert.equal(await workSessions.getIssueChat(key), null);
+
+		// From a panel opened outside the My Work session, the request runs in that session so the chat is nested there.
+		writeFileSync(path.join(board, 'my-triage-chats.json'), JSON.stringify({ schemaVersion: 1, chats: {}, persistentChat: { link: 'agent-host-session://ahp-session/dddddddd-1111-2222-3333-444444444444' } }));
+		await workSessions.setIssueChat(key, null);
+		await post('/api/message', { key: 'octo/app#43', title: 'Other', text: 'hi' });
+		assert.match(sent.at(-1), /run a request in the My Work session \(agent-host-session:\/\/ahp-session\/dddddddd-/);
+		assert.match(sent.at(-1), /get_current_session/);
+		assert.match(sent.at(-1), /create the chat for octo\/app#43/);
+		rmSync(path.join(board, 'my-triage-chats.json'));
 
 		// A chat that never answered: resending forgets it and creates a new one, without repeating the message.
 		await workSessions.setIssueChat(key, 'agent-host-session://ahp-session/bbbbbbbb-1111-2222-3333-444444444444');

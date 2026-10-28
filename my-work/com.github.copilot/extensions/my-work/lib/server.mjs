@@ -6,7 +6,7 @@ import path from 'node:path';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import * as data from './data.mjs';
-import { spawnJudgeRequest, implementPrompt, createIssueChatPrompt, forwardToIssueChatPrompt, startIssueSessionMessage, notificationIssueActionPrompt, notificationTriagePrompt, issueRulesPrompt, browseQueryPrompt, workSessionPrompt, msrcItemSessionPrompt, createMyWorkChatPrompt, forwardToMyWorkChatPrompt, describeSessionMessage } from './prompts.mjs';
+import { spawnJudgeRequest, implementPrompt, createIssueChatPrompt, forwardToIssueChatPrompt, forwardToMyWorkSessionPrompt, startIssueSessionMessage, notificationIssueActionPrompt, notificationTriagePrompt, issueRulesPrompt, browseQueryPrompt, workSessionPrompt, msrcItemSessionPrompt, createMyWorkChatPrompt, forwardToMyWorkChatPrompt, describeSessionMessage } from './prompts.mjs';
 import { getVsCodeTheme, watchVsCodeTheme } from './vscodeTheme.mjs';
 import { getMyWork, moveToMilestone, issueDetails, closingIssues, workSource, sourceQuery, myLogin } from './work.mjs';
 import { config } from './config.mjs';
@@ -185,6 +185,12 @@ export class TriageServer {
 	setFocus(focus) {
 		this.focus = { ...focus, at: Date.now() };
 		this.push('focus', focus);
+	}
+
+	/** Send a request that creates chats: run it in the My Work session so they are nested there, even from a panel opened elsewhere. */
+	async sendToMyWorkSession(request) {
+		const link = await data.myWorkSessionLink();
+		await this.sendToChat(link ? forwardToMyWorkSessionPrompt(link, request) : request);
 	}
 
 	async browseSource(source, areaId) {
@@ -658,9 +664,8 @@ export class TriageServer {
 				const [repo, number] = rest.split('#');
 				const title = typeof body.title === 'string' ? body.title.slice(0, 300) : '';
 				const chat = await getIssueChat(body.key);
-				await this.sendToChat(chat
-					? forwardToIssueChatPrompt({ link: chat.link, key: body.key, text })
-					: createIssueChatPrompt({ key: body.key, url: `https://github.com/${owner}/${repo}/issues/${number}`, title, text }));
+				if (chat) await this.sendToChat(forwardToIssueChatPrompt({ link: chat.link, key: body.key, text }));
+				else await this.sendToMyWorkSession(createIssueChatPrompt({ key: body.key, url: `https://github.com/${owner}/${repo}/issues/${number}`, title, text }));
 				result = { key: body.key, entries: fresh ? await data.getThread(body.key) : await data.appendThread(body.key, 'user', text) };
 				break;
 			}
