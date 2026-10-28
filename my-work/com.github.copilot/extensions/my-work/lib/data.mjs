@@ -618,7 +618,8 @@ export async function getState({ forceNotifications = false } = {}) {
 }
 
 export async function getIssueDetail(key) {
-	const index = await loadIndex();
+	// Without an index yet, every issue is simply "not indexed" and the panel shows it from GitHub.
+	const index = await fs.stat(INDEX_JSON).then(() => loadIndex(), () => ({ issues: {} }));
 	const r = index.issues?.[key];
 	if (!r) {
 		throw Object.assign(new Error(`${key} is not in your issue index`), { code: 'not_found' });

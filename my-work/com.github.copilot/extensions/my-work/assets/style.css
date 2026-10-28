@@ -767,7 +767,10 @@ html.narrow .title-sub { gap: 8px; }
 .find-icon.bug { color: var(--bad, #cf222e); }
 .find-icon.pr { color: var(--accent); }
 .find-main { min-width: 0; }
-.find-title { display: block; color: var(--fg); text-decoration: none; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.find-title { display: block; width: 100%; padding: 0; border: 0; background: none; font: inherit; text-align: left; cursor: pointer; color: var(--fg); text-decoration: none; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.find-title:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+.browse-back { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; margin: 0 0 6px; color: var(--muted); }
+.browse-back:hover { color: var(--accent); }
 .find-title:hover { color: var(--accent); }
 .find-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 11.5px; color: var(--muted); margin-top: 2px; }
 .find-num { font-variant-numeric: tabular-nums; }

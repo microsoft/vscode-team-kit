@@ -338,7 +338,7 @@ function renderAreaBar() {
 	if (ui.tab === 'work') {
 		const src = ui.work;
 		const at = src?.data?.fetchedAt;
-		$('areabar').innerHTML = `${`<button type="button" class="btn sm${ui.selected?.kind === 'worksrc' ? ' on' : ''}" data-find-work aria-pressed="${ui.selected?.kind === 'worksrc'}" aria-controls="detail" title="Browse your bugs, feature requests, feature-area issues and PRs awaiting your review; drag them into a group or use the + buttons"><i class="codicon codicon-search" aria-hidden="true"></i>Browse issues &amp; PRs</button>`}<span class="subtabs-spacer"></span>${`
+		$('areabar').innerHTML = `${`<button type="button" class="btn sm${['worksrc', 'browseitem'].includes(ui.selected?.kind) ? ' on' : ''}" data-find-work aria-pressed="${['worksrc', 'browseitem'].includes(ui.selected?.kind)}" aria-controls="detail" title="Browse your bugs, feature requests, feature-area issues and PRs awaiting your review; drag them into a group or use the + buttons"><i class="codicon codicon-search" aria-hidden="true"></i>Browse issues &amp; PRs</button>`}<span class="subtabs-spacer"></span>${`
 			<button type="button" class="link-btn list-refresh" data-list-refresh><i class="codicon codicon-refresh${ui.refreshing || src?.loading ? ' spin' : ''}" aria-hidden="true"></i>${ui.refreshing || src?.loading ? 'Refreshing…' : at ? `Updated ${esc(agoText(at))}` : 'Refresh'}</button>`}`;
 		return;
 	}
@@ -882,6 +882,7 @@ async function renderDetailInner(fetchDetail, silent = false) {
 	if (sel.kind === 'msrcitem') { renderMsrcItemInto(el, sel.id); return; }
 	if (sel.kind === 'workhome') { renderWorkHomeInto(el); return; }
 	if (sel.kind === 'worksrc') { renderFindWorkInto(el); return; }
+	if (sel.kind === 'browseitem') { await renderBrowseItemInto(el, sel.id, fetchDetail, silent); return; }
 	if (sel.kind === 'pinsess' || sel.kind === 'recentsess') { renderPinnedSessionInto(el, sel.id); return; }
 	if (sel.kind === 'work') {
 		const item = flatItems().find(i => i.kind === 'work' && i.id === sel.id);
@@ -1461,6 +1462,18 @@ function opinionHtml(key) {
 
 // PRs and issues outside the index (e.g. not assigned to you, or filed after the last refresh):
 // title and details come straight from GitHub; the conversation still works.
+// Planning actions for an issue shown from My Work or Browse: local moves, GitHub milestones, untriage.
+function workMenu(key, opts) {
+	const localPin = (ui.work?.data?.pinnedIssues || []).find(p => p.key === key);
+	const here = opts.work.group || (localPin ? localPin.bucket || 'current' : opts.work.milestone?.role);
+	const browseAdds = opts.browse && !inMyWork(key) ? ['current', 'next'].map(b => ({ act: 'issue-move', key, milestone: b, label: `Add to ${groupLabel(b)} (local)` })) : [];
+	const localMoves = localPin || here === 'priorities' ? ['current', 'next'].filter(b => b !== here).map(b => ({ act: 'issue-move', key, milestone: b, label: `Move to ${groupLabel(b)} (local)` })) : [];
+	// Issues planned on GitHub for current/next can go back to untriaged (milestone cleared on GitHub).
+	const planned = !localPin && (here === 'current' || here === 'next') && opts.work.milestone?.title;
+	const unplan = planned ? [{ act: 'move-milestone', key, milestone: 'none', label: `Remove from ${opts.work.milestone.title} (untriaged)` }] : [];
+	return [...browseAdds, ...localMoves, ...planMenu(key, opts.work.milestone?.title), ...unplan, ...(localPin ? [{ act: 'issue-unpin', key, label: 'Remove from My Work' }] : [])];
+}
+
 async function renderUnindexedInto(el, key, opts = {}) {
 	let g = ui.gh?.[key]?.data;
 	if (!g) {
@@ -1470,7 +1483,7 @@ async function renderUnindexedInto(el, key, opts = {}) {
 	const meta = `<div class="meta"><a class="num-link" href="${esc(safeUrl(url))}" target="_blank" rel="noopener">${esc(shortKey(key))}</a><span class="sep">·</span><span>${g?.isPr ? 'Pull request' : 'Issue'}</span><span class="sep">·</span><span class="cd">not in your issue index</span></div>`;
 	const live = liveSession(key);
 	const primary = opts.work ? (live ? { act: 'open-session', link: live.link, label: 'Open session', icon: 'comment-discussion' } : { act: 'work-session', key, label: 'Start session', icon: 'rocket' }) : null;
-	const menu = opts.work ? planMenu(key, opts.work.milestone?.title) : [];
+	const menu = opts.work ? [...(live ? [{ act: 'work-session', key, label: 'Start another session' }] : []), ...workMenu(key, opts)] : [];
 	el.innerHTML = `<div class="detail-head">${titleBarHtml({ title: g?.title || key, url, meta, primary, menu })}</div>
 		<div class="detail-body">${recoSlot(key)}${sessionsHtml(sessionsOf(key))}${ghSlot(key)}</div>
 		<div class="footer">${threadHtml(key, g?.title || '')}</div>`;
@@ -1561,10 +1574,7 @@ async function renderIssueInto(el, key, fetchDetail, nested, silent = false, opt
 		// My Work: the work session is the main action; planning moves are in the menu.
 		const live = liveSession(key);
 		primary = live ? { act: 'open-session', link: live.link, label: 'Open session', icon: 'comment-discussion' } : { act: 'work-session', key, label: 'Start session', icon: 'rocket' };
-		const localPin = (ui.work?.data?.pinnedIssues || []).find(p => p.key === key);
-		const here = opts.work.group || opts.work.milestone?.role;
-		const localMoves = localPin || here === 'priorities' ? ['current', 'next'].filter(b => b !== here).map(b => ({ act: 'issue-move', key, milestone: b, label: `Move to ${groupLabel(b)} (local)` })) : [];
-		menu = [...(live ? [{ act: 'work-session', key, label: 'Start another session' }] : []), ...localMoves, ...planMenu(key, opts.work.milestone?.title), ...(localPin ? [{ act: 'issue-unpin', key, label: 'Remove from My Work' }] : [])];
+		menu = [...(live ? [{ act: 'work-session', key, label: 'Start another session' }] : []), ...workMenu(key, opts)];
 	} else if (!nested && ui.work?.data) {
 		menu = [...menu, ...planMenu(key, sel.detail?.milestone)];
 	}
@@ -1704,14 +1714,14 @@ function renderFindWorkInto(el) {
 			<span class="find-grip" aria-hidden="true">${has ? '' : '<i class="codicon codicon-gripper"></i>'}</span>
 			<i class="codicon codicon-${icon} find-icon${isBug ? ' bug' : i.isPr ? ' pr' : ''}" aria-hidden="true"></i>
 			<div class="find-main">
-				<a href="${esc(safeUrl(i.url))}" target="_blank" rel="noopener" class="find-title" title="${esc(i.title)}">${esc(i.title)}</a>
+				<button type="button" class="find-title" data-browse-open="${esc(i.key)}" title="Open ${esc(shortKey(i.key))} here">${esc(i.title)}</button>
 				<div class="find-meta"><span class="find-num">${esc(shortKey(i.key))}</span>${i.isPr ? `<span>@${esc(i.author)}</span>` : ''}${i.milestone ? `<span>${esc(i.milestone)}</span>` : ''}${chips}<span class="find-age">${esc(ago(i.updatedAt))}</span></div>
 			</div>
 			<div class="find-add">${has ? '<span class="find-in"><i class="codicon codicon-pass-filled" aria-hidden="true"></i>In My Work</span>'
 				: `${add('current', `+ ${cur?.title || 'Current'}`, `Add to ${cur?.title || 'current'} (local)`)}${add('next', 'Next', `Add to ${nxt?.title || 'next'} (local)`)}${add('priorities', 'Priorities', 'Add to the end of My priorities')}`}</div>
 		</li>`;
 	};
-	el.innerHTML = `<div class="detail-head">${titleBarHtml({ title: 'Browse issues & PRs', meta: '<div class="meta"><span class="cd">Live from GitHub (org:microsoft, newest first). Drag a row into a group on the left, or use its buttons. Added locally: GitHub milestones stay unchanged.</span></div>' })}</div>
+	el.innerHTML = `<div class="detail-head">${titleBarHtml({ title: 'Browse issues & PRs', meta: '<div class="meta"><span class="cd">Live from GitHub (org:microsoft, newest first). Click a title to open it here, drag a row into a group on the left, or use its buttons. Added locally: GitHub milestones stay unchanged.</span></div>' })}</div>
 		<div class="detail-body find-view">
 			<div class="find-tools">
 				<div class="seg" role="group" aria-label="Source">${pills}</div>${areaSel}
@@ -1721,6 +1731,16 @@ function renderFindWorkInto(el) {
 				: `<p class="find-count">${items.length}${items.length >= 100 ? '+' : ''} ${src === 'reviews' ? (items.length === 1 ? 'pull request' : 'pull requests') : (items.length === 1 ? 'issue' : 'issues')}${filter ? ' matching' : ''} · ${items.filter(i => inMyWork(i.key)).length} already in My Work</p><ul class="find-list">${items.map(row).join('')}</ul>`}
 		</div>`;
 
+}
+
+// An issue or PR opened from Browse: the normal issue view (discussion, Start session, planning) plus a way back.
+async function renderBrowseItemInto(el, key, fetchDetail, silent) {
+	const item = flatItems().find(i => i.kind === 'work' && i.id === key);
+	const found = (ui.find?.items || []).find(i => i.key === key);
+	await renderIssueInto(el, key, fetchDetail, false, silent, { work: item || { milestone: { title: found?.milestone || null } }, browse: true });
+	if (ui.selected?.kind !== 'browseitem' || ui.selected.id !== key) return;
+	el.querySelector('.detail-head')?.insertAdjacentHTML('afterbegin', '<button type="button" class="link-btn browse-back" data-browse-back><i class="codicon codicon-arrow-left" aria-hidden="true"></i>Back to results</button>');
+	hydrateGitHub();
 }
 
 // The My Work chat, docked at the bottom of the My Work list. Messages go to the nested "My Work chat".
@@ -1996,7 +2016,14 @@ async function act(button) {
 		} else if (act === 'move-milestone') {
 			const title = button.dataset.milestone;
 			await api('/api/move-milestone', { key, title: title === 'none' ? null : title });
-			msg = `${shortKey(key)} → ${title}`;
+			if (title === 'none') {
+				// Untriaged: it leaves My Work entirely (also from My priorities) until it's found again.
+				await api('/api/work-issue', { op: 'remove', key }).catch(() => { });
+				msg = `${shortKey(key)} is untriaged (milestone removed on GitHub)`;
+				if (ui.selected?.id === key && ui.selected.kind === 'work') { ui.selected = null; $('detail').innerHTML = '<div class="empty">Select an item to see details and actions.</div>'; }
+			} else {
+				msg = `${shortKey(key)} → ${title}`;
+			}
 			move = false;
 			await loadWork(true);
 		} else if (act === 'route-issue') {
@@ -2073,7 +2100,7 @@ $('areabar').addEventListener('click', e => {
 	if (e.target.closest('#area-clear')) setAreaFilter('');
 	if (e.target.closest('[data-pick-session]')) { select('workhome', 'home'); return; }
 	if (e.target.closest('[data-find-work]')) {
-		if (ui.selected?.kind === 'worksrc') { ui.selected = null; $('detail').innerHTML = '<div class="empty">Select an item to see details and actions.</div>'; render(); return; }
+		if (['worksrc', 'browseitem'].includes(ui.selected?.kind)) { ui.selected = null; $('detail').innerHTML = '<div class="empty">Select an item to see details and actions.</div>'; render(); return; }
 		select('worksrc', 'find').then(() => { renderAreaBar(); $('detail').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); });
 		return;
 	}
@@ -2428,6 +2455,12 @@ $('detail').addEventListener('keydown', e => {
 	setChatHeight((ui.state.settings.chatHeight || 160) + (e.key === 'ArrowUp' ? 24 : -24), true);
 });
 $('detail').addEventListener('click', e => {
+	const open = e.target.closest('[data-browse-open]');
+	if (open) { ui.browseScroll = document.querySelector('#detail .detail-body')?.scrollTop ?? 0; select('browseitem', open.dataset.browseOpen); return; }
+	if (e.target.closest('[data-browse-back]')) {
+		select('worksrc', 'find').then(() => { const b = document.querySelector('#detail .detail-body'); if (b) b.scrollTop = ui.browseScroll || 0; renderAreaBar(); });
+		return;
+	}
 	const p = e.target.closest('[data-find-src]');
 	if (p) { ui.findSource = p.dataset.findSrc; renderDetail(false, true); document.querySelector(`[data-find-src="${p.dataset.findSrc}"]`)?.focus(); }
 });

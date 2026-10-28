@@ -30,7 +30,7 @@ Make sure canvases are enabled (setting `chat.canvases.enabled`, off in a fresh 
 
 The canvas (`my-issues-triage`, titled **My Work**) has five views:
 
-- **My Work** — your issues in the current and next milestone (live from GitHub), then **My priorities**, your own ordered list kept locally. **Browse issues & PRs** finds your bugs, feature requests, feature-area issues and PRs awaiting your review; drag them into a group. Add the session you're working in and it resolves the issue it works on; opening a session shows its status, latest reply, requests and edited files. A docked **My Work chat** takes pasted links or plain requests ("add the session I'm in").
+- **My Work** — your issues in the current and next milestone (live from GitHub), then **My priorities**, your own ordered list kept locally. **Browse issues & PRs** finds your bugs, feature requests, feature-area issues and PRs awaiting your review; open one to read and discuss it, start a session, or drag it into a group. Planned issues can be sent back to untriaged. Add the session you're working in and it resolves the issue it works on; opening a session shows its status, latest reply, requests and edited files. A docked **My Work chat** takes pasted links or plain requests ("add the session I'm in").
 - **Today** — the daily queue: newly assigned issues, Sweeper verdict changes, new activity, severe bugs and top close proposals.
 - **Notifications** — your unread GitHub notifications, classified by the triage chat with your inbox rules into Needs action, Route, Auto-dismiss, Safe to dismiss and FYI, with bulk dismiss and route.
 - **Cleanup** — Sweeper close and needs-info proposals with live fact checks and independent judge chats; each action needs your approval.
