@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.8 (2026-10-28)
+
+- Codicon lookup works when extension workers case or omit Windows install environment variables.
+
 ## 1.0.7 (2026-10-28)
 
 - Codicons load from current versioned VS Code installations on Windows.

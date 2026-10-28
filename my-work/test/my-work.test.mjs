@@ -47,6 +47,8 @@ test('codicon font resolves from versioned Windows installations', async () => {
 	mkdirSync(path.dirname(font), { recursive: true });
 	writeFileSync(font, 'font');
 	assert.equal(await server.findCodiconFont({ platform: 'win32', homedir: home, env: { ProgramFiles: programFiles } }), font);
+	assert.equal(await server.findCodiconFont({ platform: 'win32', homedir: home, env: { PROGRAMFILES: programFiles } }), font);
+	assert.equal(await server.findCodiconFont({ platform: 'win32', homedir: home, env: {}, execPath: path.join(home, 'node.exe'), windowsRoot: home }), font);
 });
 
 test('Python and JS configs share their defaults', () => {
