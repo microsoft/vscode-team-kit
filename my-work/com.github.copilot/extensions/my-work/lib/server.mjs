@@ -6,13 +6,14 @@ import path from 'node:path';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import * as data from './data.mjs';
-import { spawnJudgeRequest, implementPrompt, createIssueChatPrompt, forwardToIssueChatPrompt, startIssueSessionMessage, notificationIssueActionPrompt, notificationTriagePrompt, issueRulesPrompt, browseQueryPrompt, workSessionPrompt, msrcItemSessionPrompt, createMyWorkChatPrompt, forwardToMyWorkChatPrompt, describeSessionMessage } from './prompts.mjs';
+import { spawnJudgeRequest, implementPrompt, createIssueChatPrompt, forwardToIssueChatPrompt, forwardToMyWorkSessionPrompt, startIssueSessionMessage, notificationIssueActionPrompt, notificationTriagePrompt, issueRulesPrompt, browseQueryPrompt, workSessionPrompt, msrcItemSessionPrompt, createMyWorkChatPrompt, forwardToMyWorkChatPrompt, describeSessionMessage } from './prompts.mjs';
 import { getVsCodeTheme, watchVsCodeTheme } from './vscodeTheme.mjs';
 import { getMyWork, moveToMilestone, issueDetails, closingIssues, workSource, sourceQuery, myLogin } from './work.mjs';
 import { config } from './config.mjs';
+import { saveImage, imagePaths, MAX_IMAGE_BYTES } from './attachments.mjs';
 import { listMsrcItems, saveMsrcItem, removeMsrcItem, getMsrcItem, parseIncident, INCIDENT_RE } from './msrcItems.mjs';
 import { sessionsFor, sessionsMentioning, sessionsById, recentSessions, issueCandidates, sessionTranscript } from './sessions.mjs';
-import { listPinned, pinSession, unpinSessions, parseSessionRef, getMyWorkChat, getHiddenSessions, setSessionHidden, setSessionBucket, BUCKETS, listPinnedIssues, pinIssue, setIssueBucket, unpinIssues, markSummaryRequested, getIssueChat } from './workSessions.mjs';
+import { listPinned, pinSession, unpinSessions, parseSessionRef, getMyWorkChat, getHiddenSessions, setSessionHidden, setSessionBucket, BUCKETS, listPinnedIssues, pinIssue, setIssueBucket, unpinIssues, markSummaryRequested, markSessionSummaryRequested, getSessionSummaries, getIssueChat, setIssueChat, setMyWorkChat } from './workSessions.mjs';
 
 const ASSETS = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'assets');
 // Scripts, styles and data come only from this server; images and videos only from GitHub's own hosts
@@ -52,13 +53,13 @@ function bad(message) {
 	return Object.assign(new Error(message), { status: 400 });
 }
 
-function readBody(req) {
+function readBody(req, limit = 256 * 1024) {
 	return new Promise((resolve, reject) => {
 		let size = 0;
 		const chunks = [];
 		req.on('data', c => {
 			size += c.length;
-			if (size > 256 * 1024) { reject(bad('body too large')); req.destroy(); return; }
+			if (size > limit) { reject(bad('body too large')); req.destroy(); return; }
 			chunks.push(c);
 		});
 		req.on('end', () => {
@@ -108,6 +109,16 @@ function openExternal(url) {
 	return new Promise((resolve, reject) => {
 		execFile(cmd, args, { timeout: 10_000 }, error => error ? reject(error) : resolve());
 	});
+}
+
+// The Browse view's last source, area and filter, kept with the settings so it survives reopening the panel.
+function cleanBrowse(b) {
+	if (!b || typeof b !== 'object') throw Object.assign(new Error('invalid browse'), { status: 400 });
+	const str = (v, max) => typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, max) : '';
+	const source = ['bugs', 'features', 'area', 'reviews', 'mine'].includes(b.source) ? b.source : 'bugs';
+	const area = /^[a-z0-9_-]{0,40}$/.test(b.area || '') ? (b.area || '') : '';
+	const refine = b.refine && str(b.refine.query, 300) ? { query: str(b.refine.query, 300), text: str(b.refine.text, 300), note: str(b.refine.note, 300) } : null;
+	return { source, area, refine };
 }
 
 export class TriageServer {
@@ -185,6 +196,12 @@ export class TriageServer {
 	setFocus(focus) {
 		this.focus = { ...focus, at: Date.now() };
 		this.push('focus', focus);
+	}
+
+	/** Send a request that creates chats: run it in the My Work session so they are nested there, even from a panel opened elsewhere. */
+	async sendToMyWorkSession(request) {
+		const link = await data.myWorkSessionLink();
+		await this.sendToChat(link ? forwardToMyWorkSessionPrompt(link, request) : request);
 	}
 
 	async browseSource(source, areaId) {
@@ -312,13 +329,21 @@ export class TriageServer {
 				const list = sessions[p.key] ||= [];
 				if (!list.some(x => x.id === sid)) list.unshift({ ...z, link: `agent-host-session://ahp-session/${sid}` });
 			}
-			this.json(res, 200, { ...work, msrcEnabled: config().msrc.enabled !== false, msrcItems, pinnedSessions, pinnedIssues, recentSessions: recent, myWorkChat: await getMyWorkChat(), msrcSessions: await sessionsMentioning(msrcItems.map(i => i.incidentId)).catch(() => ({})), sessions });
+			this.json(res, 200, { ...work, msrcEnabled: config().msrc.enabled !== false, msrcItems, pinnedSessions, pinnedIssues, recentSessions: recent, myWorkChat: await getMyWorkChat(), sessionSummaries: await getSessionSummaries(), msrcSessions: await sessionsMentioning(msrcItems.map(i => i.incidentId)).catch(() => ({})), sessions });
 			return;
 		}
 		if (route === 'GET /api/github') {
 			const key = url.searchParams.get('key') || '';
 			if (!KEY_RE.test(key)) throw bad('invalid key');
 			this.json(res, 200, await data.getGitHubDetail(key, url.searchParams.get('fresh') === '1'));
+			return;
+		}
+		if (route === 'GET /api/attachment') {
+			const [file] = await imagePaths([url.searchParams.get('name')]);
+			if (!file) throw Object.assign(new Error('not found'), { status: 404 });
+			const type = { png: 'image/png', jpg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp' }[file.split('.').pop()];
+			res.writeHead(200, { 'content-type': type, 'cache-control': 'private, max-age=86400', 'x-content-type-options': 'nosniff' });
+			res.end(await fs.readFile(file));
 			return;
 		}
 		if (route === 'GET /api/issue') {
@@ -330,7 +355,8 @@ export class TriageServer {
 
 		if (req.method !== 'POST') throw Object.assign(new Error('not found'), { status: 404 });
 		this.checkWrite(req);
-		const body = await readBody(req);
+		// Pasted screenshots are the only large uploads (base64 of up to 8 MB).
+		const body = await readBody(req, url.pathname === '/api/attachment' ? Math.ceil(MAX_IMAGE_BYTES * 4 / 3) + 4096 : undefined);
 		let result;
 		switch (url.pathname) {
 			case '/api/apply': {
@@ -357,6 +383,11 @@ export class TriageServer {
 					patch.popularThreshold = body.popularThreshold;
 				}
 				if (body.recentCollapsed !== undefined) patch.recentCollapsed = !!body.recentCollapsed;
+				if (body.browse !== undefined) patch.browse = cleanBrowse(body.browse);
+				if (body.browseHistory !== undefined) {
+					if (!Array.isArray(body.browseHistory)) throw bad('invalid browseHistory');
+					patch.browseHistory = body.browseHistory.slice(0, 15).map(h => ({ ...cleanBrowse(h), at: typeof h?.at === 'string' && !Number.isNaN(Date.parse(h.at)) ? h.at : new Date().toISOString() })).filter(h => h.refine);
+				}
 				if (body.theme !== undefined) {
 					if (!THEMES.has(body.theme)) throw bad('invalid theme');
 					patch.theme = body.theme;
@@ -474,13 +505,14 @@ export class TriageServer {
 					if (!notification) throw Object.assign(new Error('This notification is no longer unread'), { status: 404 });
 					if (notification.type !== 'Issue' || !KEY_RE.test(notification.issueKey || '')) throw bad('notification is not an issue');
 					const action = body.kind === 'notification-start' ? 'start' : 'investigate';
-					await this.sendToChat(notificationIssueActionPrompt({ action, notification }));
+					const prompt = notificationIssueActionPrompt({ action, notification });
+					await (action === 'start' ? this.sendToMyWorkSession(prompt) : this.sendToChat(prompt));
 					result = { sent: true, kind: body.kind, id: notification.id, key: notification.issueKey };
 					break;
 				}
 				if (body.kind === 'implement') {
 					if (!KEY_RE.test(body.key || '')) throw bad('invalid key');
-					await this.sendToChat(implementPrompt(await data.getIssueDetail(body.key)));
+					await this.sendToMyWorkSession(implementPrompt(await data.getIssueDetail(body.key)));
 					await data.logStart(body.key);
 					result = { sent: true, kind: body.kind, key: body.key };
 					break;
@@ -497,9 +529,10 @@ export class TriageServer {
 			}
 			case '/api/open-session': {
 				const link = String(body.link || '');
-				const m = /^agent-host-session:\/\/([\w-]+)\/([\w-]+)$/.exec(link);
+				// A nested chat's link carries ?chat=<id>; the Agents window takes it as a /chat/<id> path segment.
+				const m = /^agent-host-session:\/\/([\w-]+)\/([\w-]+)(?:\?chat=([\w-]+))?$/.exec(link);
 				if (!m || !PRODUCT_SCHEME) throw bad('not a session link');
-				await openExternal(`${PRODUCT_SCHEME}://agents/agent-host-session/${m[1].toLowerCase()}/${m[2]}`);
+				await openExternal(`${PRODUCT_SCHEME}://agents/agent-host-session/${m[1].toLowerCase()}/${m[2]}${m[3] ? `/chat/${m[3]}` : ''}`);
 				this.json(res, 200, { opened: link });
 				return;
 			}
@@ -602,8 +635,11 @@ export class TriageServer {
 				if (!id) throw bad('invalid session');
 				if (!this.sendToChat) throw Object.assign(new Error('This canvas is not attached to a chat'), { status: 409 });
 				const z = (await sessionsById([id]))[id];
-				await this.sendToMyWorkChat(describeSessionMessage(`agent-host-session://ahp-session/${id}`, z?.title || id), { thread: false });
-				await markSummaryRequested(id);
+				const pinned = (await listPinned()).some(p => p.id === id);
+				await this.sendToMyWorkChat(describeSessionMessage(`agent-host-session://ahp-session/${id}`, z?.title || id, { pinned }), { thread: false });
+				if (pinned) await markSummaryRequested(id);
+				await markSessionSummaryRequested(id);
+				this.push('changed', { by: 'summary', work: true });
 				result = { sent: true };
 				break;
 			}
@@ -625,7 +661,7 @@ export class TriageServer {
 					await this.sendToChat(forwardToIssueChatPrompt({ link: chat.link, key: body.key, text: startIssueSessionMessage(issue) }));
 					result = { sent: true, key: body.key, via: 'issue-chat' };
 				} else {
-					await this.sendToChat(workSessionPrompt(issue));
+					await this.sendToMyWorkSession(workSessionPrompt(issue));
 					result = { sent: true, key: body.key, via: 'new-session' };
 				}
 				break;
@@ -640,24 +676,35 @@ export class TriageServer {
 				this.json(res, 200, { opened: url.href, via: inVsCode ? 'vscode' : 'browser' });
 				return;
 			}
+			case '/api/attachment': {
+				result = { name: await saveImage(String(body.mimeType || ''), body.data) };
+				break;
+			}
 			case '/api/message': {
 				if (body.key !== 'my-work' && !KEY_RE.test(body.key || '')) throw bad('invalid key');
-				const text = typeof body.text === 'string' ? body.text.trim() : '';
-				if (!text || text.length > 4000) throw bad('message must be 1-4000 characters');
+				const images = await imagePaths(body.images);
+				const typed = typeof body.text === 'string' ? body.text.trim() : '';
+				if ((!typed && !images.length) || typed.length > 4000) throw bad('message must be 1-4000 characters');
+				const text = images.length
+					? `${typed || 'See the attached screenshot.'}\n\nAttached screenshot${images.length > 1 ? 's' : ''} (open with the view tool): ${images.map(p => JSON.stringify(p)).join(', ')}`
+					: typed;
 				if (!this.sendToChat) throw Object.assign(new Error('This canvas is not attached to a chat'), { status: 409 });
+				// fresh: the previous chat never answered, so forget it and resend (the message is already in the thread).
+				const fresh = body.fresh === true;
 				if (body.key === 'my-work') {
+					if (fresh) await setMyWorkChat(null);
 					await this.sendToMyWorkChat(text);
-					result = { key: body.key, entries: await data.appendThread(body.key, 'user', text) };
+					result = { key: body.key, entries: fresh ? await data.getThread(body.key) : await data.appendThread(body.key, 'user', text) };
 					break;
 				}
+				if (fresh) await setIssueChat(body.key, null);
 				const [owner, rest] = body.key.split('/');
 				const [repo, number] = rest.split('#');
 				const title = typeof body.title === 'string' ? body.title.slice(0, 300) : '';
 				const chat = await getIssueChat(body.key);
-				await this.sendToChat(chat
-					? forwardToIssueChatPrompt({ link: chat.link, key: body.key, text })
-					: createIssueChatPrompt({ key: body.key, url: `https://github.com/${owner}/${repo}/issues/${number}`, title, text }));
-				result = { key: body.key, entries: await data.appendThread(body.key, 'user', text) };
+				if (chat) await this.sendToChat(forwardToIssueChatPrompt({ link: chat.link, key: body.key, text }));
+				else await this.sendToMyWorkSession(createIssueChatPrompt({ key: body.key, url: `https://github.com/${owner}/${repo}/issues/${number}`, title, text }));
+				result = { key: body.key, entries: fresh ? await data.getThread(body.key) : await data.appendThread(body.key, 'user', text) };
 				break;
 			}
 			case '/api/cancel-opinion':

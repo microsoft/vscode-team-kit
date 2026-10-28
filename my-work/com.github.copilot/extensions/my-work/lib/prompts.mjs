@@ -37,7 +37,7 @@ export function implementPrompt({ issue, review, readiness }) {
 	return [
 		`Start a fix session for ${issue.key} ${q(issue.title)} (requested from the triage canvas).`,
 		UNTRUSTED,
-		`Call create_session with relationship "independent", the local clone of ${issue.key.split('#')[0]} as workspace (${repoHint(issue.key.split('#')[0])}; if none is configured, say so instead of guessing), worktree true, `
+		`Call create_session (omit relationship, so it is nested under this My Work session) with the local clone of ${issue.key.split('#')[0]} as workspace (${repoHint(issue.key.split('#')[0])}; if none is configured, say so instead of guessing), worktree true, `
 		+ `title "Fix #${num}: <short title>", and a prompt containing:`,
 		`- The issue URL ${issue.url} and title`,
 		`- Type ${readiness?.itemType ?? '?'}, severity ${issue.sweeper?.severity ?? 'none'}, area ${issue.area}`,
@@ -59,7 +59,7 @@ export function notificationIssueActionPrompt({ action, notification }) {
 			UNTRUSTED,
 			'The user clicked Start fix / implementation session; this confirms creating the session. It does not approve any change on GitHub.',
 			`First fetch the live issue and its latest comments. Determine whether it is a bug or a feature request, and use an existing workspace for the matching repository (${repoHint()}). If no matching workspace is available, do not guess: reply to the panel issue thread explaining what is missing.`,
-			`Create an independent session with an isolated worktree. For a bug, instruct it to reproduce first${config().fixSkill ? `, use the ${config().fixSkill} skill` : ''}, implement the smallest complete fix, and add a regression test. For a feature, instruct it to implement the confirmed behavior completely with tests. Include the issue URL, title, latest relevant comments, and the local index/Sweeper Best solution when available.`,
+			`Create a session nested under this My Work session (omit relationship) with an isolated worktree. For a bug, instruct it to reproduce first${config().fixSkill ? `, use the ${config().fixSkill} skill` : ''}, implement the smallest complete fix, and add a regression test. For a feature, instruct it to implement the confirmed behavior completely with tests. Include the issue URL, title, latest relevant comments, and the local index/Sweeper Best solution when available.`,
 			'Do not push, open a pull request, comment, label, close, or otherwise change GitHub without asking the user first.',
 			`After the session is created, record ${key} as fixing only if it exists in the local issue index, with the session link in the note. Then call the my-issues-triage canvas action refresh and reply to the panel with replyToIssue for ${key}, including the session link. Do not dismiss the notification.`,
 		].join('\n');
@@ -100,7 +100,7 @@ export function notificationTriagePrompt({ items, recompute = false, customGroup
 	].join('\n');
 }
 
-// Each issue gets its own chat (an independent session without a workspace). Discussion from the panel goes there;
+// Each issue gets its own chat (nested under the My Work session, without a workspace). Discussion from the panel goes there;
 // Start session gives it the repository worktree, so the work continues in the same conversation.
 function issueChatInstructions({ key, url, title }) {
 	const num = key.split('#')[1];
@@ -120,12 +120,23 @@ export function createIssueChatPrompt({ key, url, title, text }) {
 	const num = key.split('#')[1];
 	return [
 		`Panel request: create the chat for ${key}. Do only this, then continue with whatever you were doing:`,
-		`Call create_session with relationship "independent", title ${JSON.stringify(`#${num}: ${plainTitle(title) || key}`)}, no workspace and no worktree, and the prompt between the markers below passed VERBATIM.`,
-		`Then call the my-issues-triage canvas action setIssueChat {"key": "${key}", "link": "<the new session's agent-host-session:// link>"} so later messages about this issue go straight to it. Reply with one line: the link.`,
+		`Call create_session with title ${JSON.stringify(`#${num}: ${plainTitle(title) || key}`)}; omit relationship (so the chat is nested under this My Work session) and omit workspace and worktree. Pass the prompt between the markers below VERBATIM.`,
+		`Then call the my-issues-triage canvas action setIssueChat {"key": "${key}", "link": "<the new chat's agent-host-session:// link>"} so later messages about this issue go straight to it. Reply with one line: the link.`,
 		`If create_session fails, do not retry: call replyToIssue for ${key} with the error.`,
 		'<<<ISSUE_CHAT_PROMPT',
 		issueChatInstructions({ key, url, title }), '', 'The user\'s first message:', '', text,
 		'ISSUE_CHAT_PROMPT>>>',
+	].join('\n');
+}
+
+/** A panel open outside the My Work session hands its request to that session, so the chats it creates are nested there. */
+export function forwardToMyWorkSessionPrompt(link, request) {
+	return [
+		`Panel request: run a request in the My Work session (${link}) so the chats it creates are nested there. Do only this: call get_current_session. If this chat belongs to that session (same session id), handle the message between the markers yourself. Otherwise call send_message with session "${link}" and the message between the markers VERBATIM (delivery "queue"), do not act on it yourself, and reply with one word: forwarded.`,
+		'If send_message fails because that session no longer exists, handle the message between the markers yourself instead.',
+		'<<<MY_WORK_REQUEST',
+		request,
+		'MY_WORK_REQUEST>>>',
 	].join('\n');
 }
 
@@ -191,7 +202,7 @@ export function workSessionPrompt({ key, title, url, milestone }) {
 		`Panel request: start a work session for ${key} ${q(title)} (${url})${milestone ? `, planned for ${milestone}` : ''}. The user clicked Start session in My Work; this confirms creating the session. It does not approve any change on GitHub.`,
 		UNTRUSTED,
 		`Fetch the live issue and its latest comments, decide bug vs feature, and use the matching local repository (${repoHint(key.split('#')[0])}; if none exists, say so with replyToIssue instead of guessing).`,
-		`Call create_session with relationship "independent", that workspace, worktree true, and title "Fix #${num}: <short title>" (or "Implement #${num}: …" for a feature) — keep "#${num}" in the title so the panel links the session to the issue. The prompt should include the issue URL, title, latest relevant comments, and: reproduce first for bugs${config().fixSkill ? ` (${config().fixSkill} skill)` : ''}, implement with tests, and do not push, open a PR, or comment on GitHub without asking the user.`,
+		`Call create_session (omit relationship, so it is nested under this My Work session) with that workspace, worktree true, and title "Fix #${num}: <short title>" (or "Implement #${num}: …" for a feature) — keep "#${num}" in the title so the panel links the session to the issue. The prompt should include the issue URL, title, latest relevant comments, and: reproduce first for bugs${config().fixSkill ? ` (${config().fixSkill} skill)` : ''}, implement with tests, and do not push, open a PR, or comment on GitHub without asking the user.`,
 		`Then record ${key} as fixing (\`${scriptCommand()} record ${key} --decision fixing --note "<session link>"\`) if it is in the index, call the canvas action refresh, and reply with replyToIssue for ${key} including the session link.`,
 	].join('\n');
 }
@@ -239,12 +250,12 @@ export function forwardToMyWorkChatPrompt(link, text) {
 	].join('\n');
 }
 
-/** Ask the My Work chat what a pinned session is implementing (and which issue, if any). */
-export function describeSessionMessage(link, title) {
+/** Ask the My Work chat what a session is doing (and, for a pinned session, which issue it works on). */
+export function describeSessionMessage(link, title, { pinned = true } = {}) {
 	return [
-		`Describe the session ${q(title)} (${link}) that I added to My Work: read it with get_session_context (detail "digest") and list_sessions.`,
+		`Describe the session ${q(title)} (${link})${pinned ? ' that I added to My Work' : ''}: read it with get_session_context (detail "digest") and list_sessions.`,
 		'Then call the canvas action updateMyWork {"op": "describeSession", "session": "<link>", "summary": "<2-4 short sentences: what it is implementing or investigating, current state (e.g. PR open, tests failing, waiting on me), and the next step>"}.',
-		'If the session clearly works on a GitHub issue, also pass "issue": "owner/repo#N" (only with explicit evidence such as the issue link or number in the conversation) — the panel then shows that issue instead.',
+		pinned ? 'If the session clearly works on a GitHub issue, also pass "issue": "owner/repo#N" (only with explicit evidence such as the issue link or number in the conversation) — the panel then shows that issue instead.' : '',
 		'Do not reply in the panel for this; the summary shows on the session.',
-	].join('\n');
+	].filter(Boolean).join('\n');
 }

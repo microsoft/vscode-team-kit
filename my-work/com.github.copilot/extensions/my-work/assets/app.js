@@ -577,6 +577,23 @@ function sessTag(key) {
 	const list = sessionsOf(key).filter(s => !s.archived);
 	return list.length ? `<span class="tag sess" title="${esc(list.map(s => s.title).join('\n'))}"><i class="codicon codicon-comment-discussion" aria-hidden="true"></i>${list.length > 1 ? list.length : 'session'}</span>` : '';
 }
+// PRs and issues the session created or linked.
+function linkedItemsHtml(s) {
+	const items = s.linked?.length ? s.linked : (s.prs || []).map(p => ({ ...p, kind: 'pr' }));
+	if (!items.length) return '';
+	return `<div class="sess-prs">${items.map(i => `<a href="${esc(safeUrl(i.url))}" target="_blank" rel="noopener" title="${esc(i.url)}"><i class="codicon codicon-${i.kind === 'pr' ? 'git-pull-request' : 'issues'}" aria-hidden="true"></i>${esc(i.label)}</a>`).join('')}</div>`;
+}
+// A short summary of what the session is doing, written by the My Work chat when asked.
+function sessionSummaryHtml(s) {
+	const x = (ui.state?.sessionSummaries || ui.work?.data?.sessionSummaries || {})[s.id];
+	const pending = x?.requestedAt && (!x.at || x.requestedAt > x.at) && Date.now() - Date.parse(x.requestedAt) < 10 * 60 * 1000;
+	const stale = x?.at && s.modified && s.modified > Date.parse(x.at) + 60_000;
+	const btn = pending ? '<span class="cd"><i class="codicon codicon-loading spin" aria-hidden="true"></i> Summarizing…</span>'
+		: `<button type="button" class="link-btn" data-act="describe-session" data-key="${esc(s.id)}" title="Ask the My Work chat for a short summary of this session">${x?.summary ? (stale ? 'Update summary' : 'Refresh') : 'Summarize'}</button>`;
+	return x?.summary
+		? `<div class="sess-summary"><span class="cd">Summary · ${esc(agoText(x.at))}${stale ? ' · session changed since' : ''}</span> ${btn}<p>${linkify(x.summary)}</p></div>`
+		: `<div class="sess-summary">${btn}</div>`;
+}
 // The session's last message, shown on session cards (lazy-loaded from its local transcript).
 function sessionLastHtml(id) {
 	const st = ui.sessInfo?.[id];
@@ -592,7 +609,8 @@ function sessionsHtml(list, heading = 'Sessions') {
 		<div class="sess-main">
 			<div class="sess-title">${esc(s.title || 'Untitled session')}${s.archived ? ' <span class="tag">archived</span>' : !s.read ? ' <span class="tag acc">unread</span>' : ''}</div>
 			<div class="sess-meta cd">${[s.branch ? `<code>${esc(s.branch)}</code>` : '', s.changes ? `<span class="add">+${esc(s.changes.additions)}</span> <span class="del">−${esc(s.changes.deletions)}</span>` : '', s.modified ? `active ${esc(agoText(new Date(s.modified).toISOString()))}` : ''].filter(Boolean).join(' · ')}</div>
-			${s.prs?.length ? `<div class="sess-prs">${s.prs.map(p => `<a href="${esc(safeUrl(p.url))}" target="_blank" rel="noopener"><i class="codicon codicon-git-pull-request" aria-hidden="true"></i>${esc(p.label)}</a>`).join('')}</div>` : ''}
+			${linkedItemsHtml(s)}
+			${!s.archived && s.id ? sessionSummaryHtml(s) : ''}
 			${!s.archived && s.id && heading !== 'Session' ? sessionLastHtml(s.id) : ''}
 		</div>
 		<button type="button" class="btn sm" data-open-session="${esc(s.link)}" title="Open this chat in the Agents window"><i class="codicon codicon-comment-discussion" aria-hidden="true"></i>Open</button>
@@ -633,6 +651,25 @@ function planMenuInner(key, currentMilestone) {
 	return [...prio, ...targets.filter(t => t.title !== currentMilestone).map(t => ({ act: 'move-milestone', key, milestone: t.title, label: t.label }))];
 }
 
+// Quick actions on a list row (shown on hover/focus), so common steps don't need opening the item.
+function quickActionsHtml(actions) {
+	const btn = a => a.href
+		? `<a class="row-pin" href="${esc(safeUrl(a.href))}" target="_blank" rel="noopener" title="${esc(a.label)}" aria-label="${esc(a.label)}"><i class="codicon codicon-${a.icon}" aria-hidden="true"></i></a>`
+		: `<button type="button" class="row-pin" data-act="${esc(a.act)}"${a.key ? ` data-key="${esc(a.key)}"` : ''}${a.link ? ` data-link="${esc(a.link)}"` : ''} title="${esc(a.label)}" aria-label="${esc(a.label)}"><i class="codicon codicon-${a.icon}" aria-hidden="true"></i></button>`;
+	return `<span class="row-quick">${actions.map(btn).join('')}</span>`;
+}
+function withQuick(rowHtml, actions) {
+	return `<div class="row-act">${rowHtml}${quickActionsHtml(actions)}</div>`;
+}
+function issueQuick(key, url, { removable = false } = {}) {
+	const live = liveSession(key);
+	return [
+		live ? { act: 'open-session', link: live.link, icon: 'comment-discussion', label: 'Open session' } : { act: 'work-session', key, icon: 'rocket', label: 'Start session' },
+		{ href: url || `https://github.com/${key.split('#')[0]}/issues/${key.split('#')[1]}`, icon: 'link-external', label: 'Open on GitHub' },
+		...(removable ? [{ act: 'issue-unpin', key, icon: 'close', label: 'Remove from My Work' }] : []),
+	];
+}
+
 function rowHtml(item) {
 	const current = ui.selected && ui.selected.kind === item.kind && ui.selected.id === item.id;
 	const handled = isHandled(item);
@@ -641,9 +678,9 @@ function rowHtml(item) {
 		const w = item.w;
 		const prio = item.milestone?.role === 'priorities';
 		const local = !!w.local;
-		return `<button type="button" class="${cls} ${w.isBug ? 'dot-action' : ''}${prio || local ? ' prio-row' : ''}" data-kind="work" data-id="${esc(w.key)}" data-group="${esc(item.group || '')}" aria-current="${!!current}"${prio ? ` draggable="true" data-prio="${esc(w.key)}" data-pin-issue="${esc(w.key)}" title="Drag to reorder or into current / next; Alt+↑/↓ moves the selected issue"` : local ? ` draggable="true" data-pin-issue="${esc(w.key)}" title="Added locally (GitHub milestone unchanged). Drag to another group."` : ''}>
+		return withQuick(`<button type="button" class="${cls} ${w.isBug ? 'dot-action' : ''}${prio || local ? ' prio-row' : ''}" data-kind="work" data-id="${esc(w.key)}" data-group="${esc(item.group || '')}" aria-current="${!!current}"${prio ? ` draggable="true" data-prio="${esc(w.key)}" data-pin-issue="${esc(w.key)}" title="Drag to reorder or into current / next; Alt+↑/↓ moves the selected issue"` : local ? ` draggable="true" data-pin-issue="${esc(w.key)}" title="Added locally (GitHub milestone unchanged). Drag to another group."` : ''}>${prio || local ? '<span class="row-grip" aria-hidden="true" title="Drag to move"><i class="codicon codicon-gripper"></i></span>' : ''}
 			<span class="row-title" title="${esc(w.title)}">${prio ? `<span class="prio-rank">${w.rank}</span>` : ''}${esc(w.title)}</span><span class="row-meta"><span>${esc(shortKey(w.key))}</span>${w.isBug ? '<span>bug</span>' : ''}${prio && w.milestone ? `<span>${esc(w.milestone)}</span>` : ''}${local ? '<span class="tag" title="Added to My Work locally; its GitHub milestone is unchanged">local</span>' : ''}${sessTag(w.key)}</span>
-		</button>`;
+		</button>`, issueQuick(w.key, w.url, { removable: local }));
 	}
 	if (item.kind === 'workhome') {
 		const waiting = (ui.state.threads?.['my-work'] || []).at(-1)?.role === 'user';
@@ -654,7 +691,7 @@ function rowHtml(item) {
 	}
 	if (item.kind === 'recentsess') {
 		const z = item.z;
-		return `<div class="row-wrap"><button type="button" class="${cls}${!z.read ? ' dot-action' : ''}" data-kind="recentsess" data-id="${esc(z.id)}" aria-current="${!!current}">
+		return `<div class="row-wrap"><button type="button" class="${cls}${!z.read ? ' dot-action' : ''} prio-row" data-kind="recentsess" data-id="${esc(z.id)}" data-recent-sess="${esc(z.id)}" draggable="true" title="Drag into Current, Next or My priorities to add it to My Work" aria-current="${!!current}"><span class="row-grip" aria-hidden="true" title="Drag to move"><i class="codicon codicon-gripper"></i></span>
 			<span class="row-title" title="${esc(z.title || '')}"><i class="codicon codicon-comment-discussion" aria-hidden="true"></i> ${esc(z.title || 'Untitled session')}</span>
 			<span class="row-meta">${z.project ? `<span>${esc(z.project)}</span>` : ''}${z.modified ? `<span>active ${esc(agoText(new Date(z.modified).toISOString()))}</span>` : ''}${!z.read ? '<span class="tag acc">unread</span>' : ''}</span>
 		</button><span class="row-tools"><button type="button" class="row-pin" data-act="pin-session" data-key="${esc(z.id)}" title="Add to My Work" aria-label="Add ${esc(z.title || 'session')} to My Work"><i class="codicon codicon-add" aria-hidden="true"></i></button><button type="button" class="row-pin" data-act="hide-session" data-key="${esc(z.id)}" title="Not relevant: hide from Active sessions" aria-label="Hide ${esc(z.title || 'session')} from Active sessions"><i class="codicon codicon-close" aria-hidden="true"></i></button></span></div>`;
@@ -662,19 +699,23 @@ function rowHtml(item) {
 	if (item.kind === 'pinsess') {
 		const p = item.p, z = p.session;
 		const inPrio = item.group === 'priorities';
-		return `<button type="button" class="${cls}${z && !z.read ? ' dot-action' : ''} prio-row" data-kind="pinsess" data-id="${esc(p.id)}" data-group="${esc(item.group || 'current')}" data-sess="${esc(p.id)}"${inPrio ? ` data-prio="session:${esc(p.id)}"` : ''} draggable="true" title="Drag to another group${inPrio ? ' or reorder' : ''}" aria-current="${!!current}">
+		return withQuick(`<button type="button" class="${cls}${z && !z.read ? ' dot-action' : ''} prio-row" data-kind="pinsess" data-id="${esc(p.id)}" data-group="${esc(item.group || 'current')}" data-sess="${esc(p.id)}"${inPrio ? ` data-prio="session:${esc(p.id)}"` : ''} draggable="true" title="Drag to another group${inPrio ? ' or reorder' : ''}" aria-current="${!!current}"><span class="row-grip" aria-hidden="true" title="Drag to move"><i class="codicon codicon-gripper"></i></span>
 			<span class="row-title" title="${esc(z?.title || '')}">${inPrio ? `<span class="prio-rank">${item.rank}</span>` : ''}<i class="codicon codicon-comment-discussion" aria-hidden="true"></i> ${esc(z?.title || p.note || 'Session not found')}</span>
 			<span class="row-meta">${z?.project ? `<span>${esc(z.project)}</span>` : ''}${z?.modified ? `<span>active ${esc(agoText(new Date(z.modified).toISOString()))}</span>` : ''}${z?.changes ? `<span class="add">+${esc(z.changes.additions)}</span><span class="del">−${esc(z.changes.deletions)}</span>` : ''}${z && !z.read ? '<span class="tag acc">unread</span>' : ''}</span>
-		</button>`;
+		</button>`, [{ act: 'open-session', link: `agent-host-session://ahp-session/${p.id}`, icon: 'comment-discussion', label: 'Open session' }, { act: 'unpin-session', key: p.id, icon: 'close', label: 'Remove from My Work' }]);
 	}
 	if (item.kind === 'msrcitem') {
 		const x = item.x;
 		const due = msrcDue(x);
-		const live = (ui.work?.data?.msrcSessions?.[x.incidentId] || []).some(z => !z.archived);
-		return `<button type="button" class="${cls} ${due.cls === 'bad' || due.cls === 'sev' ? 'dot-action' : ''}" data-kind="msrcitem" data-id="${esc(x.incidentId)}" aria-current="${!!current}">
+		const liveZ = (ui.work?.data?.msrcSessions?.[x.incidentId] || []).find(z => !z.archived);
+		const live = !!liveZ;
+		return withQuick(`<button type="button" class="${cls} ${due.cls === 'bad' || due.cls === 'sev' ? 'dot-action' : ''}" data-kind="msrcitem" data-id="${esc(x.incidentId)}" aria-current="${!!current}">
 			<span class="row-title" title="${esc(x.title || '')}"><i class="codicon codicon-shield" aria-hidden="true"></i> ${esc(x.draft ? 'New MSRC item' : x.title || `IcM ${x.incidentId}`)}</span>
 			<span class="row-meta"><span>IcM ${esc(x.incidentId)}</span><span class="tag ${due.cls}"><i class="codicon codicon-clock" aria-hidden="true"></i>${esc(due.text)}</span>${live ? '<span class="tag sess"><i class="codicon codicon-comment-discussion" aria-hidden="true"></i>session</span>' : ''}</span>
-		</button>`;
+		</button>`, x.draft ? [] : [
+			liveZ ? { act: 'open-session', link: liveZ.link, icon: 'comment-discussion', label: 'Open session' } : { act: 'msrc-item-session', key: x.incidentId, icon: 'rocket', label: 'Start session' },
+			...(x.link ? [{ href: x.link, icon: 'link-external', label: 'Open in IcM' }] : []),
+		]);
 	}
 	if (item.kind === 'notification') {
 		const n = item.n;
@@ -1340,6 +1381,78 @@ function setCommentView(view) {
 	if (view === 'edit') ta.focus();
 }
 
+// Pasted screenshots: uploaded at once, sent with the message as file paths, shown as thumbnails.
+const ATTACH_LINE_RE = /\n*Attached screenshots? \(open with the view tool\): (.+)$/;
+function attachmentUrl(name) {
+	return `/api/attachment?name=${encodeURIComponent(name)}&t=${encodeURIComponent(TOKEN)}`;
+}
+function userBubbleHtml(text) {
+	const m = String(text).match(ATTACH_LINE_RE);
+	const body = m ? text.slice(0, m.index) : text;
+	const names = m ? [...m[1].matchAll(/"([^"]+)"/g)].map(x => x[1].split('/').pop()) : [];
+	const thumbs = names.length ? `<div class="bubble-images">${names.map(n => `<img src="${esc(attachmentUrl(n))}" alt="Screenshot" loading="lazy">`).join('')}</div>` : '';
+	return `${linkify(body).replace(/\n/g, '<br>')}${thumbs}`;
+}
+function pastedHtml(key) {
+	const list = ui.pasted?.[key] || [];
+	return list.length ? `<div class="composer-images">${list.map((p, i) => `<span class="composer-image">${p.name ? `<img src="${esc(attachmentUrl(p.name))}" alt="Pasted screenshot">` : '<i class="codicon codicon-loading spin" aria-hidden="true"></i>'}<button type="button" class="link-btn" data-act="unpaste" data-key="${esc(key)}" data-i="${i}" aria-label="Remove screenshot" title="Remove"><i class="codicon codicon-close" aria-hidden="true"></i></button></span>`).join('')}</div>` : '';
+}
+function refreshPasted(key) {
+	for (const form of document.querySelectorAll(`.composer[data-key="${CSS.escape(key)}"]`)) {
+		form.querySelector('.composer-images')?.remove();
+		form.insertAdjacentHTML('afterbegin', pastedHtml(key));
+	}
+}
+document.addEventListener('paste', e => {
+	const form = e.target.closest?.('.composer');
+	if (!form) return;
+	const files = [...(e.clipboardData?.items || [])].filter(i => i.kind === 'file' && /^image\/(png|jpeg|gif|webp)$/.test(i.type)).map(i => i.getAsFile()).filter(Boolean);
+	if (!files.length) return;
+	e.preventDefault();
+	const key = form.dataset.key;
+	ui.pasted ??= {};
+	const list = (ui.pasted[key] ??= []);
+	for (const file of files.slice(0, 6 - list.length)) {
+		const entry = { name: null };
+		list.push(entry);
+		const reader = new FileReader();
+		reader.onload = async () => {
+			try {
+				const data = String(reader.result).split(',')[1];
+				entry.name = (await api('/api/attachment', { mimeType: file.type, data })).name;
+			} catch (error) {
+				list.splice(list.indexOf(entry), 1);
+				toast(`Could not attach the screenshot: ${error.message}`, true);
+			}
+			refreshPasted(key);
+		};
+		reader.readAsDataURL(file);
+	}
+	refreshPasted(key);
+});
+document.addEventListener('click', e => {
+	const b = e.target.closest('[data-act="unpaste"]');
+	if (!b) return;
+	e.preventDefault();
+	e.stopPropagation();
+	ui.pasted?.[b.dataset.key]?.splice(Number(b.dataset.i), 1);
+	refreshPasted(b.dataset.key);
+}, true);
+
+// A message the chat never answered (e.g. the chat was deleted or the Agents window lost it) can be resent to a new chat.
+const STALL_MS = 3 * 60 * 1000;
+function waitingHtml(key, since) {
+	const stalled = Date.now() - new Date(since).getTime() > STALL_MS;
+	return stalled
+		? `<div class="cd waiting stalled" role="status"><i class="codicon codicon-warning" aria-hidden="true"></i> No reply yet: the chat may be gone. <button type="button" class="link-btn" data-act="resend-new-chat" data-key="${esc(key)}" title="Forget the old chat and send your last message to a new one">Resend in a new chat</button></div>`
+		: `<div class="cd waiting" data-since="${esc(since)}" data-key="${esc(key)}"><i class="codicon codicon-loading" aria-hidden="true"></i> Waiting for the chat…</div>`;
+}
+setInterval(() => {
+	for (const el of document.querySelectorAll('.waiting[data-since]')) {
+		if (Date.now() - new Date(el.dataset.since).getTime() > STALL_MS) el.outerHTML = waitingHtml(el.dataset.key, el.dataset.since);
+	}
+}, 15_000);
+
 // Per-issue conversation with the chat: what you asked from the panel and the chat's replies.
 function threadHtml(key, title) {
 	const entries = ui.state.threads?.[key] || [];
@@ -1352,7 +1465,7 @@ function threadHtml(key, title) {
 		: '';
 	const bubbles = entries.map(e => `<div class="bubble ${e.role === 'user' ? 'me' : 'agent'}">
 		<div class="bubble-meta">${e.role === 'user' ? 'You' : 'Chat'} · ${esc(agoText(e.at))}</div>
-		<div class="bubble-text">${e.role === 'user' ? linkify(e.text).replace(/\n/g, '<br>') : `<div class="md">${renderMarkdown(e.text)}</div>`}</div>
+		<div class="bubble-text">${e.role === 'user' ? userBubbleHtml(e.text) : `<div class="md">${renderMarkdown(e.text)}</div>`}</div>
 		${e === last ? choices : ''}
 	</div>`).join('');
 	const count = entries.length ? `${entries.length} message${entries.length > 1 ? 's' : ''}` : 'No messages yet';
@@ -1363,8 +1476,8 @@ function threadHtml(key, title) {
 		${entries.length ? `<button type="button" class="dock-head" data-act="toggle-chat" aria-expanded="${!collapsed}">
 			<i class="codicon codicon-chevron-right" aria-hidden="true"></i><span>Conversation</span><span class="cd">· ${count}${waiting ? ' · waiting for reply' : ''}</span>
 		</button>` : ''}${openChat}
-		${entries.length ? `<div class="bubbles" tabindex="0" aria-label="Conversation with the chat" style="height:${height}px">${bubbles}${waiting ? '<div class="cd waiting"><i class="codicon codicon-loading" aria-hidden="true"></i> Waiting for the chat…</div>' : ''}</div>` : ''}
-		<form class="composer" data-key="${esc(key)}" data-title="${esc(title || '')}">
+		${entries.length ? `<div class="bubbles" tabindex="0" aria-label="Conversation with the chat" style="height:${height}px">${bubbles}${waiting ? waitingHtml(key, last.at) : ''}</div>` : ''}
+		<form class="composer" data-key="${esc(key)}" data-title="${esc(title || '')}">${pastedHtml(key)}
 			<textarea class="ask-input" rows="1" aria-label="Message to the chat about this issue" placeholder="${chat ? `Message the ${esc(shortKey(key))} chat…` : `Discuss ${esc(shortKey(key))} (starts its own chat)…`}" title="Enter to send · Shift+Enter for a new line"></textarea>
 			<button type="submit" class="send" aria-label="Send" title="Send (Enter)"><i class="codicon codicon-send" aria-hidden="true"></i></button>
 		</form>
@@ -1710,6 +1823,7 @@ async function loadFindWork(fresh = false) {
 }
 function setFindRefine(refine) {
 	ui.findRefine = refine;
+	saveBrowse();
 	ui.findAsking = null;
 	ui.findFilter = refine?.text || refine?.query || '';
 	if (ui.selected?.kind === 'worksrc') renderDetail(false, true);
@@ -1724,6 +1838,7 @@ async function applyFindFilter(text) {
 	catch (error) { ui.findAsking = null; renderDetail(false, true); toast(`Could not ask the chat: ${error.message}`, true); }
 }
 function renderFindWorkInto(el) {
+	restoreBrowse();
 	const src = ui.findSource || 'bugs';
 	const areas = (ui.state.areas || []).filter(a => a.labels?.length);
 	const area = ui.findArea || areas[0]?.id || '';
@@ -1759,13 +1874,17 @@ function renderFindWorkInto(el) {
 				${filter.note ? `<div class="find-query-note cd">${esc(filter.note)}</div>` : ''}
 			</div>` : '';
 	const asking = ui.findAsking ? `<p class="cd find-asking"><i class="codicon codicon-loading spin" aria-hidden="true"></i> Asking the chat to turn “${esc(ui.findAsking)}” into a GitHub search… <button type="button" class="link-btn" data-find-ask-cancel>Cancel</button></p>` : '';
-	el.innerHTML = `<div class="detail-head">${titleBarHtml({ title: 'Browse issues & PRs', meta: '<div class="meta"><span class="cd">Live from GitHub (org:microsoft, newest first). Type a filter and press Enter: GitHub syntax or plain words (e.g. “created by alexdima”). Click a title to open it here, drag a row into a group on the left, or use its buttons. Added locally: GitHub milestones stay unchanged.</span></div>' })}</div>
+	el.innerHTML = `<div class="detail-head">${titleBarHtml({ title: 'Browse issues & PRs', meta: `<div class="meta"><span class="cd">Live from GitHub (org:microsoft, newest first). Type a filter and press Enter: GitHub syntax or plain words (e.g. “created by ${esc(ui.state.me || 'octocat')}”). Click a row to open it here, drag it into a group on the left, or use its buttons. Added locally: GitHub milestones stay unchanged.</span></div>` })}</div>
 		<div class="detail-body find-view">
 			<div class="find-tools">
 				<div class="seg" role="group" aria-label="Source">${pills}</div>${areaSel}
-				<div class="find-search"><i class="codicon codicon-search" aria-hidden="true"></i><label class="sr-only" for="find-filter">Filter, press Enter to apply</label><input id="find-filter" type="search" placeholder="Filter, press Enter to apply (e.g. created by alexdima)" value="${esc(ui.findFilter || '')}"></div>
+				<span class="find-tools-end">
+					<button type="button" class="btn sm icon${ui.find?.loading ? ' busy' : ''}" data-find-refresh title="Run this search again on GitHub" aria-label="Refresh results"><i class="codicon codicon-refresh${ui.find?.loading ? ' spin' : ''}" aria-hidden="true"></i></button>
+					<button type="button" class="btn sm icon${ui.findHistoryOpen ? ' on' : ''}" data-find-history aria-expanded="${!!ui.findHistoryOpen}" title="Recent filters" aria-label="Recent filters"><i class="codicon codicon-history" aria-hidden="true"></i></button>
+				</span>
+				<div class="find-search"><i class="codicon codicon-search" aria-hidden="true"></i><label class="sr-only" for="find-filter">Filter, press Enter to apply</label><input id="find-filter" type="search" placeholder="Filter, press Enter to apply (e.g. created by ${esc(ui.state.me || 'octocat')})" value="${esc(ui.findFilter || '')}"></div>
 			</div>
-			${queryBar}${asking}
+			${ui.findHistoryOpen ? browseHistoryHtml() : ''}${queryBar}${asking}
 			${ui.find?.error ? `<p class="cd" style="color:var(--bad)">${esc(ui.find.error)}</p>` : ui.find?.loading && !items.length ? '<p class="cd"><i class="codicon codicon-loading spin" aria-hidden="true"></i> Searching GitHub…</p>'
 				: `<p class="find-count">${items.length}${items.length >= 100 ? '+' : ''} ${src === 'reviews' ? (items.length === 1 ? 'pull request' : 'pull requests') : (items.length === 1 ? 'issue' : 'issues')}${filter ? ' matching' : ''} · ${items.filter(i => inMyWork(i.key)).length} already in My Work</p><ul class="find-list">${items.map(row).join('')}</ul>`}
 		</div>`;
@@ -1994,6 +2113,13 @@ async function act(button) {
 			await api('/api/open-session', { link: button.dataset.link });
 			msg = 'Opening the session in the Agents window';
 			move = false;
+		} else if (act === 'resend-new-chat') {
+			const entries = ui.state.threads?.[key] || [];
+			const lastMine = [...entries].reverse().find(e => e.role === 'user');
+			if (!lastMine) return;
+			await api('/api/message', { key, title: ui.gh?.[key]?.data?.title || ui.selected?.detail?.issue?.title || '', text: lastMine.text, fresh: true });
+			msg = 'Resent to a new chat';
+			move = false;
 		} else if (act === 'work-session' || act === 'work-session-new') {
 			const w = ui.work?.data?.milestones.flatMap(m => m.items.map(i => ({ ...i, milestone: m.title }))).find(i => i.key === key);
 			const d = ui.selected?.detail?.issue?.key === key ? ui.selected.detail.issue : null;
@@ -2110,7 +2236,11 @@ async function act(button) {
 }
 
 // ---------- events ----------
+// Browse is a view you come back to: leaving My Work remembers it was open, and returning reopens it.
+const BROWSE_KINDS = ['worksrc', 'browseitem'];
 function switchTab(tab) {
+	if (ui.tab === 'work' && tab !== 'work') ui.browseOpen = BROWSE_KINDS.includes(ui.selected?.kind) ? { kind: ui.selected.kind, id: ui.selected.id } : null;
+	const reopen = tab === 'work' && ui.tab !== 'work' ? ui.browseOpen : null;
 	ui.tab = tab;
 	ui.notifFilter = null;
 	ui.routeFilter = false;
@@ -2118,6 +2248,38 @@ function switchTab(tab) {
 	ui.selected = null;
 	$('detail').innerHTML = '<div class="empty">Select an item to see details and actions.</div>';
 	render();
+	if (reopen) select(reopen.kind, reopen.id).then(() => renderAreaBar());
+}
+function saveBrowse() {
+	const browse = { source: ui.findSource || 'bugs', area: ui.findArea || '', refine: ui.findRefine || null };
+	const patch = { browse };
+	// Every filter you apply is kept (most recent first, no duplicates) so you can run it again.
+	if (browse.refine) {
+		const same = h => h.source === browse.source && (h.area || '') === browse.area && h.refine?.query === browse.refine.query;
+		patch.browseHistory = [{ ...browse, at: new Date().toISOString() }, ...(ui.state?.settings?.browseHistory || []).filter(h => !same(h))].slice(0, 15);
+	}
+	if (ui.state?.settings) Object.assign(ui.state.settings, patch);
+	api('/api/settings', patch).catch(() => { });
+}
+function browseHistoryHtml() {
+	const list = ui.state?.settings?.browseHistory || [];
+	const label = id => (FIND_SOURCES.find(s => s[0] === id) || [])[1] || id;
+	const areaName = id => (ui.state.areas || []).find(a => a.id === id)?.name || id;
+	return `<div class="find-history dcard" role="menu" aria-label="Recent filters">
+		${list.length ? list.map((h, i) => `<button type="button" class="find-history-item" role="menuitem" data-find-history-run="${i}" title="${esc(h.refine.query)}">
+			<span>${esc(h.refine.text || h.refine.query)}</span><span class="cd">${esc(h.source === 'area' ? `Area: ${areaName(h.area)}` : label(h.source))} · ${esc(agoText(h.at))}</span></button>`).join('')
+		+ '<button type="button" class="link-btn find-history-clear" data-find-history-clear>Clear history</button>'
+		: '<p class="cd" style="padding:8px 10px;margin:0">Filters you apply show up here.</p>'}
+	</div>`;
+}
+function restoreBrowse() {
+	const b = ui.state?.settings?.browse;
+	if (!b || ui.browseRestored) return;
+	ui.browseRestored = true;
+	ui.findSource = b.source || 'bugs';
+	ui.findArea = b.area || '';
+	ui.findRefine = b.refine?.query ? b.refine : null;
+	ui.findFilter = ui.findRefine ? (ui.findRefine.text || ui.findRefine.query) : '';
 }
 document.querySelector('.rail-nav').addEventListener('click', e => {
 	const b = e.target.closest('button[data-tab]');
@@ -2309,15 +2471,15 @@ function dropTarget(e) {
 	if (!t || !drag) return null;
 	const group = t.dataset.group || t.dataset.dropGroup;
 	if (!['current', 'next', 'priorities'].includes(group)) return null;
-	if (!drag.sess && !drag.pinIssue && group !== 'priorities') return null;
+	if (!drag.sess && !drag.pinIssue && !drag.recent && group !== 'priorities') return null;
 	return { el: t, group, row: t.matches('[data-prio]') ? t : null };
 }
 $('list').addEventListener('dragstart', e => {
-	const row = e.target.closest?.('[data-prio], [data-sess], [data-pin-issue]');
+	const row = e.target.closest?.('[data-prio], [data-sess], [data-pin-issue], [data-recent-sess]');
 	if (!row) return;
-	drag = { prio: row.dataset.prio || null, sess: row.dataset.sess || null, pinIssue: row.dataset.pinIssue || null, from: row.dataset.group || null };
+	drag = { prio: row.dataset.prio || null, sess: row.dataset.sess || null, pinIssue: row.dataset.pinIssue || null, recent: row.dataset.recentSess || null, from: row.dataset.group || null };
 	e.dataTransfer.effectAllowed = 'move';
-	e.dataTransfer.setData('text/plain', drag.prio || drag.sess);
+	e.dataTransfer.setData('text/plain', drag.prio || drag.sess || drag.recent || drag.pinIssue);
 	row.classList.add('dragging');
 });
 $('list').addEventListener('dragover', e => {
@@ -2342,6 +2504,13 @@ $('list').addEventListener('drop', e => {
 		if (idx < 0) idx = undefined;
 	}
 	clearDrop();
+	// An active (not yet added) session dropped on a group is added to My Work there.
+	if (d.recent) {
+		api('/api/work-pin', { op: 'add', id: d.recent, bucket: t.group, ...(t.group === 'priorities' ? { to: idx ?? 'top' } : {}) })
+			.then(r => loadWork().then(() => toast(r?.issue ? `Added ${shortKey(r.issue)} to ${groupLabel(t.group)}: this session works on it` : `Added to ${groupLabel(t.group)}`)))
+			.catch(error => toast(error.message, true));
+		return;
+	}
 	const run = d.prio && t.group === 'priorities' && d.from === 'priorities'
 		? updatePriority(d.prio, 'move', idx ?? 'top')
 		: d.pinIssue && t.group !== d.from
@@ -2393,11 +2562,15 @@ $('areabar').addEventListener('submit', async e => {
 async function sendIssueMessage(form, preset) {
 	const ta = form.querySelector('.ask-input');
 	const text = (preset ?? ta.value).trim();
-	if (!text) return;
+	const key = form.dataset.key;
+	const pasted = preset === undefined ? ui.pasted?.[key] || [] : [];
+	if (pasted.some(p => !p.name)) { toast('Still attaching the screenshot…'); return; }
+	if (!text && !pasted.length) return;
 	const btn = form.querySelector('.send');
 	btn.disabled = true;
 	try {
-		await api('/api/message', { key: form.dataset.key, title: form.dataset.title, text });
+		await api('/api/message', { key, title: form.dataset.title, text, images: pasted.map(p => p.name) });
+		if (pasted.length) { ui.pasted[key] = []; refreshPasted(key); }
 		if (preset === undefined) { ta.value = ''; autoGrow(ta); }
 		toast('Sent to the chat');
 		await load();
@@ -2494,14 +2667,29 @@ $('detail').addEventListener('keydown', e => {
 	setChatHeight((ui.state.settings.chatHeight || 160) + (e.key === 'ArrowUp' ? 24 : -24), true);
 });
 $('detail').addEventListener('click', e => {
-	const open = e.target.closest('[data-browse-open]');
+	// A click anywhere on a Browse row (except its buttons and links) opens the issue, like clicking its title.
+	const rowEl = e.target.closest('button, a, input, select') ? null : e.target.closest('.find-row');
+	const open = e.target.closest('[data-browse-open]') || rowEl?.querySelector('[data-browse-open]');
 	if (open) { ui.browseScroll = document.querySelector('#detail .detail-body')?.scrollTop ?? 0; select('browseitem', open.dataset.browseOpen); return; }
 	if (e.target.closest('[data-browse-back]')) {
 		select('worksrc', 'find').then(() => { const b = document.querySelector('#detail .detail-body'); if (b) b.scrollTop = ui.browseScroll || 0; renderAreaBar(); });
 		return;
 	}
 	const p = e.target.closest('[data-find-src]');
-	if (p) { ui.findSource = p.dataset.findSrc; renderDetail(false, true); document.querySelector(`[data-find-src="${p.dataset.findSrc}"]`)?.focus(); return; }
+	if (p) { ui.findSource = p.dataset.findSrc; saveBrowse(); renderDetail(false, true); document.querySelector(`[data-find-src="${p.dataset.findSrc}"]`)?.focus(); return; }
+	if (e.target.closest('[data-find-refresh]')) { loadFindWork(true); return; }
+	if (e.target.closest('[data-find-history]')) { ui.findHistoryOpen = !ui.findHistoryOpen; renderDetail(false, true); return; }
+	if (e.target.closest('[data-find-history-clear]')) { ui.state.settings.browseHistory = []; api('/api/settings', { browseHistory: [] }).catch(() => { }); ui.findHistoryOpen = false; renderDetail(false, true); return; }
+	const run = e.target.closest('[data-find-history-run]');
+	if (run) {
+		const h = (ui.state.settings.browseHistory || [])[Number(run.dataset.findHistoryRun)];
+		if (!h) return;
+		ui.findHistoryOpen = false;
+		ui.findSource = h.source;
+		ui.findArea = h.area || '';
+		setFindRefine({ ...h.refine });
+		return;
+	}
 	if (e.target.closest('[data-find-query-clear]')) { setFindRefine(null); document.getElementById('find-filter')?.focus(); return; }
 	if (e.target.closest('[data-find-ask-cancel]')) { ui.findAsking = null; renderDetail(false, true); }
 });
@@ -2516,7 +2704,7 @@ $('detail').addEventListener('keydown', e => {
 	} else applyFindFilter(text.slice(0, 300));
 });
 $('detail').addEventListener('change', e => {
-	if (e.target.id === 'find-area') { ui.findArea = e.target.value; renderDetail(false, true); document.getElementById('find-area')?.focus(); }
+	if (e.target.id === 'find-area') { ui.findArea = e.target.value; saveBrowse(); renderDetail(false, true); document.getElementById('find-area')?.focus(); }
 });
 // The filter applies on Enter; clearing the search box (its × button) removes it.
 $('detail').addEventListener('input', e => {
@@ -2621,6 +2809,8 @@ $('detail').addEventListener('click', e => {
 async function sendWorkChat(form) {
 	const ta = form.querySelector('.ask-input');
 	const text = ta.value.trim();
+	// With a screenshot it's always a message for the chat.
+	if (ui.pasted?.['my-work']?.length) { sendIssueMessage(form); return; }
 	if (!text) return;
 	const [first, ...rest] = text.split(/\s+/);
 	const restText = text.slice(text.indexOf(first) + first.length).trim();

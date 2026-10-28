@@ -247,7 +247,8 @@ test('discussing an issue uses its own chat, and Start session turns that chat i
 	try {
 		await post('/api/message', { key, title: 'Crash on save', text: 'why does this crash?' });
 		assert.match(sent.at(-1), /create the chat for octo\/app#42/);
-		assert.match(sent.at(-1), /relationship "independent", title "#42: Crash on save", no workspace/);
+		assert.match(sent.at(-1), /title "#42: Crash on save"; omit relationship \(so the chat is nested under this My Work session\)/);
+		assert.doesNotMatch(sent.at(-1), /"independent"/, 'issue chats are nested, not top-level sessions');
 		assert.match(sent.at(-1), /setIssueChat/);
 		assert.ok(sent.at(-1).includes(`${config.scriptCommand()} record octo/app#42`), 'the issue chat gets the helper script\'s exact path');
 		assert.ok(sent.at(-1).includes('why does this crash?'));
@@ -266,8 +267,96 @@ test('discussing an issue uses its own chat, and Start session turns that chat i
 
 		await workSessions.setIssueChat(key, 'agent-host-session://ahp-session/aaaaaaaa-1111-2222-3333-444444444444', 'session');
 		assert.equal((await post('/api/work-session', { key, title: 't', url: 'u' })).body.via, 'new-session', 'once converted, Start another session creates a new one');
+		assert.match(sent.at(-1), /omit relationship, so it is nested under this My Work session\) with that workspace, worktree true/, 'work sessions nest too, with their own worktree');
 		await workSessions.setIssueChat(key, null);
 		assert.equal(await workSessions.getIssueChat(key), null);
+
+		// From a panel opened outside the My Work session, the request runs in that session so the chat is nested there.
+		writeFileSync(path.join(board, 'my-triage-chats.json'), JSON.stringify({ schemaVersion: 1, chats: {}, persistentChat: { link: 'agent-host-session://ahp-session/dddddddd-1111-2222-3333-444444444444' } }));
+		await workSessions.setIssueChat(key, null);
+		await post('/api/message', { key: 'octo/app#43', title: 'Other', text: 'hi' });
+		assert.match(sent.at(-1), /run a request in the My Work session \(agent-host-session:\/\/ahp-session\/dddddddd-/);
+		assert.match(sent.at(-1), /get_current_session/);
+		assert.match(sent.at(-1), /create the chat for octo\/app#43/);
+		rmSync(path.join(board, 'my-triage-chats.json'));
+
+		// A chat that never answered: resending forgets it and creates a new one, without repeating the message.
+		await workSessions.setIssueChat(key, 'agent-host-session://ahp-session/bbbbbbbb-1111-2222-3333-444444444444');
+		const before = (await data.getThread(key)).length;
+		await post('/api/message', { key, title: 'Crash on save', text: 'try the other fix', fresh: true });
+		assert.match(sent.at(-1), /create the chat for octo\/app#42/);
+		assert.equal((await data.getThread(key)).length, before, 'the resent message is not added twice');
+
+		await workSessions.setMyWorkChat('agent-host-session://ahp-session/cccccccc-1111-2222-3333-444444444444');
+		await post('/api/message', { key: 'my-work', text: 'add #1', fresh: true });
+		assert.match(sent.at(-1), /create the nested "My Work chat"/);
+	} finally {
+		await server.stop();
+	}
+});
+
+test('any session can get a summary from the My Work chat', async () => {
+	const { TriageRuntime } = await import(new URL('lib/runtime.mjs', ext));
+	const runtime = new TriageRuntime({ log: () => { }, sendToChat: async () => { } });
+	const link = 'agent-host-session://ahp-session/eeeeeeee-1111-2222-3333-444444444444';
+	await runtime.invoke('x', 'updateMyWork', { op: 'describeSession', session: link, summary: 'Fixing the crash; PR open, waiting on review.' });
+	const s = (await workSessions.getSessionSummaries())['eeeeeeee-1111-2222-3333-444444444444'];
+	assert.equal(s.summary, 'Fixing the crash; PR open, waiting on review.', 'an unpinned session keeps its summary');
+	assert.ok(s.at);
+	const msg = prompts.describeSessionMessage(link, 'Fix #1', { pinned: false });
+	assert.doesNotMatch(msg, /that I added to My Work/);
+	assert.doesNotMatch(msg, /"issue": "owner\/repo#N"/, 'only pinned sessions are swapped for their issue');
+	assert.match(prompts.describeSessionMessage(link, 'Fix #1'), /"issue": "owner\/repo#N"/);
+});
+
+test('Browse keeps its last source and filter across panel reloads', async () => {
+	const http = await import('node:http');
+	const { TriageServer } = await import(new URL('lib/server.mjs', ext));
+	const server = new TriageServer(() => { }, null);
+	const base = await server.start();
+	const post = body => new Promise((resolve, reject) => {
+		const req = http.request(new URL('/api/settings', base), { method: 'POST', headers: { 'content-type': 'application/json', 'x-triage-token': server.token } }, res => {
+			let d = ''; res.on('data', c => d += c); res.on('end', () => resolve(JSON.parse(d || '{}')));
+		});
+		req.on('error', reject); req.end(JSON.stringify(body));
+	});
+	try {
+		await post({ browse: { source: 'area', area: 'agents-window', refine: { query: 'author:alexdima', text: 'created by alexdima', note: '', extra: 'x' } } });
+		assert.deepEqual((await data.getSettings()).browse, { source: 'area', area: 'agents-window', refine: { query: 'author:alexdima', text: 'created by alexdima', note: '' } });
+		await post({ browse: { source: 'evil', area: '../x', refine: { query: ' ' } } });
+		assert.deepEqual((await data.getSettings()).browse, { source: 'bugs', area: '', refine: null }, 'unknown values fall back to defaults');
+		await post({ browseHistory: [{ source: 'area', area: 'agents-window', refine: { query: 'author:alexdima' }, at: '2026-10-28T10:00:00Z' }, { source: 'bugs', refine: null }] });
+		const history = (await data.getSettings()).browseHistory;
+		assert.equal(history.length, 1, 'entries without a filter are dropped');
+		assert.equal(history[0].refine.query, 'author:alexdima');
+	} finally {
+		await server.stop();
+	}
+});
+
+test('screenshots pasted in the panel reach the chat as private file paths', async () => {
+	const http = await import('node:http');
+	const { promises: fsp } = await import('node:fs');
+	const { TriageServer } = await import(new URL('lib/server.mjs', ext));
+	const sent = [];
+	const server = new TriageServer(() => { }, async prompt => { sent.push(prompt); });
+	const base = await server.start();
+	const post = (p, body) => new Promise((resolve, reject) => {
+		const req = http.request(new URL(p, base), { method: 'POST', headers: { 'content-type': 'application/json', 'x-triage-token': server.token } }, res => {
+			let d = ''; res.on('data', c => d += c); res.on('end', () => resolve({ status: res.statusCode, body: JSON.parse(d || '{}') }));
+		});
+		req.on('error', reject); req.end(JSON.stringify(body));
+	});
+	try {
+		const png = Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex').toString('base64');
+		assert.equal((await post('/api/attachment', { mimeType: 'text/html', data: png })).status, 400, 'only images');
+		const up = await post('/api/attachment', { mimeType: 'image/png', data: png });
+		assert.match(up.body.name, /^[0-9a-f-]{36}\.png$/);
+		const file = path.join(home, 'data', 'attachments', up.body.name);
+		assert.equal((await fsp.stat(file)).mode & 0o777, 0o600, 'saved privately');
+		await post('/api/message', { key: 'my-work', text: '', images: [up.body.name, '../../etc/passwd'] });
+		assert.ok(sent.at(-1).includes(JSON.stringify(file)), 'the chat gets the screenshot path');
+		assert.doesNotMatch(sent.at(-1), /passwd/, 'unknown names are dropped');
 	} finally {
 		await server.stop();
 	}

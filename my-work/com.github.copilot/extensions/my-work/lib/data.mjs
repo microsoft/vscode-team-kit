@@ -3,7 +3,7 @@ import { promises as fs, watch as fsWatch } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { sessionsFor } from './sessions.mjs';
-import { listIssueChats } from './workSessions.mjs';
+import { listIssueChats, getSessionSummaries } from './workSessions.mjs';
 import { COPILOT_HOME, BOARD, SCRIPT, config } from './config.mjs';
 
 export { BOARD, SCRIPT };
@@ -237,6 +237,8 @@ export async function setSettings(patch) {
 	if (patch.listHeight !== undefined) next.listHeight = patch.listHeight;
 	if (patch.areaFilter !== undefined) next.areaFilter = patch.areaFilter;
 	if (patch.recentCollapsed !== undefined) next.recentCollapsed = patch.recentCollapsed;
+	if (patch.browse !== undefined) next.browse = patch.browse;
+	if (patch.browseHistory !== undefined) next.browseHistory = patch.browseHistory;
 	await writeStore('settings', SETTINGS_FILE, next);
 	if (patch.popularThreshold !== undefined) checksCache.clear();
 	return { ...DEFAULT_SETTINGS, ...next };
@@ -299,6 +301,18 @@ export async function getThreads() {
 		if (value?.format === THREAD_FORMAT && value.version === 1 && Array.isArray(value.entries)) out[value.key] = value.entries;
 	}
 	return out;
+}
+
+/** The My Work session (the reused daily triage chat registered with mark-chat), if any. */
+export async function myWorkSessionLink() {
+	const chats = await readJsonFile(path.join(BOARD, 'my-triage-chats.json')).catch(() => undefined);
+	const link = chats?.persistentChat?.link;
+	return typeof link === 'string' && link.startsWith('agent-host-session://') ? link : null;
+}
+
+export async function getThread(key) {
+	const value = await readJsonFile(threadFile(key)).catch(() => undefined);
+	return value?.format === THREAD_FORMAT && Array.isArray(value.entries) ? value.entries : [];
 }
 
 export async function appendThread(key, role, text, choices) {
@@ -523,6 +537,7 @@ export async function getState({ forceNotifications = false } = {}) {
 	]);
 	const threads = await getThreads();
 	const issueChats = await listIssueChats();
+	const sessionSummaries = await getSessionSummaries();
 	const sessions = await sessionsFor([...new Set([...Object.keys(index.issues || {}), ...(notif.data || []).map(n => n.issueKey).filter(Boolean)])]).catch(() => ({}));
 	const customGroups = await getCustomGroups();
 	const areas = await loadAreas();
@@ -607,7 +622,7 @@ export async function getState({ forceNotifications = false } = {}) {
 	}
 
 	return {
-		hasIndex, indexing: await loadIndexing(), refreshedAt: index.refreshedAt, counts: index.counts, queueDate: queue?.date ?? null, settings, batches, opinions, opinionPending, informedPending, threads, issueChats, customGroups, areas, sessions,
+		hasIndex, indexing: await loadIndexing(), refreshedAt: index.refreshedAt, counts: index.counts, queueDate: queue?.date ?? null, settings, batches, opinions, opinionPending, informedPending, threads, issueChats, sessionSummaries, me: await currentLogin().catch(() => null), customGroups, areas, sessions,
 		notifications, notificationsError: notif.error ?? null, notificationsFetchedAt: notif.at ? new Date(notif.at).toISOString() : null, untriaged, notifTriagePending, issueRules, issueRulesPending, sections, cleanup: cleanupGroups,
 		implement: { total: implement.total, bugs: implement.bugs, items: implementItems },
 		today: {
@@ -825,7 +840,7 @@ export async function getGitHubDetail(key, fresh = false) {
 		comments: comments.map(c => ({ id: c.id, url: c.html_url, author: ghUser(c.user), association: c.author_association, createdAt: c.created_at, body: c.body || '', reactions: reactionsOf(c.reactions) })),
 		linkedPrs: [...linked.values()].slice(-8),
 		pr: pr ? { draft: pr.draft, merged: !!pr.merged_at, additions: pr.additions, deletions: pr.deletions, changedFiles: pr.changed_files, head: pr.head?.ref, base: pr.base?.ref } : null,
-		me: await getMe().catch(() => null),
+		me: await currentLogin().catch(() => null),
 		fetchedAt: new Date().toISOString(),
 	};
 	ghCache.set(key, { at: Date.now(), value });

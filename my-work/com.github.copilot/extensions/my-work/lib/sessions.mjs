@@ -46,7 +46,7 @@ function readAll(file) {
 				changes: p.changes || null,
 				project: p.project?.displayName || null,
 				texts: [p.summary || '', ...(p.chats || []).map(c => c.summary || '')],
-				branch: null, prs: [],
+				branch: null, artifacts: [...(p._meta?.['agentHost/sessionArtifacts'] || [])],
 				info: {
 					chats: (p.chats || []).filter(c => !c.archived).map(c => c.summary || '').filter(Boolean).slice(0, 12),
 					repo: p._meta?.git?.githubOwner && p._meta?.git?.githubRepo ? `${p._meta.git.githubOwner}/${p._meta.git.githubRepo}` : null,
@@ -66,16 +66,27 @@ function readAll(file) {
 			const s = sessions.get(row.session_uri);
 			if (!s) continue;
 			if (row.key === 'copilot.worktree.branchName') s.branch = row.value || null;
-			else for (const a of json(row.value) || []) {
-				if (a?.type !== 'pullRequest') continue;
-				const url = a.link || a.uri || a.url || null;
-				s.prs.push({ label: a.label || 'Pull request', url: typeof url === 'string' && /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/.test(url) ? url : null });
-			}
+			else s.artifacts.push(...(json(row.value) || []));
 		}
 		return [...sessions.values()];
 	} finally {
 		db.close();
 	}
+}
+
+// PRs and issues a session created or linked (its artifacts and references), latest per URL. Only GitHub links.
+const GH_ITEM_RE = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/(pull|issues)\/\d+(?:[/?#].*)?$/;
+function linkedItems(artifacts) {
+	const byUrl = new Map();
+	for (const a of artifacts) {
+		const url = a?.link || a?.uri || a?.url;
+		if (typeof url !== 'string' || !GH_ITEM_RE.test(url)) continue;
+		const kind = /\/pull\/\d+/.test(url) ? 'pr' : 'issue';
+		byUrl.delete(url);
+		byUrl.set(url, { kind, label: String(a.label || (kind === 'pr' ? 'Pull request' : 'Issue')).slice(0, 120), url, artifact: !!a.isArtifact || a.isArtifact === undefined });
+	}
+	const items = [...byUrl.values()].slice(-8);
+	return { linked: items, prs: items.filter(i => i.kind === 'pr').slice(-3).map(({ label, url }) => ({ label, url })) };
 }
 
 let cache = { key: '', byRef: new Map(), all: [] };
@@ -102,8 +113,7 @@ async function load() {
 				id: s.id, title: s.title, archived: s.archived, read: s.read, modified: s.modified,
 				changes: s.changes && (s.changes.additions || s.changes.deletions || s.changes.files) ? s.changes : null,
 				project: s.project, branch: s.branch || s.info.gitBranch, info: s.info,
-				// Latest PR per URL (sessions can record many); keep a few.
-				prs: [...new Map(s.prs.filter(p => p.url).map(p => [p.url, p])).values()].slice(-3),
+				...linkedItems(s.artifacts),
 				link: `agent-host-session://ahp-session/${s.id}`,
 			};
 			everything.push({ ...pub, text: s.texts.join('\n').toLowerCase() });

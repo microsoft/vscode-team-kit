@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.0.6 (2026-10-28)
+
+- Issue chats and work sessions are nested under your My Work session. The first message about an issue creates its chat there (no workspace), even when the panel is open in another session; Start session, Start another session, Implement and starting from a notification create nested sessions with their own worktree. MSRC sessions stay separate.
+- A message a chat doesn't answer within 3 minutes (for example because the Agents window lost the nested chat) shows "No reply yet" with **Resend in a new chat**, instead of waiting forever.
+- Session rows (in issue, MSRC and session views) list everything the session created or linked: pull requests and issues, with their labels. **Summarize** asks the My Work chat for a short summary of what the session is doing, its state and next step, kept per session and flagged when the session has changed since.
+- Paste screenshots into the issue conversation or My Work chat box. They're saved privately in the My Work data folder (kept 30 days), shown as thumbnails, and passed to the chat as file paths it can open.
+- **Open chat** works for nested chats (such as the My Work chat), not only top-level sessions.
+- Browse issues & PRs:
+  - Remembers where you were: switching to another view and back reopens it (or the issue you opened from it), and the source, area and filter are kept when the panel is reopened.
+  - **Recent filters** (history button) re-runs any of your last 15 filters with its list; a refresh button re-runs the current search on GitHub.
+  - The filter has its own row, with refresh and history at the end of the source row; examples use your own GitHub login.
+  - Clicking anywhere on a row opens it.
+- My Work list:
+  - Quick actions on rows, shown on hover or keyboard focus: issues get Start / Open session, Open on GitHub (and Remove for locally added ones); sessions get Open session and Remove; MSRC items get Start / Open session and Open in IcM.
+  - Drag a session from **Active sessions** into Current, Next or My priorities to add it to My Work there (a session that works on an issue adds that issue).
+  - Rows are normal clickable boxes (pointer cursor); dragging uses the grip that appears on the left on hover.
+
 ## 1.0.5 (2026-10-28)
 
 - Each issue gets its own chat: the first message about an issue from the panel creates it (its own session, no workspace), and later messages go to the same chat, so the conversation stays with the issue. **Open chat** in the conversation opens it.

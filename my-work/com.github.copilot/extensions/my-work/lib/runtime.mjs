@@ -1,6 +1,6 @@
 import { getMyWork, cleanRefine } from './work.mjs';
 import { listMsrcItems, saveMsrcItem, parseIncident } from './msrcItems.mjs';
-import { listPinned, pinSession, unpinSessions, parseSessionRef, getMyWorkChat, setMyWorkChat, setIssueChat, MY_WORK_DIR, setSessionBucket, setSessionSummary, pinIssue, setIssueBucket } from './workSessions.mjs';
+import { listPinned, pinSession, unpinSessions, parseSessionRef, getMyWorkChat, setMyWorkChat, setIssueChat, MY_WORK_DIR, setSessionBucket, setSessionSummary, pinIssue, setIssueBucket, recordSessionSummary } from './workSessions.mjs';
 import { watch as fsWatch, mkdirSync } from 'node:fs';
 import { sessionsById, recentSessions } from './sessions.mjs';
 import { TriageServer } from './server.mjs';
@@ -396,7 +396,9 @@ export class TriageRuntime {
 				} else if (input.op === 'describeSession') {
 					const id = need(parseSessionRef(input.session), 'a session link or id');
 					const item = (await listPinned()).find(p => p.id === id);
-					result = await setSessionSummary(id, need(input.summary, 'summary'));
+					const summary = need(input.summary, 'summary');
+					result = await recordSessionSummary(id, summary);
+					if (item) result = await setSessionSummary(id, summary);
 					if (input.issue && item) {
 						await pinIssue(input.issue, item.bucket || 'current', id);
 						if ((item.bucket || 'current') === 'priorities') await data.updatePriorities({ op: 'add', key: input.issue });

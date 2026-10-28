@@ -680,7 +680,13 @@ html.narrow .title-sub { gap: 8px; }
 .prio-add input { flex: 1 1 auto; min-width: 0; font: inherit; font-size: 12px; padding: 2px 6px; color: var(--fg); background: var(--input-bg, transparent); border: 1px solid var(--line); border-radius: 4px; }
 .prio-add input:focus { outline: 1px solid var(--focus, var(--accent)); outline-offset: -1px; }
 .prio-rank { display: inline-block; min-width: 1.4em; margin-right: 6px; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
-.prio-row { cursor: grab; }
+.prio-row { cursor: pointer; }
+/* Drag handle: replaces the dot on the left while hovering; the row itself stays a normal clickable item. */
+.row-grip { position: absolute; left: 3px; top: 10px; width: 16px; height: 18px; display: grid; place-items: center; color: var(--faint); opacity: 0; cursor: grab; }
+.row-grip .codicon { font-size: 12px; }
+.prio-row:hover .row-grip, .prio-row:focus-visible .row-grip { opacity: 1; }
+.prio-row:hover::before, .prio-row:focus-visible::before { opacity: 0; }
+@media (hover: none) { .row-grip { opacity: 1; } .prio-row::before { opacity: 0; } }
 .prio-row.dragging { opacity: .5; }
 .prio-row.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
 .prio-row.drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
@@ -804,7 +810,7 @@ html.narrow .title-sub { gap: 8px; }
 .areabar .btn.sm .codicon { margin-right: 2px; }
 
 .btn.sm.on { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
-.find-row[draggable="true"] { cursor: grab; }
+.find-row { cursor: pointer; }
 .find-row.dragging { opacity: .5; }
 #list.drop-ready .group-h[data-drop-group], #list.drop-ready .empty-group[data-drop-group] { outline: 1px dashed var(--line); outline-offset: -1px; border-radius: 4px; }
 
@@ -817,3 +823,33 @@ html.narrow .title-sub { gap: 8px; }
 .index-banner > span:not(.index-bar) { flex: 1 1 200px; }
 .index-bar { flex: 1 1 100%; height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
 .index-bar > span { display: block; height: 100%; background: var(--accent); transition: width .3s; }
+.waiting.stalled { color: var(--warn, var(--fg)); }
+.waiting.stalled .link-btn { margin-left: 4px; }
+.sess-summary { margin-top: 6px; font-size: 12.5px; }
+.sess-summary p { margin: 2px 0 0; line-height: 1.45; }
+.sess-summary .link-btn { font-size: 12px; }
+.composer { flex-wrap: wrap; }
+.composer-images { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 4px 2px; }
+.composer-image { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 48px; border-radius: 6px; overflow: hidden; background: var(--surface-2); border: 1px solid var(--border, transparent); }
+.composer-image img { width: 100%; height: 100%; object-fit: cover; }
+.composer-image .link-btn { position: absolute; top: 1px; right: 1px; padding: 0 2px; background: var(--surface); border-radius: 4px; line-height: 1; }
+.bubble-images { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.bubble-images img { max-width: 220px; max-height: 160px; border-radius: 6px; display: block; }
+.find-tools .btn.icon { padding: 4px 7px; }
+.find-history { display: flex; flex-direction: column; margin: -4px 0 10px; padding: 4px; max-height: 280px; overflow: auto; }
+.find-history-item { display: flex; justify-content: space-between; gap: 12px; text-align: left; border: 0; background: transparent; color: var(--fg); font: inherit; font-size: 12.5px; padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+.find-history-item:hover, .find-history-item:focus-visible { background: var(--surface-2); }
+.find-history-item .cd { white-space: nowrap; font-size: 11.5px; }
+.find-history-clear { align-self: flex-end; font-size: 11.5px; margin: 4px 6px 2px; }
+
+/* Quick actions on list rows: appear on hover or keyboard focus, over the row's right edge. */
+.row-act { position: relative; }
+.row-quick { position: absolute; top: 7px; right: 6px; display: flex; gap: 2px; padding: 1px; border-radius: 6px; background: var(--surface); box-shadow: 0 0 0 1px var(--border, transparent); opacity: 0; pointer-events: none; transition: opacity .1s; }
+.row-act:hover .row-quick, .row-act:focus-within .row-quick { opacity: 1; pointer-events: auto; }
+.row-quick .row-pin { position: static; transform: none; opacity: 1; width: 24px; height: 24px; display: inline-grid; place-items: center; color: var(--muted); text-decoration: none; }
+.row-quick .row-pin:hover { color: var(--fg); background: var(--surface-2); }
+.row-quick .row-pin .codicon { font-size: 14px; margin: 0; }
+@media (hover: none) { .row-quick { opacity: 1; pointer-events: auto; } }
+/* Browse toolbar: sources and actions on the first row, the filter on its own full-width row. */
+.find-tools-end { margin-left: auto; display: inline-flex; gap: 4px; }
+.find-tools .find-search { flex: 1 1 100%; }
