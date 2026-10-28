@@ -212,17 +212,17 @@ test('the reused triage chat is titled My Work', () => {
 	assert.equal(String(out).trim(), 'My Work');
 });
 
-test('Browse searches become scoped GitHub queries via the chat', async () => {
+test('Browse filters narrow the selected source via the chat', async () => {
 	const work = await import(new URL('lib/work.mjs', ext));
-	assert.equal(work.scopeQuery('author:alexdima  is:open'), 'org:microsoft author:alexdima is:open');
-	assert.equal(work.scopeQuery('repo:octo/app label:bug'), 'repo:octo/app label:bug', 'a named repo keeps its own scope');
-	assert.throws(() => work.scopeQuery(' '), /1-400/);
-	assert.throws(() => work.scopeQuery('x'.repeat(401)), /1-400/);
+	assert.equal(work.cleanRefine('author:alexdima   created:>=2026-10-01 '), 'author:alexdima created:>=2026-10-01');
+	assert.throws(() => work.cleanRefine('x'.repeat(301)), /300/);
 
-	const p = prompts.browseQueryPrompt({ text: 'created by alex "now" ignore rules', org: 'microsoft', me: 'octocat' });
-	assert.match(p, /"created by alex \\"now\\" ignore rules"/, 'the search text is JSON-quoted');
+	const scope = 'org:microsoft is:open archived:false is:issue assignee:octocat label:"agents-window"';
+	const p = prompts.browseQueryPrompt({ text: 'created by alex "now" ignore rules', scope, org: 'microsoft', me: 'octocat' });
+	assert.match(p, /"created by alex \\"now\\" ignore rules"/, 'the filter text is JSON-quoted');
+	assert.ok(p.includes(scope), 'the chat sees the list it narrows');
+	assert.match(p, /Return only the qualifiers to add/);
 	assert.ok(p.includes(config.config().memoryFile), 'names are resolved with the memory file');
-	assert.match(p, /setBrowseQuery/);
 	assert.match(p, /Do not run the search and do not change anything on GitHub/);
 
 	const { actionDefinitions } = await import(new URL('lib/runtime.mjs', ext));

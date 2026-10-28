@@ -2,7 +2,7 @@
 
 ## 1.0.4 (2026-10-28)
 
-- Browse issues & PRs: describe a search in the filter box and press Enter ("created by alexdima"). The chat turns it into a GitHub query, resolving names with your memory, and the panel runs it live and shows the query to edit. GitHub search syntax runs directly; typing without Enter still filters the loaded rows.
+- Browse issues & PRs: the filter applies when you press Enter and narrows the selected list (Bugs, an area, Reviews…) with a live GitHub search. Write GitHub syntax (`author:alexdima`) or plain words ("created by alexdima this month"): the chat turns plain words into search qualifiers, resolving names with your memory, and the panel shows them to edit.
 
 ## 1.0.3 (2026-10-28)
 

@@ -128,22 +128,29 @@ export async function closingIssues(prUrl) {
 
 // "Find work" sources for My Work: live GitHub searches across the configured org.
 const sourceCache = new Map(); // query -> { at, items }
-/** A free-form Browse query, scoped to the configured org unless it names its own org, repo or user. */
-export function scopeQuery(query) {
-	const text = String(query ?? '').replace(/\s+/g, ' ').trim();
-	if (!text || text.length > 400) throw Object.assign(new Error('query must be 1-400 characters'), { status: 400 });
-	return /(^|\s)-?(org|repo|user):/i.test(text) ? text : `org:${config().org} ${text}`;
+/** Extra search qualifiers that narrow a Browse source (the user's filter, as GitHub search syntax). */
+export function cleanRefine(refine) {
+	const text = String(refine ?? '').replace(/\s+/g, ' ').trim();
+	if (text.length > 300) throw Object.assign(new Error('filter must be at most 300 characters'), { status: 400 });
+	return text;
 }
-export async function workSource(source, { labels = [], query = '' } = {}) {
+/** The GitHub search query behind a Browse source, narrowed by an optional filter. */
+export async function sourceQuery(source, { labels = [], refine = '' } = {}) {
 	const me = await myLogin();
-	const base = `org:${config().org} is:open archived:false`;
-	const q = source === 'query' ? scopeQuery(query)
-		: source === 'bugs' ? `${base} is:issue assignee:${me} label:bug`
+	const extra = cleanRefine(refine);
+	// A filter that asks for closed (or explicitly open) items replaces the default is:open.
+	const state = /(^|\s)is:(open|closed)\b/i.test(extra) ? '' : ' is:open';
+	const base = `org:${config().org}${state} archived:false`;
+	const q = source === 'bugs' ? `${base} is:issue assignee:${me} label:bug`
 		: source === 'features' ? `${base} is:issue assignee:${me} label:feature-request`
 			: source === 'mine' ? `${base} is:issue assignee:${me}`
 				: source === 'reviews' ? `${base} is:pr user-review-requested:${me}`
 					: source === 'area' && labels.length ? `${base} is:issue assignee:${me} label:${labels.map(l => JSON.stringify(l)).join(',')}`
 						: null;
+	return q && extra ? `${q} ${extra}` : q;
+}
+export async function workSource(source, { labels = [], refine = '' } = {}) {
+	const q = await sourceQuery(source, { labels, refine });
 	if (!q) throw Object.assign(new Error('unknown source'), { status: 400 });
 	const hit = sourceCache.get(q);
 	if (hit && Date.now() - hit.at < 2 * 60 * 1000) return hit.items;

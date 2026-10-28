@@ -1681,13 +1681,16 @@ function renderWorkHomeInto(el) {
 
 // Find work: pull candidates into My Work from live GitHub searches.
 const FIND_SOURCES = [['bugs', 'Bugs', 'bug'], ['features', 'Features', 'lightbulb'], ['area', 'Area', 'tag'], ['reviews', 'Reviews', 'git-pull-request'], ['mine', 'All', 'issues']];
-// Typed text that is already GitHub search syntax (author:x, label:"y") runs as is; anything else goes to the chat.
+// The filter narrows the selected source and applies on Enter. GitHub search syntax (author:x, label:"y") is used
+// as is; anything else goes to the chat, which turns it into qualifiers using the user's memory.
 const looksLikeQuery = text => /(^|\s)-?[a-z][a-z-]*:\S/i.test(text);
-function findQueryString() {
+function findSourceParams() {
 	const src = ui.findSource || 'bugs';
-	if (src === 'query') return `source=query&q=${encodeURIComponent(ui.findQuery?.query || '')}`;
 	const area = ui.findArea || ui.state.areas?.find(a => a.labels?.length)?.id || '';
 	return `source=${src}${src === 'area' ? `&area=${encodeURIComponent(area)}` : ''}`;
+}
+function findQueryString() {
+	return `${findSourceParams()}${ui.findRefine ? `&refine=${encodeURIComponent(ui.findRefine.query)}` : ''}`;
 }
 async function loadFindWork() {
 	const q = findQueryString();
@@ -1697,21 +1700,20 @@ async function loadFindWork() {
 	catch (error) { ui.find = { q, error: error.message }; }
 	if (ui.selected?.kind === 'worksrc') renderDetail(false, true);
 }
-function runBrowseQuery(query, text = '', note = '') {
-	ui.findQuery = { query, text, note };
+function setFindRefine(refine) {
+	ui.findRefine = refine;
 	ui.findAsking = null;
-	ui.findSource = 'query';
-	ui.findFilter = '';
+	ui.findFilter = refine?.text || refine?.query || '';
 	if (ui.selected?.kind === 'worksrc') renderDetail(false, true);
 	else select('worksrc', 'find').then(() => renderAreaBar());
 }
-async function askBrowseQuery(text) {
-	if (looksLikeQuery(text)) { runBrowseQuery(text); return; }
+async function applyFindFilter(text) {
+	if (!text) { setFindRefine(null); return; }
+	if (looksLikeQuery(text)) { setFindRefine({ query: text }); return; }
 	ui.findAsking = text;
-	ui.findFilter = '';
 	renderDetail(false, true);
-	try { await api('/api/browse-ask', { text }); }
-	catch (error) { ui.findAsking = null; ui.findFilter = text; renderDetail(false, true); toast(`Could not ask the chat: ${error.message}`, true); }
+	try { await api('/api/browse-ask', { text, ...Object.fromEntries(new URLSearchParams(findSourceParams())) }); }
+	catch (error) { ui.findAsking = null; renderDetail(false, true); toast(`Could not ask the chat: ${error.message}`, true); }
 }
 function renderFindWorkInto(el) {
 	const src = ui.findSource || 'bugs';
@@ -1719,13 +1721,12 @@ function renderFindWorkInto(el) {
 	const area = ui.findArea || areas[0]?.id || '';
 	const q = findQueryString();
 	if (ui.find?.q !== q && !ui.find?.loading) setTimeout(loadFindWork);
-	const filter = (ui.findFilter || '').toLowerCase();
-	const items = (ui.find?.q === q ? ui.find.items || [] : []).filter(i => !filter || `${i.title} ${i.key} ${i.labels.join(' ')}`.toLowerCase().includes(filter));
+	const filter = ui.findRefine;
+	const items = ui.find?.q === q ? ui.find.items || [] : [];
 	const cur = ui.work?.data?.milestones?.find(m => m.role === 'current');
 	const nxt = ui.work?.data?.milestones?.find(m => m.role === 'next');
-	const tips = { bugs: 'My open bugs', features: 'My open feature requests', area: 'My open issues in a feature area', reviews: 'Open PRs that request my review', mine: 'All my open issues', query: 'Your search' };
-	const sources = ui.findQuery ? [...FIND_SOURCES, ['query', 'Search', 'sparkle']] : FIND_SOURCES;
-	const pills = sources.map(([id, label, icon]) => `<button type="button" class="seg-btn${src === id ? ' on' : ''}" data-find-src="${id}" aria-pressed="${src === id}" title="${esc(tips[id])}"><i class="codicon codicon-${icon}" aria-hidden="true"></i>${esc(label)}</button>`).join('');
+	const tips = { bugs: 'My open bugs', features: 'My open feature requests', area: 'My open issues in a feature area', reviews: 'Open PRs that request my review', mine: 'All my open issues' };
+	const pills = FIND_SOURCES.map(([id, label, icon]) => `<button type="button" class="seg-btn${src === id ? ' on' : ''}" data-find-src="${id}" aria-pressed="${src === id}" title="${esc(tips[id])}"><i class="codicon codicon-${icon}" aria-hidden="true"></i>${esc(label)}</button>`).join('');
 	const areaSel = src === 'area' ? `<label class="sr-only" for="find-area">Feature area</label><select id="find-area" class="find-area">${areas.map(a => `<option value="${esc(a.id)}"${a.id === area ? ' selected' : ''}>${esc(a.name)}</option>`).join('')}</select>` : '';
 	const row = i => {
 		const has = inMyWork(i.key);
@@ -1744,22 +1745,21 @@ function renderFindWorkInto(el) {
 				: `${add('current', `+ ${cur?.title || 'Current'}`, `Add to ${cur?.title || 'current'} (local)`)}${add('next', 'Next', `Add to ${nxt?.title || 'next'} (local)`)}${add('priorities', 'Priorities', 'Add to the end of My priorities')}`}</div>
 		</li>`;
 	};
-	const fq = ui.findQuery;
-	const queryBar = src === 'query' && fq ? `<div class="find-query">
-				<label class="sr-only" for="find-query">GitHub search query</label><input id="find-query" type="text" spellcheck="false" value="${esc(fq.query)}" title="GitHub search query. Edit it and press Enter to search again.">
-				<button type="button" class="link-btn" data-find-query-clear title="Clear the search"><i class="codicon codicon-close" aria-hidden="true"></i></button>
-				${fq.text || fq.note ? `<div class="find-query-note cd">${fq.text ? `From “${esc(fq.text)}”` : ''}${fq.text && fq.note ? ' · ' : ''}${esc(fq.note || '')}</div>` : ''}
+	const queryBar = filter ? `<div class="find-query">
+				<span class="find-query-label cd">Filter</span><label class="sr-only" for="find-query">Filter as GitHub search qualifiers</label><input id="find-query" type="text" spellcheck="false" value="${esc(filter.query)}" title="Added to this list's GitHub search. Edit and press Enter to apply.">
+				<button type="button" class="link-btn" data-find-query-clear title="Clear the filter"><i class="codicon codicon-close" aria-hidden="true"></i></button>
+				${filter.note ? `<div class="find-query-note cd">${esc(filter.note)}</div>` : ''}
 			</div>` : '';
 	const asking = ui.findAsking ? `<p class="cd find-asking"><i class="codicon codicon-loading spin" aria-hidden="true"></i> Asking the chat to turn “${esc(ui.findAsking)}” into a GitHub search… <button type="button" class="link-btn" data-find-ask-cancel>Cancel</button></p>` : '';
-	el.innerHTML = `<div class="detail-head">${titleBarHtml({ title: 'Browse issues & PRs', meta: '<div class="meta"><span class="cd">Live from GitHub (org:microsoft, newest first). Type to filter; press Enter to search GitHub for what you describe (e.g. “created by alexdima”). Click a title to open it here, drag a row into a group on the left, or use its buttons. Added locally: GitHub milestones stay unchanged.</span></div>' })}</div>
+	el.innerHTML = `<div class="detail-head">${titleBarHtml({ title: 'Browse issues & PRs', meta: '<div class="meta"><span class="cd">Live from GitHub (org:microsoft, newest first). Type a filter and press Enter: GitHub syntax or plain words (e.g. “created by alexdima”). Click a title to open it here, drag a row into a group on the left, or use its buttons. Added locally: GitHub milestones stay unchanged.</span></div>' })}</div>
 		<div class="detail-body find-view">
 			<div class="find-tools">
 				<div class="seg" role="group" aria-label="Source">${pills}</div>${areaSel}
-				<div class="find-search"><i class="codicon codicon-search" aria-hidden="true"></i><label class="sr-only" for="find-filter">Filter, or describe a search and press Enter</label><input id="find-filter" type="search" placeholder="Filter, or describe a search and press Enter" value="${esc(ui.findFilter || '')}"></div>
+				<div class="find-search"><i class="codicon codicon-search" aria-hidden="true"></i><label class="sr-only" for="find-filter">Filter, press Enter to apply</label><input id="find-filter" type="search" placeholder="Filter, press Enter to apply (e.g. created by alexdima)" value="${esc(ui.findFilter || '')}"></div>
 			</div>
 			${queryBar}${asking}
 			${ui.find?.error ? `<p class="cd" style="color:var(--bad)">${esc(ui.find.error)}</p>` : ui.find?.loading && !items.length ? '<p class="cd"><i class="codicon codicon-loading spin" aria-hidden="true"></i> Searching GitHub…</p>'
-				: `<p class="find-count">${items.length}${items.length >= 100 ? '+' : ''} ${src === 'reviews' ? (items.length === 1 ? 'pull request' : 'pull requests') : src === 'query' ? (items.length === 1 ? 'result' : 'results') : (items.length === 1 ? 'issue' : 'issues')}${filter ? ' matching' : ''} · ${items.filter(i => inMyWork(i.key)).length} already in My Work</p><ul class="find-list">${items.map(row).join('')}</ul>`}
+				: `<p class="find-count">${items.length}${items.length >= 100 ? '+' : ''} ${src === 'reviews' ? (items.length === 1 ? 'pull request' : 'pull requests') : (items.length === 1 ? 'issue' : 'issues')}${filter ? ' matching' : ''} · ${items.filter(i => inMyWork(i.key)).length} already in My Work</p><ul class="find-list">${items.map(row).join('')}</ul>`}
 		</div>`;
 
 }
@@ -2494,29 +2494,27 @@ $('detail').addEventListener('click', e => {
 	}
 	const p = e.target.closest('[data-find-src]');
 	if (p) { ui.findSource = p.dataset.findSrc; renderDetail(false, true); document.querySelector(`[data-find-src="${p.dataset.findSrc}"]`)?.focus(); return; }
-	if (e.target.closest('[data-find-query-clear]')) { ui.findQuery = null; ui.findSource = 'bugs'; renderDetail(false, true); document.getElementById('find-filter')?.focus(); return; }
+	if (e.target.closest('[data-find-query-clear]')) { setFindRefine(null); document.getElementById('find-filter')?.focus(); return; }
 	if (e.target.closest('[data-find-ask-cancel]')) { ui.findAsking = null; renderDetail(false, true); }
 });
 $('detail').addEventListener('keydown', e => {
 	if (e.key !== 'Enter' || e.isComposing || !['find-filter', 'find-query'].includes(e.target.id)) return;
 	const text = e.target.value.replace(/\s+/g, ' ').trim();
-	if (!text) return;
 	e.preventDefault();
+	if (!text && e.target.id === 'find-query') { setFindRefine(null); return; }
 	if (e.target.id === 'find-query') {
-		const same = text === ui.findQuery?.query;
-		runBrowseQuery(text, same ? ui.findQuery.text : '', same ? ui.findQuery.note : '');
-	} else askBrowseQuery(text.slice(0, 300));
+		const same = text === ui.findRefine?.query;
+		setFindRefine({ query: text, text: same ? ui.findRefine.text : '', note: same ? ui.findRefine.note : '' });
+	} else applyFindFilter(text.slice(0, 300));
 });
 $('detail').addEventListener('change', e => {
 	if (e.target.id === 'find-area') { ui.findArea = e.target.value; renderDetail(false, true); document.getElementById('find-area')?.focus(); }
 });
+// The filter applies on Enter; clearing the search box (its × button) removes it.
 $('detail').addEventListener('input', e => {
 	if (e.target.id !== 'find-filter') return;
 	ui.findFilter = e.target.value;
-	const pos = e.target.selectionStart;
-	renderDetail(false, true);
-	const f = document.getElementById('find-filter');
-	if (f) { f.focus(); f.setSelectionRange(pos, pos); }
+	if (!e.target.value && ui.findRefine) setFindRefine(null);
 });
 // Drag issues from Browse into a group on the left.
 $('detail').addEventListener('dragstart', e => {
@@ -2759,7 +2757,7 @@ events.addEventListener('theme', e => applyVsCodeTheme(JSON.parse(e.data).theme 
 events.addEventListener('browse-query', e => {
 	const f = JSON.parse(e.data);
 	if (!ui.state || typeof f.query !== 'string') return;
-	runBrowseQuery(f.query, f.text || '', f.note || '');
+	setFindRefine({ query: f.query, text: f.text || '', note: f.note || '' });
 });
 events.addEventListener('focus', e => {
 	const f = JSON.parse(e.data);

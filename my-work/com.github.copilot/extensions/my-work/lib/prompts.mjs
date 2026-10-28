@@ -113,16 +113,17 @@ export function issueMessagePrompt({ key, url, title, text }) {
 	].join('\n');
 }
 
-// Browse: a plain-language search ("created by alexdima") becomes a GitHub search query.
-export function browseQueryPrompt({ text, org, me }) {
+// Browse: a plain-language filter ("created by alexdima") becomes GitHub search qualifiers that narrow the list shown.
+export function browseQueryPrompt({ text, scope, org, me }) {
 	const c = config();
 	return [
-		'Panel request: turn my Browse search into a GitHub issue search query. Do only this, then continue with whatever you were doing.',
-		`My search: ${q(text, 300)}`,
+		'Panel request: turn my Browse filter into GitHub search qualifiers. Do only this, then continue with whatever you were doing.',
+		`My filter: ${q(text, 300)}`,
+		`It narrows the list I am looking at, whose query is: ${scope}. Return only the qualifiers to add to that query; do not repeat or contradict it (it already sets the org, the open state and the list's own qualifiers), except add is:closed when I ask for closed items.`,
 		`Resolve people, teams, feature areas and repositories with my memory (${c.memoryFile}) and my inbox rules (${c.rulesFile}): for example a first name or nickname becomes that person's GitHub login. If someone is not in them, look the login up with gh (e.g. members of org:${org}) and use it only when it is unambiguous; otherwise make your best guess and say which part was a guess.`,
-		`Use GitHub search syntax (author:, assignee:, mentions:, commenter:, involves:, review-requested:, label:, -label:, milestone:, repo:, is:issue, is:pr, is:open, is:closed, created:>=YYYY-MM-DD, updated:, no:assignee, in:title, plain words). I am ${me}. Scope to org:${org} unless I name a repository. Default to is:open unless I ask for closed or all. Today is ${new Date().toISOString().slice(0, 10)}.`,
+		`Use GitHub search syntax (author:, assignee:, mentions:, commenter:, involves:, label:, -label:, milestone:, repo:, created:>=YYYY-MM-DD, updated:, no:milestone, in:title, plain words). I am ${me}. Today is ${new Date().toISOString().slice(0, 10)}.`,
 		'Do not run the search and do not change anything on GitHub.',
-		`Call the my-issues-triage canvas action setBrowseQuery {"text": ${q(text, 300)}, "query": "<the query>", "note": "<optional, short: how names were resolved or what was guessed>"} so the panel runs it, then reply with one line: the query.`,
+		`Call the my-issues-triage canvas action setBrowseQuery {"text": ${q(text, 300)}, "query": "<only the qualifiers to add>", "note": "<optional, short: how names were resolved or what was guessed>"} so the panel applies it, then reply with one line: the qualifiers.`,
 	].join('\n');
 }
 
