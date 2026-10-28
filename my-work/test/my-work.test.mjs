@@ -27,6 +27,7 @@ const config = await import(new URL('lib/config.mjs', ext));
 const prompts = await import(new URL('lib/prompts.mjs', ext));
 const data = await import(new URL('lib/data.mjs', ext));
 const msrc = await import(new URL('lib/msrcItems.mjs', ext));
+const server = await import(new URL('lib/server.mjs', ext));
 const workSessions = await import(new URL('lib/workSessions.mjs', ext));
 
 test('config overlays the user file on the defaults', () => {
@@ -38,6 +39,14 @@ test('config overlays the user file on the defaults', () => {
 	assert.equal(c.msrc.enabled, true);
 	assert.equal(config.dataDir(), path.join(home, 'data'));
 	assert.equal(existsSync(config.SCRIPT), true, 'helper script resolves inside the plugin');
+});
+
+test('codicon font resolves from versioned Windows installations', async () => {
+	const programFiles = path.join(home, 'Program Files');
+	const font = path.join(programFiles, 'Microsoft VS Code Insiders', 'version', 'resources', 'app', 'out', 'media', 'codicon.ttf');
+	mkdirSync(path.dirname(font), { recursive: true });
+	writeFileSync(font, 'font');
+	assert.equal(await server.findCodiconFont({ platform: 'win32', homedir: home, env: { ProgramFiles: programFiles } }), font);
 });
 
 test('Python and JS configs share their defaults', () => {

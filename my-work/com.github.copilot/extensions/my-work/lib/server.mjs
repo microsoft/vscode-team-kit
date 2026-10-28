@@ -25,19 +25,31 @@ const CSP = [
 ].join('; ');
 const ASSET_TYPES = { 'app.js': 'text/javascript; charset=utf-8', 'style.css': 'text/css; charset=utf-8', 'codicon.ttf': 'font/ttf' };
 // The icon font is not bundled (no binaries in the plugin); it is served from the VS Code installation.
-async function findCodiconFont() {
+export async function findCodiconFont({ platform = process.platform, homedir = os.homedir(), env = process.env } = {}) {
 	const rel = ['out', 'media', 'codicon.ttf'];
-	const apps = process.platform === 'darwin'
-		? ['Visual Studio Code - Insiders', 'Visual Studio Code', 'Visual Studio Code - Exploration'].flatMap(n => [`/Applications/${n}.app`, path.join(os.homedir(), 'Applications', `${n}.app`)]).map(a => path.join(a, 'Contents', 'Resources', 'app'))
-		: process.platform === 'win32'
-			? ['Microsoft VS Code Insiders', 'Microsoft VS Code'].flatMap(n => [process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'Programs', n), process.env.ProgramFiles && path.join(process.env.ProgramFiles, n)]).filter(Boolean).map(a => path.join(a, 'resources', 'app'))
+	const apps = platform === 'darwin'
+		? ['Visual Studio Code - Insiders', 'Visual Studio Code', 'Visual Studio Code - Exploration'].flatMap(n => [`/Applications/${n}.app`, path.join(homedir, 'Applications', `${n}.app`)]).map(a => path.join(a, 'Contents', 'Resources', 'app'))
+		: platform === 'win32'
+			? await windowsAppPaths(env)
 			: ['/usr/share/code-insiders', '/usr/share/code', '/opt/visual-studio-code-insiders', '/opt/visual-studio-code'].map(a => path.join(a, 'resources', 'app'));
-	if (process.env.VSCODE_CWD) apps.unshift(path.join(process.env.VSCODE_CWD, 'resources', 'app'));
+	if (env.VSCODE_CWD) apps.unshift(path.join(env.VSCODE_CWD, 'resources', 'app'));
 	for (const app of apps) {
 		const file = path.join(app, ...rel);
 		if (await fs.stat(file).catch(() => null)) return file;
 	}
 	return null;
+}
+
+async function windowsAppPaths(env) {
+	const roots = ['Microsoft VS Code Insiders', 'Microsoft VS Code']
+		.flatMap(name => [env.LOCALAPPDATA && path.join(env.LOCALAPPDATA, 'Programs', name), env.ProgramFiles && path.join(env.ProgramFiles, name)])
+		.filter(Boolean);
+	const apps = roots.map(root => path.join(root, 'resources', 'app'));
+	for (const root of roots) {
+		const entries = await fs.readdir(root, { withFileTypes: true }).catch(() => []);
+		apps.push(...entries.filter(entry => entry.isDirectory()).map(entry => path.join(root, entry.name, 'resources', 'app')));
+	}
+	return apps;
 }
 let codiconFont;
 
