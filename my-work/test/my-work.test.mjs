@@ -267,6 +267,7 @@ test('discussing an issue uses its own chat, and Start session turns that chat i
 
 		await workSessions.setIssueChat(key, 'agent-host-session://ahp-session/aaaaaaaa-1111-2222-3333-444444444444', 'session');
 		assert.equal((await post('/api/work-session', { key, title: 't', url: 'u' })).body.via, 'new-session', 'once converted, Start another session creates a new one');
+		assert.match(sent.at(-1), /omit relationship, so it is nested under this My Work session\) with that workspace, worktree true/, 'work sessions nest too, with their own worktree');
 		await workSessions.setIssueChat(key, null);
 		assert.equal(await workSessions.getIssueChat(key), null);
 

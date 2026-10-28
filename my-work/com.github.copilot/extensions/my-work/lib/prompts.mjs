@@ -37,7 +37,7 @@ export function implementPrompt({ issue, review, readiness }) {
 	return [
 		`Start a fix session for ${issue.key} ${q(issue.title)} (requested from the triage canvas).`,
 		UNTRUSTED,
-		`Call create_session with relationship "independent", the local clone of ${issue.key.split('#')[0]} as workspace (${repoHint(issue.key.split('#')[0])}; if none is configured, say so instead of guessing), worktree true, `
+		`Call create_session (omit relationship, so it is nested under this My Work session) with the local clone of ${issue.key.split('#')[0]} as workspace (${repoHint(issue.key.split('#')[0])}; if none is configured, say so instead of guessing), worktree true, `
 		+ `title "Fix #${num}: <short title>", and a prompt containing:`,
 		`- The issue URL ${issue.url} and title`,
 		`- Type ${readiness?.itemType ?? '?'}, severity ${issue.sweeper?.severity ?? 'none'}, area ${issue.area}`,
@@ -59,7 +59,7 @@ export function notificationIssueActionPrompt({ action, notification }) {
 			UNTRUSTED,
 			'The user clicked Start fix / implementation session; this confirms creating the session. It does not approve any change on GitHub.',
 			`First fetch the live issue and its latest comments. Determine whether it is a bug or a feature request, and use an existing workspace for the matching repository (${repoHint()}). If no matching workspace is available, do not guess: reply to the panel issue thread explaining what is missing.`,
-			`Create an independent session with an isolated worktree. For a bug, instruct it to reproduce first${config().fixSkill ? `, use the ${config().fixSkill} skill` : ''}, implement the smallest complete fix, and add a regression test. For a feature, instruct it to implement the confirmed behavior completely with tests. Include the issue URL, title, latest relevant comments, and the local index/Sweeper Best solution when available.`,
+			`Create a session nested under this My Work session (omit relationship) with an isolated worktree. For a bug, instruct it to reproduce first${config().fixSkill ? `, use the ${config().fixSkill} skill` : ''}, implement the smallest complete fix, and add a regression test. For a feature, instruct it to implement the confirmed behavior completely with tests. Include the issue URL, title, latest relevant comments, and the local index/Sweeper Best solution when available.`,
 			'Do not push, open a pull request, comment, label, close, or otherwise change GitHub without asking the user first.',
 			`After the session is created, record ${key} as fixing only if it exists in the local issue index, with the session link in the note. Then call the my-issues-triage canvas action refresh and reply to the panel with replyToIssue for ${key}, including the session link. Do not dismiss the notification.`,
 		].join('\n');
@@ -100,7 +100,7 @@ export function notificationTriagePrompt({ items, recompute = false, customGroup
 	].join('\n');
 }
 
-// Each issue gets its own chat (an independent session without a workspace). Discussion from the panel goes there;
+// Each issue gets its own chat (nested under the My Work session, without a workspace). Discussion from the panel goes there;
 // Start session gives it the repository worktree, so the work continues in the same conversation.
 function issueChatInstructions({ key, url, title }) {
 	const num = key.split('#')[1];
@@ -202,7 +202,7 @@ export function workSessionPrompt({ key, title, url, milestone }) {
 		`Panel request: start a work session for ${key} ${q(title)} (${url})${milestone ? `, planned for ${milestone}` : ''}. The user clicked Start session in My Work; this confirms creating the session. It does not approve any change on GitHub.`,
 		UNTRUSTED,
 		`Fetch the live issue and its latest comments, decide bug vs feature, and use the matching local repository (${repoHint(key.split('#')[0])}; if none exists, say so with replyToIssue instead of guessing).`,
-		`Call create_session with relationship "independent", that workspace, worktree true, and title "Fix #${num}: <short title>" (or "Implement #${num}: …" for a feature) — keep "#${num}" in the title so the panel links the session to the issue. The prompt should include the issue URL, title, latest relevant comments, and: reproduce first for bugs${config().fixSkill ? ` (${config().fixSkill} skill)` : ''}, implement with tests, and do not push, open a PR, or comment on GitHub without asking the user.`,
+		`Call create_session (omit relationship, so it is nested under this My Work session) with that workspace, worktree true, and title "Fix #${num}: <short title>" (or "Implement #${num}: …" for a feature) — keep "#${num}" in the title so the panel links the session to the issue. The prompt should include the issue URL, title, latest relevant comments, and: reproduce first for bugs${config().fixSkill ? ` (${config().fixSkill} skill)` : ''}, implement with tests, and do not push, open a PR, or comment on GitHub without asking the user.`,
 		`Then record ${key} as fixing (\`${scriptCommand()} record ${key} --decision fixing --note "<session link>"\`) if it is in the index, call the canvas action refresh, and reply with replyToIssue for ${key} including the session link.`,
 	].join('\n');
 }

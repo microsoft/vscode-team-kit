@@ -480,13 +480,14 @@ export class TriageServer {
 					if (!notification) throw Object.assign(new Error('This notification is no longer unread'), { status: 404 });
 					if (notification.type !== 'Issue' || !KEY_RE.test(notification.issueKey || '')) throw bad('notification is not an issue');
 					const action = body.kind === 'notification-start' ? 'start' : 'investigate';
-					await this.sendToChat(notificationIssueActionPrompt({ action, notification }));
+					const prompt = notificationIssueActionPrompt({ action, notification });
+					await (action === 'start' ? this.sendToMyWorkSession(prompt) : this.sendToChat(prompt));
 					result = { sent: true, kind: body.kind, id: notification.id, key: notification.issueKey };
 					break;
 				}
 				if (body.kind === 'implement') {
 					if (!KEY_RE.test(body.key || '')) throw bad('invalid key');
-					await this.sendToChat(implementPrompt(await data.getIssueDetail(body.key)));
+					await this.sendToMyWorkSession(implementPrompt(await data.getIssueDetail(body.key)));
 					await data.logStart(body.key);
 					result = { sent: true, kind: body.kind, key: body.key };
 					break;
@@ -631,7 +632,7 @@ export class TriageServer {
 					await this.sendToChat(forwardToIssueChatPrompt({ link: chat.link, key: body.key, text: startIssueSessionMessage(issue) }));
 					result = { sent: true, key: body.key, via: 'issue-chat' };
 				} else {
-					await this.sendToChat(workSessionPrompt(issue));
+					await this.sendToMyWorkSession(workSessionPrompt(issue));
 					result = { sent: true, key: body.key, via: 'new-session' };
 				}
 				break;
