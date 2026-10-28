@@ -651,6 +651,25 @@ function planMenuInner(key, currentMilestone) {
 	return [...prio, ...targets.filter(t => t.title !== currentMilestone).map(t => ({ act: 'move-milestone', key, milestone: t.title, label: t.label }))];
 }
 
+// Quick actions on a list row (shown on hover/focus), so common steps don't need opening the item.
+function quickActionsHtml(actions) {
+	const btn = a => a.href
+		? `<a class="row-pin" href="${esc(safeUrl(a.href))}" target="_blank" rel="noopener" title="${esc(a.label)}" aria-label="${esc(a.label)}"><i class="codicon codicon-${a.icon}" aria-hidden="true"></i></a>`
+		: `<button type="button" class="row-pin" data-act="${esc(a.act)}"${a.key ? ` data-key="${esc(a.key)}"` : ''}${a.link ? ` data-link="${esc(a.link)}"` : ''} title="${esc(a.label)}" aria-label="${esc(a.label)}"><i class="codicon codicon-${a.icon}" aria-hidden="true"></i></button>`;
+	return `<span class="row-quick">${actions.map(btn).join('')}</span>`;
+}
+function withQuick(rowHtml, actions) {
+	return `<div class="row-act">${rowHtml}${quickActionsHtml(actions)}</div>`;
+}
+function issueQuick(key, url, { removable = false } = {}) {
+	const live = liveSession(key);
+	return [
+		live ? { act: 'open-session', link: live.link, icon: 'comment-discussion', label: 'Open session' } : { act: 'work-session', key, icon: 'rocket', label: 'Start session' },
+		{ href: url || `https://github.com/${key.split('#')[0]}/issues/${key.split('#')[1]}`, icon: 'link-external', label: 'Open on GitHub' },
+		...(removable ? [{ act: 'issue-unpin', key, icon: 'close', label: 'Remove from My Work' }] : []),
+	];
+}
+
 function rowHtml(item) {
 	const current = ui.selected && ui.selected.kind === item.kind && ui.selected.id === item.id;
 	const handled = isHandled(item);
@@ -659,9 +678,9 @@ function rowHtml(item) {
 		const w = item.w;
 		const prio = item.milestone?.role === 'priorities';
 		const local = !!w.local;
-		return `<button type="button" class="${cls} ${w.isBug ? 'dot-action' : ''}${prio || local ? ' prio-row' : ''}" data-kind="work" data-id="${esc(w.key)}" data-group="${esc(item.group || '')}" aria-current="${!!current}"${prio ? ` draggable="true" data-prio="${esc(w.key)}" data-pin-issue="${esc(w.key)}" title="Drag to reorder or into current / next; Alt+↑/↓ moves the selected issue"` : local ? ` draggable="true" data-pin-issue="${esc(w.key)}" title="Added locally (GitHub milestone unchanged). Drag to another group."` : ''}>${prio || local ? '<span class="row-grip" aria-hidden="true" title="Drag to move"><i class="codicon codicon-gripper"></i></span>' : ''}
+		return withQuick(`<button type="button" class="${cls} ${w.isBug ? 'dot-action' : ''}${prio || local ? ' prio-row' : ''}" data-kind="work" data-id="${esc(w.key)}" data-group="${esc(item.group || '')}" aria-current="${!!current}"${prio ? ` draggable="true" data-prio="${esc(w.key)}" data-pin-issue="${esc(w.key)}" title="Drag to reorder or into current / next; Alt+↑/↓ moves the selected issue"` : local ? ` draggable="true" data-pin-issue="${esc(w.key)}" title="Added locally (GitHub milestone unchanged). Drag to another group."` : ''}>${prio || local ? '<span class="row-grip" aria-hidden="true" title="Drag to move"><i class="codicon codicon-gripper"></i></span>' : ''}
 			<span class="row-title" title="${esc(w.title)}">${prio ? `<span class="prio-rank">${w.rank}</span>` : ''}${esc(w.title)}</span><span class="row-meta"><span>${esc(shortKey(w.key))}</span>${w.isBug ? '<span>bug</span>' : ''}${prio && w.milestone ? `<span>${esc(w.milestone)}</span>` : ''}${local ? '<span class="tag" title="Added to My Work locally; its GitHub milestone is unchanged">local</span>' : ''}${sessTag(w.key)}</span>
-		</button>`;
+		</button>`, issueQuick(w.key, w.url, { removable: local }));
 	}
 	if (item.kind === 'workhome') {
 		const waiting = (ui.state.threads?.['my-work'] || []).at(-1)?.role === 'user';
@@ -680,19 +699,23 @@ function rowHtml(item) {
 	if (item.kind === 'pinsess') {
 		const p = item.p, z = p.session;
 		const inPrio = item.group === 'priorities';
-		return `<button type="button" class="${cls}${z && !z.read ? ' dot-action' : ''} prio-row" data-kind="pinsess" data-id="${esc(p.id)}" data-group="${esc(item.group || 'current')}" data-sess="${esc(p.id)}"${inPrio ? ` data-prio="session:${esc(p.id)}"` : ''} draggable="true" title="Drag to another group${inPrio ? ' or reorder' : ''}" aria-current="${!!current}"><span class="row-grip" aria-hidden="true" title="Drag to move"><i class="codicon codicon-gripper"></i></span>
+		return withQuick(`<button type="button" class="${cls}${z && !z.read ? ' dot-action' : ''} prio-row" data-kind="pinsess" data-id="${esc(p.id)}" data-group="${esc(item.group || 'current')}" data-sess="${esc(p.id)}"${inPrio ? ` data-prio="session:${esc(p.id)}"` : ''} draggable="true" title="Drag to another group${inPrio ? ' or reorder' : ''}" aria-current="${!!current}"><span class="row-grip" aria-hidden="true" title="Drag to move"><i class="codicon codicon-gripper"></i></span>
 			<span class="row-title" title="${esc(z?.title || '')}">${inPrio ? `<span class="prio-rank">${item.rank}</span>` : ''}<i class="codicon codicon-comment-discussion" aria-hidden="true"></i> ${esc(z?.title || p.note || 'Session not found')}</span>
 			<span class="row-meta">${z?.project ? `<span>${esc(z.project)}</span>` : ''}${z?.modified ? `<span>active ${esc(agoText(new Date(z.modified).toISOString()))}</span>` : ''}${z?.changes ? `<span class="add">+${esc(z.changes.additions)}</span><span class="del">−${esc(z.changes.deletions)}</span>` : ''}${z && !z.read ? '<span class="tag acc">unread</span>' : ''}</span>
-		</button>`;
+		</button>`, [{ act: 'open-session', link: `agent-host-session://ahp-session/${p.id}`, icon: 'comment-discussion', label: 'Open session' }, { act: 'unpin-session', key: p.id, icon: 'close', label: 'Remove from My Work' }]);
 	}
 	if (item.kind === 'msrcitem') {
 		const x = item.x;
 		const due = msrcDue(x);
-		const live = (ui.work?.data?.msrcSessions?.[x.incidentId] || []).some(z => !z.archived);
-		return `<button type="button" class="${cls} ${due.cls === 'bad' || due.cls === 'sev' ? 'dot-action' : ''}" data-kind="msrcitem" data-id="${esc(x.incidentId)}" aria-current="${!!current}">
+		const liveZ = (ui.work?.data?.msrcSessions?.[x.incidentId] || []).find(z => !z.archived);
+		const live = !!liveZ;
+		return withQuick(`<button type="button" class="${cls} ${due.cls === 'bad' || due.cls === 'sev' ? 'dot-action' : ''}" data-kind="msrcitem" data-id="${esc(x.incidentId)}" aria-current="${!!current}">
 			<span class="row-title" title="${esc(x.title || '')}"><i class="codicon codicon-shield" aria-hidden="true"></i> ${esc(x.draft ? 'New MSRC item' : x.title || `IcM ${x.incidentId}`)}</span>
 			<span class="row-meta"><span>IcM ${esc(x.incidentId)}</span><span class="tag ${due.cls}"><i class="codicon codicon-clock" aria-hidden="true"></i>${esc(due.text)}</span>${live ? '<span class="tag sess"><i class="codicon codicon-comment-discussion" aria-hidden="true"></i>session</span>' : ''}</span>
-		</button>`;
+		</button>`, x.draft ? [] : [
+			liveZ ? { act: 'open-session', link: liveZ.link, icon: 'comment-discussion', label: 'Open session' } : { act: 'msrc-item-session', key: x.incidentId, icon: 'rocket', label: 'Start session' },
+			...(x.link ? [{ href: x.link, icon: 'link-external', label: 'Open in IcM' }] : []),
+		]);
 	}
 	if (item.kind === 'notification') {
 		const n = item.n;
