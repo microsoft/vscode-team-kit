@@ -268,6 +268,17 @@ test('discussing an issue uses its own chat, and Start session turns that chat i
 		assert.equal((await post('/api/work-session', { key, title: 't', url: 'u' })).body.via, 'new-session', 'once converted, Start another session creates a new one');
 		await workSessions.setIssueChat(key, null);
 		assert.equal(await workSessions.getIssueChat(key), null);
+
+		// A chat that never answered: resending forgets it and creates a new one, without repeating the message.
+		await workSessions.setIssueChat(key, 'agent-host-session://ahp-session/bbbbbbbb-1111-2222-3333-444444444444');
+		const before = (await data.getThread(key)).length;
+		await post('/api/message', { key, title: 'Crash on save', text: 'try the other fix', fresh: true });
+		assert.match(sent.at(-1), /create the chat for octo\/app#42/);
+		assert.equal((await data.getThread(key)).length, before, 'the resent message is not added twice');
+
+		await workSessions.setMyWorkChat('agent-host-session://ahp-session/cccccccc-1111-2222-3333-444444444444');
+		await post('/api/message', { key: 'my-work', text: 'add #1', fresh: true });
+		assert.match(sent.at(-1), /create the nested "My Work chat"/);
 	} finally {
 		await server.stop();
 	}
