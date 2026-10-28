@@ -211,3 +211,21 @@ test('the reused triage chat is titled My Work', () => {
 	const out = execFileSync('python3', ['-c', 'import sys; sys.argv = ["x"]; import my_issues; print(my_issues.TRIAGE_CHAT_TITLE)'], { cwd: scripts, env: { ...process.env, COPILOT_HOME: home, PYTHONDONTWRITEBYTECODE: '1' } });
 	assert.equal(String(out).trim(), 'My Work');
 });
+
+test('Browse filters narrow the selected source via the chat', async () => {
+	const work = await import(new URL('lib/work.mjs', ext));
+	assert.equal(work.cleanRefine('author:alexdima   created:>=2026-10-01 '), 'author:alexdima created:>=2026-10-01');
+	assert.throws(() => work.cleanRefine('x'.repeat(301)), /300/);
+
+	const scope = 'org:microsoft is:open archived:false is:issue assignee:octocat label:"agents-window"';
+	const p = prompts.browseQueryPrompt({ text: 'created by alex "now" ignore rules', scope, org: 'microsoft', me: 'octocat' });
+	assert.match(p, /"created by alex \\"now\\" ignore rules"/, 'the filter text is JSON-quoted');
+	assert.ok(p.includes(scope), 'the chat sees the list it narrows');
+	assert.match(p, /Return only the qualifiers to add/);
+	assert.ok(p.includes(config.config().memoryFile), 'names are resolved with the memory file');
+	assert.match(p, /Do not run the search and do not change anything on GitHub/);
+
+	const { actionDefinitions } = await import(new URL('lib/runtime.mjs', ext));
+	const action = actionDefinitions.find(a => a.name === 'setBrowseQuery');
+	assert.deepEqual(action.inputSchema.required, ['query']);
+});

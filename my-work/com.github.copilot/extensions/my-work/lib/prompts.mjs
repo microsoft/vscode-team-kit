@@ -113,6 +113,20 @@ export function issueMessagePrompt({ key, url, title, text }) {
 	].join('\n');
 }
 
+// Browse: a plain-language filter ("created by alexdima") becomes GitHub search qualifiers that narrow the list shown.
+export function browseQueryPrompt({ text, scope, org, me }) {
+	const c = config();
+	return [
+		'Panel request: turn my Browse filter into GitHub search qualifiers. Do only this, then continue with whatever you were doing.',
+		`My filter: ${q(text, 300)}`,
+		`It narrows the list I am looking at, whose query is: ${scope}. Return only the qualifiers to add to that query; do not repeat or contradict it (it already sets the org, the open state and the list's own qualifiers), except add is:closed when I ask for closed items.`,
+		`Resolve people, teams, feature areas and repositories with my memory (${c.memoryFile}) and my inbox rules (${c.rulesFile}): for example a first name or nickname becomes that person's GitHub login. If someone is not in them, look the login up with gh (e.g. members of org:${org}) and use it only when it is unambiguous; otherwise make your best guess and say which part was a guess.`,
+		`Use GitHub search syntax (author:, assignee:, mentions:, commenter:, involves:, label:, -label:, milestone:, repo:, created:>=YYYY-MM-DD, updated:, no:milestone, in:title, plain words). I am ${me}. Today is ${new Date().toISOString().slice(0, 10)}.`,
+		'Do not run the search and do not change anything on GitHub.',
+		`Call the my-issues-triage canvas action setBrowseQuery {"text": ${q(text, 300)}, "query": "<only the qualifiers to add>", "note": "<optional, short: how names were resolved or what was guessed>"} so the panel applies it, then reply with one line: the qualifiers.`,
+	].join('\n');
+}
+
 export function issueRulesPrompt({ items, recompute = false }) {
 	return [
 		`Panel request: apply my inbox rules to these ${items.length} issues from the panel's Cleanup / Implement / Today views${recompute ? ' (re-check: earlier verdicts are shown; revise them if the rules or the issue changed)' : ''}. Do only this, then continue with whatever you were doing.`,

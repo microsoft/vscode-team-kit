@@ -36,7 +36,7 @@ export async function planMilestones() {
 }
 
 let login;
-async function myLogin() {
+export async function myLogin() {
 	login ??= gh(['api', 'user', '--jq', '.login']).then(s => s.trim()).catch(e => { login = undefined; throw e; });
 	return login;
 }
@@ -128,15 +128,29 @@ export async function closingIssues(prUrl) {
 
 // "Find work" sources for My Work: live GitHub searches across the configured org.
 const sourceCache = new Map(); // query -> { at, items }
-export async function workSource(source, { labels = [] } = {}) {
+/** Extra search qualifiers that narrow a Browse source (the user's filter, as GitHub search syntax). */
+export function cleanRefine(refine) {
+	const text = String(refine ?? '').replace(/\s+/g, ' ').trim();
+	if (text.length > 300) throw Object.assign(new Error('filter must be at most 300 characters'), { status: 400 });
+	return text;
+}
+/** The GitHub search query behind a Browse source, narrowed by an optional filter. */
+export async function sourceQuery(source, { labels = [], refine = '' } = {}) {
 	const me = await myLogin();
-	const base = `org:${config().org} is:open archived:false`;
+	const extra = cleanRefine(refine);
+	// A filter that asks for closed (or explicitly open) items replaces the default is:open.
+	const state = /(^|\s)is:(open|closed)\b/i.test(extra) ? '' : ' is:open';
+	const base = `org:${config().org}${state} archived:false`;
 	const q = source === 'bugs' ? `${base} is:issue assignee:${me} label:bug`
 		: source === 'features' ? `${base} is:issue assignee:${me} label:feature-request`
 			: source === 'mine' ? `${base} is:issue assignee:${me}`
 				: source === 'reviews' ? `${base} is:pr user-review-requested:${me}`
 					: source === 'area' && labels.length ? `${base} is:issue assignee:${me} label:${labels.map(l => JSON.stringify(l)).join(',')}`
 						: null;
+	return q && extra ? `${q} ${extra}` : q;
+}
+export async function workSource(source, { labels = [], refine = '' } = {}) {
+	const q = await sourceQuery(source, { labels, refine });
 	if (!q) throw Object.assign(new Error('unknown source'), { status: 400 });
 	const hit = sourceCache.get(q);
 	if (hit && Date.now() - hit.at < 2 * 60 * 1000) return hit.items;

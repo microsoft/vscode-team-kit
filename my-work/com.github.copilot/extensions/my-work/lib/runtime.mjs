@@ -1,4 +1,4 @@
-import { getMyWork } from './work.mjs';
+import { getMyWork, cleanRefine } from './work.mjs';
 import { listMsrcItems, saveMsrcItem, parseIncident } from './msrcItems.mjs';
 import { listPinned, pinSession, unpinSessions, parseSessionRef, getMyWorkChat, setMyWorkChat, MY_WORK_DIR, setSessionBucket, setSessionSummary, pinIssue, setIssueBucket } from './workSessions.mjs';
 import { watch as fsWatch, mkdirSync } from 'node:fs';
@@ -49,6 +49,20 @@ export const actionDefinitions = [
 		inputSchema: {
 			type: 'object',
 			properties: { since: { type: 'string', description: 'ISO timestamp; defaults to start of today' } },
+			additionalProperties: false,
+		},
+	},
+	{
+		name: 'setBrowseQuery',
+		description: 'Apply a filter to the panel\'s Browse list (answer to a "turn my Browse filter into GitHub search qualifiers" panel request): GitHub search qualifiers added to the list\'s own query. The panel shows them so the user can edit them.',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				text: { type: 'string', maxLength: 300, description: 'The user\'s original words' },
+				query: { type: 'string', minLength: 1, maxLength: 300, description: 'Qualifiers to add to the list\'s query, e.g. "author:alexdima created:>=2026-10-01"' },
+				note: { type: 'string', maxLength: 300, description: 'Optional: how names were resolved, or what was guessed' },
+			},
+			required: ['query'],
 			additionalProperties: false,
 		},
 	},
@@ -322,6 +336,13 @@ export class TriageRuntime {
 			case 'focus':
 				this.instance(instanceId).server.setFocus({ kind: input.kind, id: input.id });
 				return { focused: input };
+			case 'setBrowseQuery': {
+				const query = cleanRefine(input.query);
+				if (!query) throw Object.assign(new Error('query is empty'), { code: 'bad_input' });
+				const payload = { query, text: String(input.text || '').slice(0, 300), note: String(input.note || '').slice(0, 300) };
+				for (const inst of this.instances.values()) inst.server.push('browse-query', payload);
+				return { query, shown: this.instances.size > 0 };
+			}
 			case 'getSummary':
 				return summarize(await data.getState());
 			case 'getConfig':

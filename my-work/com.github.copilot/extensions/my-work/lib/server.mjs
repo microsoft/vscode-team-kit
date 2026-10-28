@@ -6,9 +6,9 @@ import path from 'node:path';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import * as data from './data.mjs';
-import { spawnJudgeRequest, implementPrompt, issueMessagePrompt, notificationIssueActionPrompt, notificationTriagePrompt, issueRulesPrompt, workSessionPrompt, msrcItemSessionPrompt, createMyWorkChatPrompt, forwardToMyWorkChatPrompt, describeSessionMessage } from './prompts.mjs';
+import { spawnJudgeRequest, implementPrompt, issueMessagePrompt, notificationIssueActionPrompt, notificationTriagePrompt, issueRulesPrompt, browseQueryPrompt, workSessionPrompt, msrcItemSessionPrompt, createMyWorkChatPrompt, forwardToMyWorkChatPrompt, describeSessionMessage } from './prompts.mjs';
 import { getVsCodeTheme, watchVsCodeTheme } from './vscodeTheme.mjs';
-import { getMyWork, moveToMilestone, issueDetails, closingIssues, workSource } from './work.mjs';
+import { getMyWork, moveToMilestone, issueDetails, closingIssues, workSource, sourceQuery, myLogin } from './work.mjs';
 import { config } from './config.mjs';
 import { listMsrcItems, saveMsrcItem, removeMsrcItem, getMsrcItem, parseIncident, INCIDENT_RE } from './msrcItems.mjs';
 import { sessionsFor, sessionsMentioning, sessionsById, recentSessions, issueCandidates, sessionTranscript } from './sessions.mjs';
@@ -187,6 +187,15 @@ export class TriageServer {
 		this.push('focus', focus);
 	}
 
+	async browseSource(source, areaId) {
+		source = String(source || '');
+		if (!['bugs', 'features', 'area', 'reviews', 'mine'].includes(source)) throw Object.assign(new Error('unknown source'), { status: 400 });
+		if (source !== 'area') return { source, labels: [] };
+		const area = (await data.getAreas()).find(a => a.id === areaId);
+		if (!area?.labels?.length) throw Object.assign(new Error('unknown area'), { status: 400 });
+		return { source, labels: area.labels };
+	}
+
 	json(res, status, body) {
 		if (res.headersSent) { res.end(); return; }
 		res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
@@ -261,14 +270,8 @@ export class TriageServer {
 			return;
 		}
 		if (route === 'GET /api/work-source') {
-			const source = String(url.searchParams.get('source') || '');
-			let labels = [];
-			if (source === 'area') {
-				const area = (await data.getAreas()).find(a => a.id === url.searchParams.get('area'));
-				if (!area?.labels?.length) throw bad('unknown area');
-				labels = area.labels;
-			}
-			this.json(res, 200, { source, items: await workSource(source, { labels }) });
+			const { source, labels } = await this.browseSource(url.searchParams.get('source'), url.searchParams.get('area'));
+			this.json(res, 200, { source, items: await workSource(source, { labels, refine: url.searchParams.get('refine') || '' }) });
 			return;
 		}
 		if (route === 'GET /api/session-info') {
@@ -407,6 +410,15 @@ export class TriageServer {
 				// Respond directly: reading the clipboard changes nothing, so no 'changed' push (it would re-render the panel).
 				this.json(res, 200, { text: process.platform === 'win32' ? text.replace(/\r?\n$/, '') : text });
 				return;
+			}
+			case '/api/browse-ask': {
+				if (!this.sendToChat) throw Object.assign(new Error('This canvas is not attached to a chat'), { status: 409 });
+				const text = String(body.text ?? '').replace(/\s+/g, ' ').trim();
+				if (!text || text.length > 300) throw bad('text must be 1-300 characters');
+				const { source, labels } = await this.browseSource(body.source, body.area);
+				await this.sendToChat(browseQueryPrompt({ text, scope: await sourceQuery(source, { labels }), org: config().org, me: await myLogin() }));
+				result = { sent: true };
+				break;
 			}
 			case '/api/issue-rules': {
 				if (!this.sendToChat) throw Object.assign(new Error('This canvas is not attached to a chat'), { status: 409 });
