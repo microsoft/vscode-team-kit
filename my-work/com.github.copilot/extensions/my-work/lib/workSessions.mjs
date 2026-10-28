@@ -43,13 +43,13 @@ export async function listPinnedIssues() { return (await read()).filter(i => i.k
 export async function pinIssue(key, bucket = 'current', sessionId = null) {
 	const items = await read();
 	let item = items.find(i => i.key === key);
-	if (!item) { item = { key, bucket: BUCKETS.includes(bucket) ? bucket : 'current', sessions: [], addedAt: new Date().toISOString() }; items.push(item); }
+	if (!item) { item = { key, bucket: BUCKET_RE.test(bucket) ? bucket : 'current', sessions: [], addedAt: new Date().toISOString() }; items.push(item); }
 	if (sessionId && !item.sessions.includes(sessionId)) item.sessions.push(sessionId);
 	await write(items);
 	return item;
 }
 export async function setIssueBucket(key, bucket) {
-	if (!BUCKETS.includes(bucket)) throw Object.assign(new Error('invalid group'), { code: 'bad_input', status: 400 });
+	if (!BUCKET_RE.test(bucket)) throw Object.assign(new Error('invalid group'), { code: 'bad_input', status: 400 });
 	const items = await read();
 	let item = items.find(i => i.key === key);
 	if (!item) { item = { key, bucket, sessions: [], addedAt: new Date().toISOString() }; items.push(item); }
@@ -80,12 +80,23 @@ export async function markSummaryRequested(id) {
 }
 
 export const BUCKETS = ['current', 'next', 'priorities'];
+// A group id: a built-in bucket or a custom section id (the server checks the section exists).
+export const BUCKET_RE = /^[a-z][a-z0-9-]{0,30}$/;
+
+/** Move every pinned issue and session from one group to another (e.g. when a custom section is deleted). */
+export async function moveBucket(from, to) {
+	const items = await read();
+	let moved = 0;
+	for (const i of items) if (i.bucket === from) { i.bucket = to; moved++; }
+	if (moved) await write(items);
+	return moved;
+}
 
 export async function pinSession(id, note = '', bucket = 'current') {
 	const items = await read();
 	const at = items.findIndex(i => i.id === id);
 	if (at >= 0) { if (note) { items[at].note = note; await write(items); } return items[at]; }
-	const item = { id, note, bucket: BUCKETS.includes(bucket) ? bucket : 'current', addedAt: new Date().toISOString() };
+	const item = { id, note, bucket: BUCKET_RE.test(bucket) ? bucket : 'current', addedAt: new Date().toISOString() };
 	items.push(item);
 	await write(items);
 	return item;
@@ -93,7 +104,7 @@ export async function pinSession(id, note = '', bucket = 'current') {
 
 /** Place a pinned session in the current / next milestone group or in My priorities (local only). */
 export async function setSessionBucket(id, bucket) {
-	if (!BUCKETS.includes(bucket)) throw Object.assign(new Error('invalid group'), { code: 'bad_input', status: 400 });
+	if (!BUCKET_RE.test(bucket)) throw Object.assign(new Error('invalid group'), { code: 'bad_input', status: 400 });
 	const items = await read();
 	const item = items.find(i => i.id === id);
 	if (!item) throw Object.assign(new Error('That session is not in My Work'), { code: 'bad_input', status: 404 });

@@ -26,7 +26,7 @@ const scripts = fileURLToPath(new URL('../skills/my-issues/scripts/', import.met
 const config = await import(new URL('lib/config.mjs', ext));
 const prompts = await import(new URL('lib/prompts.mjs', ext));
 const data = await import(new URL('lib/data.mjs', ext));
-const msrc = await import(new URL('lib/msrcItems.mjs', ext));
+const sections = await import(new URL('lib/sections.mjs', ext));
 const workSessions = await import(new URL('lib/workSessions.mjs', ext));
 
 test('config overlays the user file on the defaults', () => {
@@ -35,7 +35,6 @@ test('config overlays the user file on the defaults', () => {
 	assert.equal(c.repoPaths['octo/app'], path.join(home, 'src', 'app'));
 	assert.equal(config.repoPath('octo/app'), path.join(home, 'src', 'app'));
 	assert.equal(config.repoPath('octo/missing'), null, 'clones that do not exist are ignored');
-	assert.equal(c.msrc.enabled, true);
 	assert.equal(config.dataDir(), path.join(home, 'data'));
 	assert.equal(existsSync(config.SCRIPT), true, 'helper script resolves inside the plugin');
 });
@@ -48,13 +47,10 @@ test('Python and JS configs share their defaults', () => {
 	}
 });
 
-test('session and IcM references are parsed strictly', () => {
+test('session references are parsed strictly', () => {
 	assert.equal(workSessions.parseSessionRef('agent-host-session://ahp-session/0add0440-c947-4b28-8a0d-f82937655e11'), '0add0440-c947-4b28-8a0d-f82937655e11');
 	assert.equal(workSessions.parseSessionRef('copilotcli:/0add0440-c947-4b28-8a0d-f82937655e11'), '0add0440-c947-4b28-8a0d-f82937655e11');
 	assert.equal(workSessions.parseSessionRef('https://example.com/x'), null);
-	assert.equal(msrc.parseIncident('https://portal.microsofticm.com/imp/v5/incidents/details/31000000000001/summary'), '31000000000001');
-	assert.equal(msrc.parseIncident('IcM 31000000000001'), '31000000000001');
-	assert.equal(msrc.parseIncident('#123'), null);
 });
 
 test('my priorities keep their order locally', async () => {
@@ -67,14 +63,42 @@ test('my priorities keep their order locally', async () => {
 	assert.deepEqual((await data.getPriorities()).map(p => p.key), ['octo/app#2', 'octo/app#1']);
 });
 
-test('MSRC items stay private to the user', async () => {
-	await msrc.saveMsrcItem({ incidentId: '31000000000001', link: '', title: 'Test', description: 'secret', resolveBy: '2026-11-01' });
-	assert.equal((await msrc.listMsrcItems()).length, 1);
+test('the old built-in MSRC items become a custom MSRC section, kept private', async () => {
+	// A user of an earlier version: MSRC items on disk and a private fix workflow in the config.
+	mkdirSync(path.join(home, 'data'), { recursive: true });
+	writeFileSync(path.join(home, 'data', 'msrc-items.json'), JSON.stringify({ format: 'my-work/msrc-items', version: 1, items: [
+		{ incidentId: '31000000000001', link: 'https://portal.microsofticm.com/imp/v5/incidents/details/31000000000001/summary', title: 'Test', description: 'secret', resolveBy: '2026-11-01' },
+		{ incidentId: '31000000000002', title: 'Old', done: true },
+	] }));
+	const [msrcSection] = await sections.listSections();
+	assert.equal(msrcSection.id, 'msrc');
+	assert.equal(msrcSection.name, 'MSRC');
+	assert.match(msrcSection.instructions, /secure-fix skill in the private fork/);
+	assert.match(msrcSection.instructions, /Never use the public repository/);
+	const notes = await sections.listNotes();
+	assert.deepEqual(notes.map(n => [n.ref, n.title, n.due, n.description]), [['31000000000001', 'Test', '2026-11-01', 'secret']], 'done items are not migrated');
 	if (process.platform !== 'win32') {
-		assert.equal(statSync(path.join(home, 'data', 'msrc-items.json')).mode & 0o077, 0, 'no group/other access');
+		assert.equal(statSync(path.join(home, 'data', 'sections.json')).mode & 0o077, 0, 'no group/other access');
 	}
-	await msrc.removeMsrcItem('31000000000001');
-	assert.deepEqual(await msrc.listMsrcItems(), []);
+	// Pasting a matching link finds the section and the note's reference.
+	assert.deepEqual(await sections.sectionForLink('https://portal.microsofticm.com/imp/v5/incidents/details/31000000000009/summary'), { section: 'msrc', ref: '31000000000009', link: 'https://portal.microsofticm.com/imp/v5/incidents/details/31000000000009/summary' });
+	assert.equal(await sections.sectionForLink('https://example.com/x'), null);
+	// The same reference in the same section updates the note instead of adding another.
+	await sections.saveNote({ section: 'msrc', ref: '31000000000001', title: 'Renamed' });
+	assert.equal((await sections.listNotes()).length, 1);
+
+	// User-defined sections: names become ids that never clash with the built-in groups.
+	const esc = await sections.saveSection({ name: 'Current', instructions: '', linkPattern: '' });
+	assert.equal(esc.id, 'current-2');
+	assert.equal(await sections.isGroup('current-2'), true);
+	assert.equal(await sections.isGroup('nope'), false);
+	await assert.rejects(sections.saveSection({ name: 'Bad', linkPattern: '(' }), /not a valid regular expression/);
+	await sections.saveNote({ section: 'current-2', title: 'Call customer' });
+	await workSessions.pinIssue('octo/app#9', 'current-2');
+	const r = await sections.removeSection('current-2');
+	assert.deepEqual(r, { removed: true, notes: 1 });
+	assert.equal(await workSessions.moveBucket('current-2', 'current'), 1, 'its issues go back to Current');
+	assert.equal((await sections.listNotes()).filter(n => n.section === 'current-2').length, 0);
 });
 
 test('prompts use the config, not one person\'s setup', () => {
@@ -91,9 +115,10 @@ test('prompts use the config, not one person\'s setup', () => {
 	assert.match(texts, /github-inbox-memory\.md/, 'triage prompts read the inbox memory');
 	assert.ok(texts.includes(config.SCRIPT.replaceAll(os.homedir(), '~')), 'refers to the bundled helper script');
 	assert.doesNotMatch(texts, /sandy081|\.agents\/skills|rules? \d/);
-	const security = prompts.msrcItemSessionPrompt({ incidentId: '1', link: 'l', title: 't', description: 'd' });
+	const security = prompts.noteSessionPrompt({ section: { name: 'MSRC', instructions: 'Use the secure-fix skill in the private fork.' }, note: { ref: '1', link: 'l', title: 't', description: 'd' } });
 	assert.match(security, /secure-fix skill in the private fork/);
-	assert.match(security, /Never use the public repository/);
+	assert.match(security, /title that contains "1"/);
+	assert.match(prompts.noteSessionPrompt({ section: { name: 'X', instructions: '' }, note: { title: 'Call', description: '' } }), /no special instructions/);
 });
 
 test('find-clones reads local clones from the session store', { skip: process.platform === 'win32' }, () => {

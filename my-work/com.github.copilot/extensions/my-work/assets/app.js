@@ -26,7 +26,7 @@ const CHECK_ICON = { pass: '<i class="codicon codicon-pass" aria-hidden="true"><
 const SEV_DOT = { 'data-loss': 'dot-action', crash: 'dot-action', freeze: 'dot-action', perf: 'dot-warn', correctness: 'dot-warn' };
 
 const VIEW_TITLES = { queue: 'Today', notifications: 'Notifications', cleanup: 'Cleanup', implement: 'Implement', work: 'My Work' };
-const VIEW_HINTS = { queue: 'What changed since yesterday', notifications: 'Unread GitHub notifications', cleanup: 'Sweeper close proposals to judge', implement: 'Agent-ready issues, bugs first', work: 'MSRC items, current and next milestone, then your own priority list' };
+const VIEW_HINTS = { queue: 'What changed since yesterday', notifications: 'Unread GitHub notifications', cleanup: 'Sweeper close proposals to judge', implement: 'Agent-ready issues, bugs first', work: 'Your sections, current and next milestone, then your own priority list' };
 
 const ui = { tab: 'queue', sub: { queue: 'all', cleanup: 'fixed' }, work: null, selected: null, state: null, busy: false, checks: {}, asked: {}, picked: new Set() };
 
@@ -261,16 +261,17 @@ function listGroups() {
 	if (ui.tab === 'work') {
 		if (!ui.work?.data) return [];
 		const label = m => `${m.title}${m.role === 'current' ? ' · current' : m.role === 'next' ? ' · next' : ''}${m.due ? ` · due ${new Date(m.due).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : ''}`;
-		const due = x => { const t = Date.parse(x.resolveBy || ''); return isNaN(t) ? Infinity : t; };
-		const msrc = [...(ui.work.data.msrcItems || [])].sort((a, b) => due(a) - due(b));
-		const draft = ui.msrcDraft && !msrc.some(x => x.incidentId === ui.msrcDraft.incidentId) ? [{ ...ui.msrcDraft, draft: true }] : [];
-		const msrcGroup = msrc.length || draft.length ? [{ header: 'MSRC', role: 'msrc', items: [...draft, ...msrc].map(x => ({ kind: 'msrcitem', id: x.incidentId, x })) }] : [];
+		const due = x => { const t = Date.parse(x.due || ''); return isNaN(t) ? Infinity : t; };
+		const sections = ui.work.data.sections || [];
+		const sectionIds = new Set(sections.map(x => x.id));
 		const pinned = ui.work.data.pinnedSessions || [];
 		const bucketOf = p => p.bucket || 'current';
 		const sessIn = role => pinned.filter(p => bucketOf(p) === role && role !== 'priorities').map(p => ({ kind: 'pinsess', id: p.id, p, group: role }));
 		// Issues added locally (e.g. from a session) sit in current/next without a GitHub milestone change.
 		const shown = new Set([...ui.work.data.milestones.filter(m => m.role !== 'priorities').flatMap(m => m.items.map(w => w.key)), ...(ui.work.data.priorityKeys || [])]);
-		const issuesIn = role => (ui.work.data.pinnedIssues || []).filter(p => (p.bucket || 'current') === role && !shown.has(p.key))
+		// Issues placed in one of your sections show there (and not in their milestone group).
+		const inSection = new Set((ui.work.data.pinnedIssues || []).filter(p => sectionIds.has(p.bucket)).map(p => p.key));
+		const issuesIn = role => (ui.work.data.pinnedIssues || []).filter(p => (p.bucket || 'current') === role && (sectionIds.has(role) || !shown.has(p.key)))
 			.map(p => ({ kind: 'work', id: p.key, w: { ...p, local: true }, milestone: { title: p.milestone, role }, group: role }));
 		// My priorities: issues and sessions in the user's own order.
 		const prioItems = m => {
@@ -286,8 +287,15 @@ function listGroups() {
 		const collapsed = !!ui.state?.settings?.recentCollapsed;
 		const recentGroup = recent.length ? [{ header: 'Active sessions', role: 'recent', collapsible: true, collapsed, keepEmpty: true, count: recent.length, items: collapsed ? [] : recent.map(z => ({ kind: 'recentsess', id: z.id, z })) }] : [];
 		const folded = new Set(ui.state?.settings?.collapsedGroups || []);
-		return [...msrcGroup.map(g => ({ ...g, toggle: true, collapsed: folded.has(g.role) })), ...ui.work.data.milestones.map(m => ({ header: label(m), role: m.role, keepEmpty: true, drop: true, toggle: true, collapsed: folded.has(m.role),
-			items: m.role === 'priorities' ? prioItems(m) : [...m.items.filter(w => !w.state).map(w => ({ kind: 'work', id: w.key, w, milestone: m, group: m.role })), ...issuesIn(m.role), ...sessIn(m.role)],
+		// Your own sections first: their notes (by due date), then issues and sessions placed in them.
+		const sectionGroups = sections.map(x => {
+			const notes = (ui.work.data.notes || []).filter(n => n.section === x.id).sort((a, b) => due(a) - due(b));
+			const draft = ui.noteDraft?.section === x.id ? [{ ...ui.noteDraft, draft: true }] : [];
+			return { header: x.name, role: x.id, section: x, keepEmpty: true, drop: true, toggle: true, collapsed: folded.has(x.id),
+				items: [...draft, ...notes].map(n => ({ kind: 'note', id: n.id, n, group: x.id })).concat(issuesIn(x.id), sessIn(x.id)) };
+		});
+		return [...sectionGroups, ...ui.work.data.milestones.map(m => ({ header: label(m), role: m.role, keepEmpty: true, drop: true, toggle: true, collapsed: folded.has(m.role),
+			items: m.role === 'priorities' ? prioItems(m) : [...m.items.filter(w => !w.state && !inSection.has(w.key)).map(w => ({ kind: 'work', id: w.key, w, milestone: m, group: m.role })), ...issuesIn(m.role), ...sessIn(m.role)],
 			// Issues closed this week in the milestone: folded into one line at the bottom of the group.
 			closed: m.role === 'priorities' ? [] : m.items.filter(w => w.state).map(w => ({ kind: 'work', id: w.key, w, milestone: m, group: m.role })) })), ...recentGroup];
 	}
@@ -341,7 +349,7 @@ function renderAreaBar() {
 	if (ui.tab === 'work') {
 		const src = ui.work;
 		const at = src?.data?.fetchedAt;
-		$('areabar').innerHTML = `${`<button type="button" class="btn sm${['worksrc', 'browseitem'].includes(ui.selected?.kind) ? ' on' : ''}" data-find-work aria-pressed="${['worksrc', 'browseitem'].includes(ui.selected?.kind)}" aria-controls="detail" title="Browse your bugs, feature requests, feature-area issues and PRs awaiting your review; drag them into a group or use the + buttons"><i class="codicon codicon-search" aria-hidden="true"></i>Browse issues &amp; PRs</button>`}<span class="subtabs-spacer"></span>${`
+		$('areabar').innerHTML = `${`<button type="button" class="btn sm${['worksrc', 'browseitem'].includes(ui.selected?.kind) ? ' on' : ''}" data-find-work aria-pressed="${['worksrc', 'browseitem'].includes(ui.selected?.kind)}" aria-controls="detail" title="Browse your bugs, feature requests, feature-area issues and PRs awaiting your review; drag them into a group or use the + buttons"><i class="codicon codicon-search" aria-hidden="true"></i>Browse issues &amp; PRs</button>`}<button type="button" class="btn sm" data-section-new title="Create your own section, e.g. for security cases or escalations"><i class="codicon codicon-add" aria-hidden="true"></i>Section</button><span class="subtabs-spacer"></span>${`
 			<button type="button" class="link-btn list-refresh" data-list-refresh><i class="codicon codicon-refresh${ui.refreshing || src?.loading ? ' spin' : ''}" aria-hidden="true"></i>${ui.refreshing || src?.loading ? 'Refreshing…' : at ? `Updated ${esc(agoText(at))}` : 'Refresh'}</button>`}`;
 		return;
 	}
@@ -738,17 +746,16 @@ function rowHtml(item) {
 			<span class="row-meta">${z?.project ? `<span>${esc(z.project)}</span>` : ''}${z?.modified ? `<span>active ${esc(agoText(new Date(z.modified).toISOString()))}</span>` : ''}${z?.changes ? `<span class="add">+${esc(z.changes.additions)}</span><span class="del">−${esc(z.changes.deletions)}</span>` : ''}${p.status ? doneTag(p.status, p.status === 'done' ? '' : 'PR ') : z && !z.read ? '<span class="tag acc">unread</span>' : ''}</span>
 		</button>`, [{ act: 'open-session', link: `agent-host-session://ahp-session/${p.id}`, icon: 'comment-discussion', label: 'Open session' }, p.status ? { act: 'unpin-session', key: p.id, icon: 'check', label: 'Clear from My Work (done)' } : { act: 'unpin-session', key: p.id, icon: 'close', label: 'Remove from My Work' }]);
 	}
-	if (item.kind === 'msrcitem') {
-		const x = item.x;
-		const due = msrcDue(x);
-		const liveZ = (ui.work?.data?.msrcSessions?.[x.incidentId] || []).find(z => !z.archived);
-		const live = !!liveZ;
-		return withQuick(`<button type="button" class="${cls} ${due.cls === 'bad' || due.cls === 'sev' ? 'dot-action' : ''}" data-kind="msrcitem" data-id="${esc(x.incidentId)}" aria-current="${!!current}">
-			<span class="row-title" title="${esc(x.title || '')}"><i class="codicon codicon-shield" aria-hidden="true"></i> ${esc(x.draft ? 'New MSRC item' : x.title || `IcM ${x.incidentId}`)}</span>
-			<span class="row-meta"><span>IcM ${esc(x.incidentId)}</span><span class="tag ${due.cls}"><i class="codicon codicon-clock" aria-hidden="true"></i>${esc(due.text)}</span>${live ? '<span class="tag sess"><i class="codicon codicon-comment-discussion" aria-hidden="true"></i>session</span>' : ''}</span>
-		</button>`, x.draft ? [] : [
-			liveZ ? { act: 'open-session', link: liveZ.link, icon: 'comment-discussion', label: 'Open session' } : { act: 'msrc-item-session', key: x.incidentId, icon: 'rocket', label: 'Start session' },
-			...(x.link ? [{ href: x.link, icon: 'link-external', label: 'Open in IcM' }] : []),
+	if (item.kind === 'note') {
+		const n = item.n;
+		const due = noteDue(n);
+		const liveZ = n.draft ? null : (ui.work?.data?.noteSessions?.[n.ref || n.title] || []).find(z => !z.archived);
+		return withQuick(`<button type="button" class="${cls} ${due.cls === 'bad' || due.cls === 'sev' ? 'dot-action' : ''}" data-kind="note" data-id="${esc(n.id)}" aria-current="${!!current}">
+			<span class="row-title" title="${esc(n.title || '')}"><i class="codicon codicon-note" aria-hidden="true"></i> ${esc(n.draft ? 'New note' : n.title)}</span>
+			<span class="row-meta">${n.ref && n.ref !== n.title ? `<span>${esc(n.ref)}</span>` : ''}${n.due ? `<span class="tag ${due.cls}"><i class="codicon codicon-clock" aria-hidden="true"></i>${esc(due.text)}</span>` : ''}${liveZ ? '<span class="tag sess"><i class="codicon codicon-comment-discussion" aria-hidden="true"></i>session</span>' : ''}</span>
+		</button>`, n.draft ? [] : [
+			liveZ ? { act: 'open-session', link: liveZ.link, icon: 'comment-discussion', label: 'Open session' } : { act: 'note-session', key: n.id, icon: 'rocket', label: 'Start session' },
+			...(n.link ? [{ href: n.link, icon: 'link-external', label: 'Open link' }] : []),
 		]);
 	}
 	if (item.kind === 'notification') {
@@ -812,7 +819,7 @@ function renderList() {
 		? `<button type="button" class="group-h done-toggle" data-done-toggle aria-expanded="${!!ui.showDone}"><i class="codicon codicon-chevron-right" aria-hidden="true"></i>Done<span class="group-n">${done.length}</span></button>${ui.showDone ? done.map(rowHtml).join('') : ''}`
 		: '';
 	$('list').innerHTML = groups.length || done.length
-		? groups.map(g => `${g.collapsible ? `<button type="button" class="group-h done-toggle" data-group-toggle="${esc(g.role)}" aria-expanded="${!g.collapsed}"><i class="codicon codicon-chevron-right" aria-hidden="true"></i>${esc(g.header)}<span class="group-n">${g.count}</span></button>` : g.header ? `<div class="group-h${g.toggle ? ' can-toggle' : ''}"${g.drop ? ` data-drop-group="${esc(g.role)}"` : ''}>${g.toggle ? `<button type="button" class="group-toggle" data-group-toggle="${esc(g.role)}" aria-expanded="${!g.collapsed}"><i class="codicon codicon-chevron-right" aria-hidden="true"></i>${esc(g.header)}</button>` : esc(g.header)}<span class="group-n">${g.items.filter(i => !isHandled(i) && !clearableDone(i) && !i.w?.state).length || ''}</span>${g.items.some(clearableDone) ? `<button type="button" class="link-btn group-clear" data-clear-done="${esc(g.role)}" title="Remove the finished items in this group from My Work">Clear done</button>` : ''}</div>` : ''}${g.collapsed ? '' : g.items.length ? g.items.map(rowHtml).join('') : g.role === 'priorities' ? '<div class="cd empty-group" data-drop-group="priorities">Your own ordered list, kept locally (milestones on GitHub are untouched). Paste <b>#123</b> or an issue link into the chat below, or use <b>Add to my priorities</b> on any issue.</div>' : `<div class="cd empty-group"${g.drop ? ` data-drop-group="${esc(g.role)}"` : ''}>Nothing planned yet. Use <b>Plan for…</b> on an issue or drop a session here.</div>`}${g.collapsed ? '' : closedFoldHtml(g)}`).join('')
+		? groups.map(g => `${g.collapsible ? `<button type="button" class="group-h done-toggle" data-group-toggle="${esc(g.role)}" aria-expanded="${!g.collapsed}"><i class="codicon codicon-chevron-right" aria-hidden="true"></i>${esc(g.header)}<span class="group-n">${g.count}</span></button>` : g.header ? `<div class="group-h${g.toggle ? ' can-toggle' : ''}"${g.drop ? ` data-drop-group="${esc(g.role)}"` : ''}>${g.toggle ? `<button type="button" class="group-toggle" data-group-toggle="${esc(g.role)}" aria-expanded="${!g.collapsed}"><i class="codicon codicon-chevron-right" aria-hidden="true"></i>${esc(g.header)}</button>` : esc(g.header)}<span class="group-n">${g.items.filter(i => !isHandled(i) && !clearableDone(i) && !i.w?.state).length || ''}</span>${g.items.some(clearableDone) ? `<button type="button" class="link-btn group-clear" data-clear-done="${esc(g.role)}" title="Remove the finished items in this group from My Work">Clear done</button>` : ''}${g.section ? `<span class="group-tools"><button type="button" class="row-pin" data-note-new="${esc(g.role)}" title="Add a note to ${esc(g.header)}" aria-label="Add a note to ${esc(g.header)}"><i class="codicon codicon-add" aria-hidden="true"></i></button><button type="button" class="row-pin" data-section-edit="${esc(g.role)}" title="Edit section" aria-label="Edit section ${esc(g.header)}"><i class="codicon codicon-gear" aria-hidden="true"></i></button></span>` : ''}</div>` : ''}${g.collapsed ? '' : g.items.length ? g.items.map(rowHtml).join('') : g.role === 'priorities' ? '<div class="cd empty-group" data-drop-group="priorities">Your own ordered list, kept locally (milestones on GitHub are untouched). Paste <b>#123</b> or an issue link into the chat below, or use <b>Add to my priorities</b> on any issue.</div>' : g.section ? `<div class="cd empty-group" data-drop-group="${esc(g.role)}">Empty. Add a note with <b>+</b>${g.section.linkPattern ? ', paste a matching link into the chat box below' : ''}, or drag issues and sessions here.</div>` : `<div class="cd empty-group"${g.drop ? ` data-drop-group="${esc(g.role)}"` : ''}>Nothing planned yet. Use <b>Plan for…</b> on an issue or drop a session here.</div>`}${g.collapsed ? '' : closedFoldHtml(g)}`).join('')
 			+ (groups.length ? '' : '<div class="empty"><i class="codicon codicon-check-all" aria-hidden="true"></i>All done in this batch</div>') + doneHtml
 		: ui.state?.indexing?.state === 'running' && ['queue', 'cleanup', 'implement'].includes(ui.tab) && (ui.state.indexing.firstRun || !ui.state.hasIndex)
 			? '<div class="empty cd">My Work and Notifications already work while the index is built.</div>'
@@ -960,7 +967,8 @@ function outcomeHtml(outcome) {
 async function renderDetailInner(fetchDetail, silent = false) {
 	const sel = ui.selected;
 	const el = $('detail');
-	if (sel.kind === 'msrcitem') { renderMsrcItemInto(el, sel.id); return; }
+	if (sel.kind === 'note') { renderNoteInto(el, sel.id); return; }
+	if (sel.kind === 'section') { renderSectionInto(el, sel.id); return; }
 	if (sel.kind === 'workhome') { renderWorkHomeInto(el); return; }
 	if (sel.kind === 'worksrc') { renderFindWorkInto(el); return; }
 	if (sel.kind === 'browseitem') { await renderBrowseItemInto(el, sel.id, fetchDetail, silent); return; }
@@ -1623,10 +1631,12 @@ function workMenu(key, opts) {
 	const here = opts.work.group || (localPin ? localPin.bucket || 'current' : opts.work.milestone?.role);
 	const browseAdds = opts.browse && !inMyWork(key) ? ['current', 'next'].map(b => ({ act: 'issue-move', key, milestone: b, label: `Add to ${groupLabel(b)} (local)` })) : [];
 	const localMoves = localPin || here === 'priorities' ? ['current', 'next'].filter(b => b !== here).map(b => ({ act: 'issue-move', key, milestone: b, label: `Move to ${groupLabel(b)} (local)` })) : [];
+	// Any issue can be placed in one of your sections (locally; GitHub stays unchanged).
+	const toSections = (ui.work?.data?.sections || []).filter(x => x.id !== here).map(x => ({ act: 'issue-move', key, milestone: x.id, label: `Move to ${x.name}` }));
 	// Issues planned on GitHub for current/next can go back to untriaged (milestone cleared on GitHub).
 	const planned = !localPin && (here === 'current' || here === 'next') && opts.work.milestone?.title;
 	const unplan = planned ? [{ act: 'move-milestone', key, milestone: 'none', label: `Remove from ${opts.work.milestone.title} (untriaged)` }] : [];
-	return [...browseAdds, ...localMoves, ...planMenu(key, opts.work.milestone?.title), ...unplan, ...(localPin ? [{ act: 'issue-unpin', key, label: 'Remove from My Work' }] : [])];
+	return [...browseAdds, ...localMoves, ...toSections, ...planMenu(key, opts.work.milestone?.title), ...unplan, ...(localPin ? [{ act: 'issue-unpin', key, label: 'Remove from My Work' }] : [])];
 }
 
 async function renderUnindexedInto(el, key, opts = {}) {
@@ -1776,45 +1786,89 @@ async function renderIssueInto(el, key, fetchDetail, nested, silent = false, opt
 	el.innerHTML = `<div class="detail-head">${head}</div><div class="detail-body${decided ? ' is-decided' : ''}">${outcome}${ctxHtml}${attention}${recoSlot(key)}${tools ? `<div class="toolbar issue-tools">${tools}</div>` : ''}${sessionsHtml(sessionsOf(key))}${cards}${ghSlot(key)}</div><div class="footer">${threadHtml(key, issue.title)}</div>`;
 }
 
-// ---------- MSRC ----------
-// Deadline label: "Jul 14 · overdue 105d" / "Nov 3 · in 7d" / "no deadline".
-function msrcDue(c) {
-	const t = Date.parse(c.resolveBy || '');
-	if (isNaN(t)) return { text: 'no deadline', cls: '' };
+// ---------- Your sections and their notes ----------
+// Due label: "Jul 14 · overdue 105d" / "Nov 3 · in 7d" / "no due date".
+function noteDue(n) {
+	const t = Date.parse(n.due || '');
+	if (isNaN(t)) return { text: 'no due date', cls: '' };
 	const days = Math.round((t - Date.now()) / 864e5);
 	const date = new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: new Date(t).getFullYear() === new Date().getFullYear() ? undefined : 'numeric' });
 	return days < 0 ? { text: `${date} · overdue ${-days}d`, cls: 'bad' } : { text: `${date} · in ${days}d`, cls: days <= 7 ? 'sev' : '' };
 }
-// MSRC items pasted into My Work: the user's own IcM link, title, deadline and description.
-function renderMsrcItemInto(el, id) {
-	const saved = (ui.work?.data?.msrcItems || []).find(x => x.incidentId === id);
-	const x = saved || (ui.msrcDraft?.incidentId === id ? ui.msrcDraft : null);
-	if (!x) { el.innerHTML = '<div class="empty">This MSRC item is no longer in My Work.</div>'; return; }
-	const link = x.link || `https://portal.microsofticm.com/imp/v5/incidents/details/${id}/summary`;
-	if (!saved || ui.msrcEditing === id) {
-		el.innerHTML = `<div class="detail-head">${titleBarHtml({ title: saved ? `Edit IcM ${id}` : `Add MSRC item · IcM ${id}`, url: link, meta: `<div class="meta"><a class="num-link" href="${esc(safeUrl(link))}" target="_blank" rel="noopener">IcM ${esc(id)}</a></div>` })}</div>
-			<div class="detail-body"><form class="msrc-form dcard" data-msrc-form data-id="${esc(id)}" data-link="${esc(link)}">
-				<label for="msrc-title">Title</label><input id="msrc-title" name="title" type="text" maxlength="200" value="${esc(saved ? x.title : '')}" placeholder="Short title, e.g. RCE via …" required>
-				<label for="msrc-due">Resolve by</label><input id="msrc-due" name="resolveBy" type="date" value="${esc(x.resolveBy || '')}">
-				<label for="msrc-desc">Description</label><textarea id="msrc-desc" name="description" rows="14" maxlength="20000" placeholder="Paste the case description">${esc(x.description || '')}</textarea>
-				<div class="msrc-form-actions"><button type="submit" class="btn primary">Save</button><button type="button" class="btn" data-msrc-cancel>Cancel</button></div>
-				<p class="cd msrc-note"><i class="codicon codicon-lock" aria-hidden="true"></i> Saved only on this machine (your My Work data folder). Never posted to GitHub.</p>
+function sectionOf(id) {
+	return (ui.work?.data?.sections || []).find(x => x.id === id) || null;
+}
+// The section a pasted link belongs to (its link pattern), with the reference it captures (e.g. an incident id).
+function sectionForLink(text) {
+	const t = String(text || '').trim();
+	if (!/^https?:\/\//i.test(t)) return null;
+	for (const x of ui.work?.data?.sections || []) {
+		if (!x.linkPattern) continue;
+		let m = null;
+		try { m = new RegExp(x.linkPattern, 'i').exec(t); } catch { continue; }
+		if (m) return { section: x.id, ref: m[1] || m[0], link: t };
+	}
+	return null;
+}
+function startNoteDraft(section, fields = {}) {
+	const notes = ui.work?.data?.notes || [];
+	const existing = fields.ref ? notes.find(n => n.section === section && n.ref === fields.ref) : null;
+	if (existing) { ui.noteEditing = existing.id; select('note', existing.id); return; }
+	ui.noteDraft = { id: 'draft', section, title: '', link: '', ref: '', description: '', due: '', ...fields, addedAt: new Date().toISOString() };
+	ui.noteEditing = 'draft';
+	render();
+	select('note', 'draft');
+}
+const LOCK_NOTE = '<p class="cd lock-note"><i class="codicon codicon-lock" aria-hidden="true"></i> Saved only on this machine (your My Work data folder). Never posted to GitHub.</p>';
+function renderNoteInto(el, id) {
+	const n = id === 'draft' ? ui.noteDraft : (ui.work?.data?.notes || []).find(x => x.id === id);
+	if (!n) { el.innerHTML = '<div class="empty">This note is no longer in My Work.</div>'; return; }
+	const section = sectionOf(n.section);
+	if (id === 'draft' || ui.noteEditing === id) {
+		el.innerHTML = `<div class="detail-head">${titleBarHtml({ title: id === 'draft' ? `New note in ${section?.name || n.section}` : 'Edit note', meta: '' })}</div>
+			<div class="detail-body"><form class="note-form dcard" data-note-form data-id="${esc(id)}" data-section="${esc(n.section)}" data-ref="${esc(n.ref || '')}">
+				<label for="note-title">Title</label><input id="note-title" name="title" type="text" maxlength="200" value="${esc(n.title || '')}" placeholder="Short title" required>
+				<label for="note-link">Link</label><input id="note-link" name="link" type="url" maxlength="1000" value="${esc(n.link || '')}" placeholder="https://…">
+				<label for="note-due">Due</label><input id="note-due" name="due" type="date" value="${esc(n.due || '')}">
+				<label for="note-desc">Description</label><textarea id="note-desc" name="description" rows="14" maxlength="20000" placeholder="Details for the session">${esc(n.description || '')}</textarea>
+				<div class="note-form-actions"><button type="submit" class="btn primary">Save</button><button type="button" class="btn" data-note-cancel>Cancel</button></div>
+				${LOCK_NOTE}
 			</form></div>`;
-		el.querySelector('#msrc-title')?.focus();
+		el.querySelector('#note-title')?.focus();
 		return;
 	}
-	const sessions = ui.work?.data?.msrcSessions?.[id] || [];
+	const sessions = ui.work?.data?.noteSessions?.[n.ref || n.title] || [];
 	const live = sessions.find(z => !z.archived);
-	const due = msrcDue(x);
-	const meta = `<div class="meta"><a class="num-link" href="${esc(safeUrl(link))}" target="_blank" rel="noopener" title="Open in IcM">IcM ${esc(id)}</a><span class="sep">·</span><span class="tag ${due.cls}"><i class="codicon codicon-clock" aria-hidden="true"></i>${esc(x.resolveBy ? `Resolve by ${due.text}` : 'No deadline set')}</span><span class="sep">·</span><span class="cd">added ${esc(agoText(x.addedAt))}</span></div>`;
-	const primary = live ? { act: 'open-session', link: live.link, label: 'Open session', icon: 'comment-discussion' } : { act: 'msrc-item-session', key: id, label: 'Start session', icon: 'rocket' };
-	const menu = [...(live ? [{ act: 'msrc-item-session', key: id, label: 'Start another session' }] : []), { act: 'msrc-item-edit', key: id, label: 'Edit' }, { act: 'msrc-item-remove', key: id, label: 'Remove from My Work' }];
-	el.innerHTML = `<div class="detail-head">${titleBarHtml({ title: x.title || `IcM ${id}`, url: link, meta, primary, menu })}</div>
+	const due = noteDue(n);
+	const meta = `<div class="meta">${n.link ? `<a class="num-link" href="${esc(safeUrl(n.link))}" target="_blank" rel="noopener">${esc(n.ref || 'Open link')}</a><span class="sep">·</span>` : ''}<span>${esc(section?.name || n.section)}</span><span class="sep">·</span><span class="tag ${due.cls}"><i class="codicon codicon-clock" aria-hidden="true"></i>${esc(n.due ? `Due ${due.text}` : 'No due date')}</span><span class="sep">·</span><span class="cd">added ${esc(agoText(n.addedAt))}</span></div>`;
+	const primary = live ? { act: 'open-session', link: live.link, label: 'Open session', icon: 'comment-discussion' } : { act: 'note-session', key: n.id, label: 'Start session', icon: 'rocket' };
+	const menu = [...(live ? [{ act: 'note-session', key: n.id, label: 'Start another session' }] : []), { act: 'note-edit', key: n.id, label: 'Edit' }, { act: 'note-remove', key: n.id, label: 'Remove from My Work' }];
+	el.innerHTML = `<div class="detail-head">${titleBarHtml({ title: n.title, url: n.link || undefined, meta, primary, menu })}</div>
 		<div class="detail-body">
 			${sessionsHtml(sessions)}
-			<section class="linked dcard"><div class="linked-head"><span class="section-label">Description</span></div><div class="msrc-desc">${x.description ? esc(x.description) : '<span class="cd">No description. Use Edit to paste it.</span>'}</div></section>
-			<p class="cd msrc-note"><i class="codicon codicon-lock" aria-hidden="true"></i> Security fix: the session follows your private fix workflow (msrc.fixWorkflow in my-work.config.json) and never uses a public repo, branch, PR or issue. Saved only on this machine.</p>
+			<section class="linked dcard"><div class="linked-head"><span class="section-label">Description</span></div><div class="note-desc">${n.description ? esc(n.description) : '<span class="cd">No description. Use Edit to add one.</span>'}</div></section>
+			<p class="cd lock-note"><i class="codicon codicon-lock" aria-hidden="true"></i> ${section?.instructions ? `Start session follows the instructions of your ${esc(section.name)} section.` : 'Start session asks the chat to pick the repository with you.'} Saved only on this machine.</p>
 		</div>`;
+}
+// Create or edit one of your sections.
+function renderSectionInto(el, id) {
+	const x = id === 'new' ? { name: '', instructions: '', linkPattern: '' } : sectionOf(id);
+	if (!x) { el.innerHTML = '<div class="empty">This section no longer exists.</div>'; return; }
+	const list = ui.work?.data?.sections || [];
+	const at = list.findIndex(v => v.id === id);
+	const notes = (ui.work?.data?.notes || []).filter(n => n.section === id).length;
+	el.innerHTML = `<div class="detail-head">${titleBarHtml({ title: id === 'new' ? 'New section' : `Section · ${x.name}`, meta: '<div class="meta"><span class="cd">Your own group in My Work, shown above the milestones.</span></div>' })}</div>
+		<div class="detail-body"><form class="note-form dcard" data-section-form data-id="${esc(id)}">
+			<label for="sec-name">Name</label><input id="sec-name" name="name" type="text" maxlength="40" value="${esc(x.name)}" placeholder="e.g. MSRC, Customer escalations" required>
+			<label for="sec-instr">Instructions for sessions</label><textarea id="sec-instr" name="instructions" rows="6" maxlength="4000" placeholder="Optional. Followed when you start a session from a note in this section, e.g. which repository, branch or skill to use, and what must stay private.">${esc(x.instructions || '')}</textarea>
+			<label for="sec-pattern">Link pattern</label><input id="sec-pattern" name="linkPattern" type="text" maxlength="200" spellcheck="false" value="${esc(x.linkPattern || '')}" placeholder="Optional regular expression, e.g. incidents/details/(\\d+)">
+			<p class="cd" style="margin:0">Pasting a matching link into the chat box adds a note here. The first capture group is the note's reference; sessions whose title mentions it are linked.</p>
+			<div class="note-form-actions"><button type="submit" class="btn primary">${id === 'new' ? 'Create section' : 'Save'}</button><button type="button" class="btn" data-section-cancel>Cancel</button>
+				${id === 'new' ? '' : `<span class="spacer"></span>${at > 0 ? '<button type="button" class="btn" data-section-move="up">Move up</button>' : ''}${at >= 0 && at < list.length - 1 ? '<button type="button" class="btn" data-section-move="down">Move down</button>' : ''}<button type="button" class="btn danger" data-section-delete>Delete…</button>`}</div>
+			${id === 'new' ? '' : `<p class="cd" data-section-delete-note hidden>Deleting removes the section and its ${notes} note${notes === 1 ? '' : 's'}; its issues and sessions move to Current. <button type="button" class="btn danger sm" data-section-delete-confirm>Delete section</button></p>`}
+			${LOCK_NOTE}
+		</form></div>`;
+	el.querySelector('#sec-name')?.focus();
 }
 // My Work home: the My Work chat and the recently active sessions that can be pinned.
 function renderWorkHomeInto(el) {
@@ -1984,7 +2038,7 @@ function renderPinnedSessionInto(el, id) {
 		${fact('Last active', z.modified ? esc(agoText(new Date(z.modified).toISOString())) : '')}
 		${fact('Folder', i.workingDirectory ? `<code>${esc(i.workingDirectory.replace(/^\/Users\/[^/]+/, '~'))}</code>` : '')}
 	</div></section>` : '';
-	const moves = ['current', 'next', 'priorities'].filter(b => b !== (p.bucket || 'current')).map(b => ({ act: 'sess-move', key: id, milestone: b, label: `Move to ${groupLabel(b)}` }));
+	const moves = ['current', 'next', 'priorities', ...(ui.work?.data?.sections || []).map(x => x.id)].filter(b => b !== (p.bucket || 'current')).map(b => ({ act: 'sess-move', key: id, milestone: b, label: `Move to ${groupLabel(b)}` }));
 	el.innerHTML = `<div class="detail-head">${titleBarHtml({ title: z?.title || p.note || 'Session', meta, primary: { act: 'open-session', link, label: 'Open session', icon: 'comment-discussion' }, menu: [...moves, { act: 'unpin-session', key: id, label: 'Remove from My Work' }] })}</div>
 		<div class="detail-body">${sessionInsightsHtml(id, true)}${p.summary ? about : ''}${z ? facts : '<p class="cd" style="padding:12px">This session is not in the Agents window\'s session store anymore.</p>'}
 			<p class="cd" style="padding:0 12px">In ${esc(groupLabel(p.bucket || 'current'))}. Drag it to another group or use the menu; marking the session done (archiving it) removes it from My Work.</p></div>`;
@@ -2021,11 +2075,6 @@ function sessionInsightsHtml(id, pinned) {
 function parseSessionRef(text) {
 	const m = String(text || '').trim().match(/^agent-host-session:\/\/[\w-]+\/([\w-]{8,80})/);
 	return m ? m[1] : null;
-}
-function parseIncident(text) {
-	const t = String(text || '').trim();
-	const m = t.match(/incidents?\/(?:details\/)?(\d{5,20})/i) || t.match(/^icm\s*#?(\d{5,20})$/i);
-	return m ? { incidentId: m[1], link: /^https:\/\//.test(t) ? t : '' } : null;
 }
 
 async function updatePriority(key, op, to) {
@@ -2074,7 +2123,7 @@ async function act(button) {
 	const act = button.dataset.act;
 	const key = button.dataset.key;
 	if (act === 'recheck') { loadChecks(key, true); return; }
-	if (act === 'msrc-item-edit') { closeMenus(); ui.msrcEditing = key; renderDetail(false); return; }
+	if (act === 'note-edit') { closeMenus(); ui.noteEditing = key; renderDetail(false); return; }
 	if (act === 'cancel-opinion') {
 		try { await api('/api/cancel-opinion', { key, mode: button.dataset.mode || 'blind' }); toast('Judgement request cancelled'); await load(); } catch (error) { toast(error.message, true); }
 		return;
@@ -2196,12 +2245,12 @@ async function act(button) {
 			if (act === 'pin-session') ui.selected = r.issue ? { kind: 'work', id: r.issue, detail: null } : { kind: 'pinsess', id: key, detail: null };
 			if (act === 'unpin-session') { ui.selected = null; $('detail').innerHTML = '<div class="empty">Select an item to see details and actions.</div>'; }
 			await loadWork();
-		} else if (act === 'msrc-item-session') {
-			await api('/api/msrc-item-session', { incidentId: key });
-			msg = `Asked the chat to start a session for IcM ${key} (private repo)`;
+		} else if (act === 'note-session') {
+			await api('/api/note-session', { id: key });
+			msg = 'Asked the chat to start a session for this note';
 			move = false;
-		} else if (act === 'msrc-item-remove') {
-			await api('/api/msrc-item', { op: 'remove', incidentId: key });
+		} else if (act === 'note-remove') {
+			await api('/api/note', { op: 'remove', id: key });
 			msg = `IcM ${key} removed from My Work`;
 			move = false;
 			ui.selected = null;
@@ -2334,6 +2383,7 @@ $('areabar').addEventListener('change', e => {
 $('areabar').addEventListener('click', e => {
 	if (e.target.closest('#area-clear')) setAreaFilter('');
 	if (e.target.closest('[data-pick-session]')) { select('workhome', 'home'); return; }
+	if (e.target.closest('[data-section-new]')) { select('section', 'new'); return; }
 	if (e.target.closest('[data-find-work]')) {
 		if (['worksrc', 'browseitem'].includes(ui.selected?.kind)) { ui.selected = null; $('detail').innerHTML = '<div class="empty">Select an item to see details and actions.</div>'; render(); return; }
 		select('worksrc', 'find').then(() => { renderAreaBar(); $('detail').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); });
@@ -2473,6 +2523,10 @@ $('batchbar').addEventListener('change', e => {
 	syncBulkBar();
 });
 $('list').addEventListener('click', e => {
+	const nn = e.target.closest('[data-note-new]');
+	if (nn) { startNoteDraft(nn.dataset.noteNew); return; }
+	const se = e.target.closest('[data-section-edit]');
+	if (se) { select('section', se.dataset.sectionEdit); return; }
 	const fold = e.target.closest('[data-closed-fold]');
 	if (fold) { ui.closedOpen ??= {}; ui.closedOpen[fold.dataset.closedFold] = !ui.closedOpen[fold.dataset.closedFold]; renderList(); return; }
 	const clr = e.target.closest('[data-clear-done]');
@@ -2518,7 +2572,7 @@ function dropTarget(e) {
 	const t = e.target.closest?.('[data-group], [data-drop-group]');
 	if (!t || !drag) return null;
 	const group = t.dataset.group || t.dataset.dropGroup;
-	if (!['current', 'next', 'priorities'].includes(group)) return null;
+	if (!['current', 'next', 'priorities'].includes(group) && !sectionOf(group)) return null;
 	if (!drag.sess && !drag.pinIssue && !drag.recent && group !== 'priorities') return null;
 	return { el: t, group, row: t.matches('[data-prio]') ? t : null };
 }
@@ -2575,6 +2629,8 @@ $('list').addEventListener('dragend', () => {
 });
 function groupLabel(role) {
 	if (role === 'priorities') return 'My priorities';
+	const x = sectionOf(role);
+	if (x) return x.name;
 	const m = ui.work?.data?.milestones?.find(x => x.role === role);
 	return m ? `${m.title} (${role})` : role;
 }
@@ -2588,13 +2644,10 @@ $('areabar').addEventListener('submit', async e => {
 		try { await api('/api/work-pin', { op: 'add', id: sid }); input.value = ''; await loadWork(); select('pinsess', sid); toast('Session added to My Work'); } catch (error) { toast(error.message, true); }
 		return;
 	}
-	const inc = parseIncident(input.value);
-	if (inc) {
+	const hit = sectionForLink(input.value);
+	if (hit) {
 		input.value = '';
-		const existing = (ui.work?.data?.msrcItems || []).some(x => x.incidentId === inc.incidentId);
-		if (!existing) ui.msrcDraft = { incidentId: inc.incidentId, link: inc.link, addedAt: new Date().toISOString() };
-		ui.msrcEditing = null;
-		select('msrcitem', inc.incidentId);
+		startNoteDraft(hit.section, { link: hit.link, ref: hit.ref, title: hit.ref });
 		return;
 	}
 	const key = parseIssueRef(input.value);
@@ -2777,26 +2830,52 @@ $('detail').addEventListener('dragend', () => {
 	for (const r of document.querySelectorAll('.dragging')) r.classList.remove('dragging');
 });
 $('detail').addEventListener('submit', async e => {
-	const form = e.target.closest('[data-msrc-form]');
+	const form = e.target.closest('[data-note-form], [data-section-form]');
 	if (!form) return;
 	e.preventDefault();
 	const f = new FormData(form);
 	const btn = form.querySelector('[type="submit"]');
 	btn.disabled = true;
 	try {
-		await api('/api/msrc-item', { op: 'save', incidentId: form.dataset.id, link: form.dataset.link, title: f.get('title'), resolveBy: f.get('resolveBy'), description: f.get('description') });
-		ui.msrcDraft = null; ui.msrcEditing = null;
-		await loadWork();
-		select('msrcitem', form.dataset.id);
-		toast(`IcM ${form.dataset.id} saved in My Work`);
+		if (form.matches('[data-note-form]')) {
+			const id = form.dataset.id === 'draft' ? undefined : form.dataset.id;
+			const link = String(f.get('link') || '').trim();
+			const hit = link ? sectionForLink(link) : null;
+			const note = await api('/api/note', { op: 'save', id, section: form.dataset.section, ref: hit?.section === form.dataset.section ? hit.ref : form.dataset.ref, title: f.get('title'), link, due: f.get('due'), description: f.get('description') });
+			ui.noteDraft = null; ui.noteEditing = null;
+			await loadWork();
+			select('note', note.id);
+			toast('Note saved in My Work');
+		} else {
+			const id = form.dataset.id === 'new' ? undefined : form.dataset.id;
+			const x = await api('/api/section', { op: 'save', id, name: f.get('name'), instructions: f.get('instructions'), linkPattern: f.get('linkPattern') });
+			await loadWork();
+			select('section', x.id);
+			toast(id ? 'Section saved' : `Section ${x.name} created`);
+		}
 	} catch (error) { toast(error.message, true); btn.disabled = false; }
 });
-$('detail').addEventListener('click', e => {
-	if (!e.target.closest('[data-msrc-cancel]')) return;
-	const id = ui.selected?.id;
-	const saved = (ui.work?.data?.msrcItems || []).some(x => x.incidentId === id);
-	ui.msrcEditing = null;
-	if (!saved) { ui.msrcDraft = null; ui.selected = null; render(); } else renderDetail(false);
+$('detail').addEventListener('click', async e => {
+	if (e.target.closest('[data-note-cancel]')) {
+		const draft = ui.selected?.id === 'draft';
+		ui.noteEditing = null;
+		if (draft) { ui.noteDraft = null; ui.selected = null; $('detail').innerHTML = '<div class="empty">Select an item to see details and actions.</div>'; render(); } else renderDetail(false);
+		return;
+	}
+	if (e.target.closest('[data-section-cancel]')) { ui.selected = null; $('detail').innerHTML = '<div class="empty">Select an item to see details and actions.</div>'; render(); return; }
+	const id = ui.selected?.kind === 'section' ? ui.selected.id : null;
+	if (!id || id === 'new') return;
+	const mv = e.target.closest('[data-section-move]');
+	if (mv) { try { await api('/api/section', { op: 'move', id, dir: mv.dataset.sectionMove }); await loadWork(); renderDetail(false); } catch (error) { toast(error.message, true); } return; }
+	if (e.target.closest('[data-section-delete]')) { const n = document.querySelector('[data-section-delete-note]'); if (n) n.hidden = false; return; }
+	if (e.target.closest('[data-section-delete-confirm]')) {
+		try {
+			const r = await api('/api/section', { op: 'remove', id });
+			ui.selected = null; $('detail').innerHTML = '<div class="empty">Select an item to see details and actions.</div>';
+			await loadWork();
+			toast(`Section deleted${r.moved ? `; ${r.moved} item${r.moved === 1 ? '' : 's'} moved to Current` : ''}`);
+		} catch (error) { toast(error.message, true); }
+	}
 });
 $('detail').addEventListener('submit', e => {
 	const form = e.target.closest('.composer');
@@ -2872,14 +2951,11 @@ async function sendWorkChat(form) {
 			else { select('pinsess', sid); toast('Session added; the My Work chat will describe what it is doing'); }
 			return;
 		}
-		const inc = ui.work?.data?.msrcEnabled === false ? null : parseIncident(first);
-		if (inc) {
-			// IcM link (optionally followed by the pasted description): open the MSRC form prefilled.
+		const hit = sectionForLink(first);
+		if (hit) {
+			// A link matching one of your sections (optionally followed by a description): open its note form prefilled.
 			ta.value = ''; autoGrow(ta);
-			const existing = (ui.work?.data?.msrcItems || []).find(x => x.incidentId === inc.incidentId);
-			if (!existing) ui.msrcDraft = { incidentId: inc.incidentId, link: inc.link, description: restText, addedAt: new Date().toISOString() };
-			ui.msrcEditing = existing ? inc.incidentId : null;
-			select('msrcitem', inc.incidentId);
+			startNoteDraft(hit.section, { link: hit.link, ref: hit.ref, title: hit.ref, description: restText });
 			return;
 		}
 		const keys = text.split(/[\s,]+/).map(parseIssueRef);

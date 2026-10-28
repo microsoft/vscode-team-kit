@@ -2,6 +2,8 @@
 
 ## 1.0.7 (2026-10-28)
 
+- **Your own sections** in My Work, created with **+ Section**: a name, optional instructions for sessions started from it, and an optional link pattern. A section holds **notes** (title, link, description, due date) plus issues and sessions you move or drag into it. Start session on a note follows the section's instructions; pasting a matching link into the chat box adds a note. Sections can be edited, reordered and deleted (their issues and sessions go back to Current).
+- BREAKING: the built-in MSRC group and the `msrc` config are removed. On first run, existing MSRC items and `msrc.fixWorkflow` become a custom **MSRC** section with the same items, linked sessions and instructions (still private).
 - My Work shows when work is finished instead of dropping it silently:
   - Issues and PRs you added locally or to My priorities get a **Closed** / **Merged** tag; sessions get **Done** (marked done in the Agents window) or **PR merged** / **PR closed** from their latest pull request.
   - Finished rows are dimmed and stay until you clear them, with a **Clear** quick action on each and **Clear done** on the group.

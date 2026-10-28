@@ -1,5 +1,5 @@
 import { getMyWork, cleanRefine } from './work.mjs';
-import { listMsrcItems, saveMsrcItem, parseIncident } from './msrcItems.mjs';
+import { listSections, listNotes, saveNote, sectionForLink, isGroup } from './sections.mjs';
 import { listPinned, pinSession, unpinSessions, parseSessionRef, getMyWorkChat, setMyWorkChat, setIssueChat, MY_WORK_DIR, setSessionBucket, setSessionSummary, pinIssue, setIssueBucket, recordSessionSummary } from './workSessions.mjs';
 import { watch as fsWatch, mkdirSync } from 'node:fs';
 import { sessionsById, recentSessions } from './sessions.mjs';
@@ -176,23 +176,24 @@ export const actionDefinitions = [
 	},
 	{
 		name: 'getMyWork',
-		description: 'What is on the user\'s My Work board: MSRC items, pinned sessions, current/next milestone issues, My priorities (in order), and the most recently active Agents window sessions that are not pinned yet.',
+		description: 'What is on the user\'s My Work board: the user\'s custom sections (id, name) with their notes, pinned sessions, current/next milestone issues, My priorities (in order), and the most recently active Agents window sessions that are not pinned yet.',
 	},
 	{
 		name: 'updateMyWork',
-		description: 'Change the user\'s local My Work board (never GitHub). Ops: addIssue (key owner/repo#N, optional group current (default) | next | priorities; local, GitHub milestone unchanged), pinSession / unpinSession (session: an agent-host-session:// link or id, optional note, optional group "current" (default) | "next" | "priorities"), moveSession (session, group), describeSession (session, summary, optional issue owner/repo#N to replace the session with that issue), addPriority (key, optional position "top"), movePriority (key, position "top" | "bottom" | "up" | "down" | 0-based index), removePriority (key), addMsrc (incidentId or link, title, optional resolveBy YYYY-MM-DD, description).',
+		description: 'Change the user\'s local My Work board (never GitHub). Ops: addIssue (key owner/repo#N, optional group: current (default) | next | priorities | a custom section id from getMyWork; local, GitHub milestone unchanged), pinSession / unpinSession (session: an agent-host-session:// link or id, optional note, optional group as for addIssue), moveSession (session, group), describeSession (session, summary, optional issue owner/repo#N to replace the session with that issue), addPriority (key, optional position "top"), movePriority (key, position "top" | "bottom" | "up" | "down" | 0-based index), removePriority (key), addNote (section: a custom section id, title, optional link, optional due YYYY-MM-DD, optional description; a link matching a section\'s link pattern picks that section and its reference).',
 		inputSchema: {
 			type: 'object',
 			properties: {
-				op: { type: 'string', enum: ['addIssue', 'pinSession', 'unpinSession', 'moveSession', 'describeSession', 'addPriority', 'movePriority', 'removePriority', 'addMsrc'] },
+				op: { type: 'string', enum: ['addIssue', 'pinSession', 'unpinSession', 'moveSession', 'describeSession', 'addPriority', 'movePriority', 'removePriority', 'addNote'] },
 				session: { type: 'string', maxLength: 300 },
 				note: { type: 'string', maxLength: 200 },
-				group: { type: 'string', enum: ['current', 'next', 'priorities'] },
+				group: { type: 'string', pattern: '^[a-z][a-z0-9-]{0,30}$' },
+				section: { type: 'string', pattern: '^[a-z][a-z0-9-]{0,30}$' },
+				link: { type: 'string', maxLength: 1000 },
+				due: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
 				key: { type: 'string', pattern: '^[\\w.-]+/[\\w.-]+#\\d+$' },
 				position: { oneOf: [{ type: 'string', enum: ['top', 'bottom', 'up', 'down'] }, { type: 'integer', minimum: 0, maximum: 9999 }] },
-				incidentId: { type: 'string', maxLength: 300 },
 				title: { type: 'string', maxLength: 200 },
-				resolveBy: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
 				description: { type: 'string', maxLength: 20000 },
 				summary: { type: 'string', maxLength: 1500 },
 				issue: { type: 'string', pattern: '^[\\w.-]+/[\\w.-]+#\\d+$' },
@@ -376,10 +377,11 @@ export class TriageRuntime {
 				return { key: input.key, chat };
 			}
 			case 'getMyWork': {
-				const [work, msrcItems, pinned, recent] = await Promise.all([getMyWork(), listMsrcItems(), listPinned(), recentSessions(15)]);
+				const [work, sections, notes, pinned, recent] = await Promise.all([getMyWork(), listSections(), listNotes(), listPinned(), recentSessions(15)]);
 				const byId = await sessionsById(pinned.map(p => p.id));
 				return {
-					msrcItems: msrcItems.map(({ description, ...x }) => ({ ...x, hasDescription: !!description })),
+					sections: sections.map(x => ({ id: x.id, name: x.name, hasInstructions: !!x.instructions, linkPattern: x.linkPattern || null })),
+					notes: notes.map(({ description, ...x }) => ({ ...x, hasDescription: !!description })),
 					pinnedSessions: pinned.map(p => ({ ...p, title: byId[p.id]?.title ?? null, link: `agent-host-session://ahp-session/${p.id}` })),
 					milestones: work.milestones.map(m => ({ role: m.role, title: m.title, items: m.items.map(i => ({ key: i.key, title: i.title })) })),
 					recentSessions: recent.filter(r => !pinned.some(p => p.id === r.id)).map(r => ({ id: r.id, title: r.title, link: r.link, modified: new Date(r.modified).toISOString(), project: r.project })),
@@ -390,6 +392,7 @@ export class TriageRuntime {
 				let result;
 				if (input.op === 'addIssue') {
 					const group = input.group || 'current';
+					if (!(await isGroup(group))) throw Object.assign(new Error(`Unknown group "${group}": use current, next, priorities or a custom section id from getMyWork`), { code: 'bad_input' });
 					await data.updatePriorities({ op: 'remove', key: need(input.key, 'key') });
 					result = await setIssueBucket(input.key, group);
 					if (group === 'priorities') await data.updatePriorities({ op: 'add', key: input.key });
@@ -409,6 +412,7 @@ export class TriageRuntime {
 				} else if (['pinSession', 'unpinSession', 'moveSession'].includes(input.op)) {
 					const id = need(parseSessionRef(input.session), 'a session link or id');
 					const group = input.group || 'current';
+					if (!(await isGroup(group))) throw Object.assign(new Error(`Unknown group "${group}": use current, next, priorities or a custom section id from getMyWork`), { code: 'bad_input' });
 					await data.updatePriorities({ op: 'remove', key: `session:${id}` });
 					if (input.op === 'unpinSession') result = await unpinSessions([id]);
 					else {
@@ -416,9 +420,10 @@ export class TriageRuntime {
 						if (result.bucket !== group) result = await setSessionBucket(id, group);
 						if (group === 'priorities') await data.updatePriorities({ op: 'add', key: `session:${id}` });
 					}
-				} else if (input.op === 'addMsrc') {
-					const incidentId = need(parseIncident(input.incidentId), 'an IcM incident id or link');
-					result = await saveMsrcItem({ incidentId, link: /^https:\/\/[\w.-]*microsofticm\.com\//.test(input.incidentId || '') ? input.incidentId : '', title: input.title || `IcM ${incidentId}`, description: input.description || '', resolveBy: input.resolveBy || '' });
+				} else if (input.op === 'addNote') {
+					const hit = input.link ? await sectionForLink(input.link) : null;
+					const section = need(input.section || hit?.section, 'a section id');
+					result = await saveNote({ section, title: input.title || '', link: input.link || '', ref: hit?.section === section ? hit.ref : '', description: input.description || '', due: input.due || '' });
 				} else {
 					need(input.key, 'key');
 					const op = { addPriority: 'add', movePriority: 'move', removePriority: 'remove' }[input.op];

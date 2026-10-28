@@ -207,13 +207,14 @@ export function workSessionPrompt({ key, title, url, milestone }) {
 	].join('\n');
 }
 
-export function msrcItemSessionPrompt(x) {
+/** Start session on a note in one of the user's custom sections, following that section's instructions. */
+export function noteSessionPrompt({ section, note }) {
+	const tag = note.ref || note.title;
 	return [
-		`Panel request: start a fix session for MSRC item IcM ${x.incidentId} (${x.link}). The user clicked Start session on it in My Work.`,
-		`Title: ${one(x.title)}${x.resolveBy ? ` · Resolve by: ${x.resolveBy}` : ''}`,
-		'Description pasted by the user:', '"""', String(x.description || '(none)').slice(0, 20000), '"""',
-		`This is a security fix. ${config().msrc.fixWorkflow ? `${one(config().msrc.fixWorkflow)} ` : 'Work only in a private repository or private fork; ask me which one if it is not clear. '}Never use the public repository, a public branch, a public PR, or a public issue, and do not paste any of these details anywhere public.`,
-		`Create the session with create_session (relationship "independent"), pass the description above as its first message, and give it a title that contains "IcM ${x.incidentId}" so the panel links it. Reply with one line: the session link.`,
+		`Panel request: start a session for ${q(note.title, 200)} from my "${one(section.name)}" section in My Work${note.link ? ` (${note.link})` : ''}. The user clicked Start session on it; this confirms creating the session.`,
+		`${note.due ? `Due: ${note.due}. ` : ''}Description I saved with it:`, '"""', String(note.description || '(none)').slice(0, 20000), '"""',
+		section.instructions ? `My instructions for sessions from this section (follow them):\n"""\n${String(section.instructions).slice(0, 4000)}\n"""` : 'This section has no special instructions: ask me which repository to use if it is not clear.',
+		`Create the session with create_session (relationship "independent"), pass the description above as its first message, and give it a title that contains ${JSON.stringify(plainTitle(tag))} so the panel links it. Reply with one line: the session link.`,
 	].join('\n');
 }
 
@@ -221,7 +222,7 @@ function myWorkChatInstructions() {
 	return [
 		'You are the My Work chat: you keep the user\'s My Work board (in the my-issues-triage canvas) up to date. Before your first canvas action, call list_canvas_capabilities for canvasId "my-issues-triage" and open_canvas with canvasId "my-issues-triage", instanceId "my-work-chat", input {} (once per chat).',
 		`Use my memory (${config().memoryFile}) for people, GitHub logins and owners when I mention someone. Save lasting facts I tell you (e.g. someone's GitHub login or what they own) there after confirming the exact text.`,
-		'Use the canvas actions getMyWork (what is on the board, plus recent sessions) and updateMyWork (pin/unpin sessions, add/move/remove issues in My priorities, add MSRC items). These only change the user\'s local board, so do them directly. Anything that changes GitHub (e.g. setting a milestone) needs explicit approval first.',
+		'Use the canvas actions getMyWork (what is on the board, plus recent sessions) and updateMyWork (pin/unpin sessions, add/move/remove issues in My priorities, add notes to custom sections with addNote). These only change the user\'s local board, so do them directly. Anything that changes GitHub (e.g. setting a milestone) needs explicit approval first.',
 		'"This session", "the current session" or "the session I am working in" means the user\'s most recently active Agents window session other than the triage chat and this My Work chat: use list_sessions (or getMyWork\'s recentSessions) and pick the most recently active one; if two are close, ask with choices.',
 		'Always answer in the panel with the canvas action replyToIssue {"key": "my-work", "text": "<a line or two of markdown>", "choices": [...]} (add choices whenever you ask to choose or confirm). Button clicks come back to you as the user\'s next message.',
 	].join('\n');

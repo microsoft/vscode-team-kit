@@ -6,14 +6,14 @@ import path from 'node:path';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import * as data from './data.mjs';
-import { spawnJudgeRequest, implementPrompt, createIssueChatPrompt, forwardToIssueChatPrompt, forwardToMyWorkSessionPrompt, startIssueSessionMessage, notificationIssueActionPrompt, notificationTriagePrompt, issueRulesPrompt, browseQueryPrompt, workSessionPrompt, msrcItemSessionPrompt, createMyWorkChatPrompt, forwardToMyWorkChatPrompt, describeSessionMessage } from './prompts.mjs';
+import { spawnJudgeRequest, implementPrompt, createIssueChatPrompt, forwardToIssueChatPrompt, forwardToMyWorkSessionPrompt, startIssueSessionMessage, notificationIssueActionPrompt, notificationTriagePrompt, issueRulesPrompt, browseQueryPrompt, workSessionPrompt, noteSessionPrompt, createMyWorkChatPrompt, forwardToMyWorkChatPrompt, describeSessionMessage } from './prompts.mjs';
 import { getVsCodeTheme, watchVsCodeTheme } from './vscodeTheme.mjs';
 import { getMyWork, moveToMilestone, issueDetails, closingIssues, workSource, sourceQuery, myLogin, doneState } from './work.mjs';
 import { config } from './config.mjs';
 import { saveImage, imagePaths, MAX_IMAGE_BYTES } from './attachments.mjs';
-import { listMsrcItems, saveMsrcItem, removeMsrcItem, getMsrcItem, parseIncident, INCIDENT_RE } from './msrcItems.mjs';
+import { listSections, saveSection, moveSection, removeSection, listNotes, getNote, saveNote, removeNote, getSection, isGroup } from './sections.mjs';
 import { sessionsFor, sessionsMentioning, sessionsById, recentSessions, issueCandidates, sessionTranscript } from './sessions.mjs';
-import { listPinned, pinSession, unpinSessions, parseSessionRef, getMyWorkChat, getHiddenSessions, setSessionHidden, setSessionBucket, BUCKETS, listPinnedIssues, pinIssue, setIssueBucket, unpinIssues, markSummaryRequested, markSessionSummaryRequested, getSessionSummaries, getIssueChat, setIssueChat, setMyWorkChat } from './workSessions.mjs';
+import { listPinned, pinSession, unpinSessions, parseSessionRef, getMyWorkChat, getHiddenSessions, setSessionHidden, setSessionBucket, BUCKETS, moveBucket, listPinnedIssues, pinIssue, setIssueBucket, unpinIssues, markSummaryRequested, markSessionSummaryRequested, getSessionSummaries, getIssueChat, setIssueChat, setMyWorkChat } from './workSessions.mjs';
 
 const ASSETS = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'assets');
 // Scripts, styles and data come only from this server; images and videos only from GitHub's own hosts
@@ -307,7 +307,7 @@ export class TriageServer {
 		if (route === 'GET /api/work') {
 			const work = await getMyWork({ fresh: url.searchParams.get('fresh') === '1' });
 			const keys = work.milestones.flatMap(m => m.items.map(i => i.key));
-			const msrcItems = await listMsrcItems();
+			const [sections, notes] = await Promise.all([listSections(), listNotes()]);
 			const pinned = await listPinned();
 			const byId = await sessionsById(pinned.map(p => p.id)).catch(() => ({}));
 			// Finished sessions stay, marked with their status, until the user clears them: done (archived), or its pull request merged/closed.
@@ -336,7 +336,7 @@ export class TriageServer {
 				const list = sessions[p.key] ||= [];
 				if (!list.some(x => x.id === sid)) list.unshift({ ...z, link: `agent-host-session://ahp-session/${sid}` });
 			}
-			this.json(res, 200, { ...work, msrcEnabled: config().msrc.enabled !== false, msrcItems, pinnedSessions, pinnedIssues, recentSessions: recent, myWorkChat: await getMyWorkChat(), sessionSummaries: await getSessionSummaries(), msrcSessions: await sessionsMentioning(msrcItems.map(i => i.incidentId)).catch(() => ({})), sessions });
+			this.json(res, 200, { ...work, sections, notes, pinnedSessions, pinnedIssues, recentSessions: recent, myWorkChat: await getMyWorkChat(), sessionSummaries: await getSessionSummaries(), noteSessions: await sessionsMentioning(notes.map(n => n.ref || n.title)).catch(() => ({})), sessions });
 			return;
 		}
 		if (route === 'GET /api/github') {
@@ -566,26 +566,29 @@ export class TriageServer {
 				result = { priorities: list.map(p => p.key) };
 				break;
 			}
-			case '/api/msrc-item': {
-				if (!config().msrc.enabled) throw Object.assign(new Error('MSRC items are turned off in my-work.config.json'), { status: 403 });
-				const incidentId = parseIncident(body.incidentId ?? body.link);
-				if (!incidentId || !INCIDENT_RE.test(incidentId)) throw bad('Enter an IcM incident link or number');
-				if (body.op === 'remove') { result = await removeMsrcItem(incidentId); break; }
+			case '/api/section': {
+				if (body.op === 'save') result = await saveSection({ id: body.id || undefined, name: body.name, instructions: body.instructions, linkPattern: body.linkPattern });
+				else if (body.op === 'move') result = await moveSection(String(body.id || ''), body.dir === 'up' ? 'up' : 'down');
+				else if (body.op === 'remove') {
+					const id = String(body.id || '');
+					result = await removeSection(id);
+					// Its issues and sessions go back to Current; its notes are deleted with it.
+					if (result.removed) result.moved = await moveBucket(id, 'current');
+				}
+				else throw bad('invalid op');
+				break;
+			}
+			case '/api/note': {
+				if (body.op === 'remove') { result = await removeNote(String(body.id || '')); break; }
 				if (body.op !== 'save') throw bad('invalid op');
-				const title = String(body.title || '').trim().slice(0, 200) || `IcM ${incidentId}`;
-				const description = String(body.description || '').slice(0, 20000);
-				const resolveBy = String(body.resolveBy || '');
-				if (resolveBy && !/^\d{4}-\d{2}-\d{2}$/.test(resolveBy)) throw bad('invalid date');
-				const link = String(body.link || '');
-				if (link && !/^https:\/\/[\w.-]*microsofticm\.com\//.test(link)) throw bad('Only IcM links are allowed');
-				result = await saveMsrcItem({ incidentId, link, title, description, resolveBy });
+				result = await saveNote({ id: body.id || undefined, section: String(body.section || ''), title: body.title, link: body.link, ref: body.ref, description: body.description, due: body.due });
 				break;
 			}
 			case '/api/work-pin': {
 				const id = parseSessionRef(body.id ?? body.link);
 				if (!id) throw bad('Enter a session link (agent-host-session://…)');
 				const bucket = body.bucket === undefined ? 'current' : String(body.bucket);
-				if (!BUCKETS.includes(bucket)) throw bad('invalid group');
+				if (!(await isGroup(bucket))) throw bad('invalid group');
 				const to = body.to;
 				if (to !== undefined && to !== 'top' && !(Number.isInteger(to) && to >= 0 && to < 10000)) throw bad('invalid position');
 				const prioKey = `session:${id}`;
@@ -629,7 +632,7 @@ export class TriageServer {
 			case '/api/work-issue': {
 				if (!KEY_RE.test(body.key || '')) throw bad('invalid key');
 				const bucket = String(body.bucket || 'current');
-				if (!BUCKETS.includes(bucket)) throw bad('invalid group');
+				if (!(await isGroup(bucket))) throw bad('invalid group');
 				const to = body.to;
 				if (to !== undefined && to !== 'top' && !(Number.isInteger(to) && to >= 0 && to < 10000)) throw bad('invalid position');
 				await data.updatePriorities({ op: 'remove', key: body.key });
@@ -654,12 +657,12 @@ export class TriageServer {
 				result = { sent: true };
 				break;
 			}
-			case '/api/msrc-item-session': {
+			case '/api/note-session': {
 				if (!this.sendToChat) throw Object.assign(new Error('This canvas is not attached to a chat'), { status: 409 });
-				const item = await getMsrcItem(parseIncident(body.incidentId));
-				if (!item) throw Object.assign(new Error('That MSRC item is not in My Work'), { status: 404 });
-				await this.sendToChat(msrcItemSessionPrompt(item));
-				result = { sent: true, incidentId: item.incidentId };
+				const note = await getNote(String(body.id || ''));
+				if (!note) throw Object.assign(new Error('That note is not in My Work'), { status: 404 });
+				await this.sendToChat(noteSessionPrompt({ section: await getSection(note.section) || { name: note.section, instructions: '' }, note }));
+				result = { sent: true, id: note.id };
 				break;
 			}
 			case '/api/work-session': {

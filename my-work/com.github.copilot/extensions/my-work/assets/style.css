@@ -652,7 +652,7 @@ html.narrow .title-sub { gap: 8px; }
 .list-refresh .codicon { font-size: 13px; margin: 0; }
 .codicon.spin { animation: spin 1s linear infinite; }
 
-/* ---------- My Work, MSRC, sessions ---------- */
+/* ---------- My Work, sections, sessions ---------- */
 .codicon-shield::before { content: "\eb53"; }
 .codicon-lock::before { content: "\ea75"; }
 .tag.sess { background: var(--accent-soft); color: var(--accent); }
@@ -671,7 +671,7 @@ html.narrow .title-sub { gap: 8px; }
 .linked .sess-card { margin-top: 12px; border-style: dashed; }
 .kvs { display: grid; gap: 6px; font-size: 13px; }
 .kv { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 10px; }
-.msrc-note { margin-top: 16px; font-size: 11.5px; display: flex; align-items: center; gap: 6px; }
+.lock-note { margin-top: 16px; font-size: 11.5px; display: flex; align-items: center; gap: 6px; }
 .triage-card p + p { margin-top: 4px; }
 .empty-group { padding: 4px 10px 8px; font-size: 12px; }
 
@@ -691,13 +691,13 @@ html.narrow .title-sub { gap: 8px; }
 .prio-row.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
 .prio-row.drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
 
-/* MSRC items in My Work */
-.msrc-form { display: grid; gap: 6px; padding: 12px; }
-.msrc-form label { font-size: 12px; color: var(--muted); margin-top: 4px; }
-.msrc-form input, .msrc-form textarea { font: inherit; font-size: 13px; padding: 4px 6px; color: var(--fg); background: transparent; border: 1px solid var(--line); border-radius: 4px; }
-.msrc-form textarea { resize: vertical; font-family: var(--mono, ui-monospace, monospace); font-size: 12px; }
-.msrc-form-actions { display: flex; gap: 8px; margin-top: 6px; }
-.msrc-desc { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; padding: 8px 12px; max-height: none; }
+/* Notes and sections in My Work */
+.note-form { display: grid; gap: 6px; padding: 12px; }
+.note-form label { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.note-form input, .note-form textarea { font: inherit; font-size: 13px; padding: 4px 6px; color: var(--fg); background: transparent; border: 1px solid var(--line); border-radius: 4px; }
+.note-form textarea { resize: vertical; font-family: var(--mono, ui-monospace, monospace); font-size: 12px; }
+.note-form-actions { display: flex; gap: 8px; margin-top: 6px; }
+.note-desc { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; padding: 8px 12px; max-height: none; }
 
 /* My Work home + pinned sessions */
 .row.work-home .row-title { font-weight: 600; }
@@ -870,3 +870,13 @@ html.narrow .title-sub { gap: 8px; }
 .group-toggle:hover { color: var(--muted); }
 .group-toggle .codicon { font-size: 12px; transition: transform .12s; }
 .group-toggle[aria-expanded="true"] .codicon { transform: rotate(90deg); }
+
+.note-form-actions .spacer { flex: 1; }
+.group-h .group-tools { margin-left: auto; display: inline-flex; gap: 2px; opacity: 0; transition: opacity .1s; }
+.group-h:hover .group-tools, .group-h:focus-within .group-tools { opacity: 1; }
+.group-h .group-clear + .group-tools { margin-left: 4px; }
+.group-h .group-tools .row-pin { position: static; transform: none; opacity: 1; width: 20px; height: 20px; display: inline-grid; place-items: center; }
+.group-h .group-tools .codicon { font-size: 13px; margin: 0; }
+@media (hover: none) { .group-h .group-tools { opacity: 1; } }
+.codicon-note::before { content: "\eb26"; }
+.codicon-gear::before { content: "\eaf8"; }

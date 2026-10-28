@@ -30,16 +30,10 @@ export const DEFAULTS = Object.freeze({
 	rulesFile: path.join(COPILOT_HOME, 'github-inbox-rules.md'),
 	// Inbox memory shared with the github-inbox plugin: people, GitHub logins, owners, teams, preferences.
 	memoryFile: path.join(COPILOT_HOME, 'github-inbox-memory.md'),
-	// Private My Work data: pinned sessions, MSRC items, the My Work chat link.
+	// Private My Work data: pinned sessions, custom sections and their notes, the My Work chat link.
 	dataDir: '~/.agents/data/my-work',
 	// Skill fix sessions use for bugs, e.g. a personal "fix-vscode-bug" skill; empty = none.
 	fixSkill: '',
-	msrc: {
-		enabled: true,
-		// How to set up a private security fix, e.g. "use the <your-skill> skill (private repo <x>, branch <y>)".
-		// Stays in your local config; the default only enforces working privately.
-		fixWorkflow: '',
-	},
 });
 
 let cache = { mtimeMs: -1, value: DEFAULTS };
@@ -56,7 +50,6 @@ export function config() {
 	const value = {
 		...DEFAULTS, ...user,
 		repoPaths: { ...DEFAULTS.repoPaths, ...(user.repoPaths || {}) },
-		msrc: { ...DEFAULTS.msrc, ...(user.msrc || {}) },
 	};
 	cache = { mtimeMs, value };
 	return value;
