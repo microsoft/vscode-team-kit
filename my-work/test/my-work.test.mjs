@@ -325,6 +325,38 @@ test('Browse keeps its last source and filter across panel reloads', async () =>
 		assert.deepEqual((await data.getSettings()).browse, { source: 'area', area: 'agents-window', refine: { query: 'author:alexdima', text: 'created by alexdima', note: '' } });
 		await post({ browse: { source: 'evil', area: '../x', refine: { query: ' ' } } });
 		assert.deepEqual((await data.getSettings()).browse, { source: 'bugs', area: '', refine: null }, 'unknown values fall back to defaults');
+		await post({ browseHistory: [{ source: 'area', area: 'agents-window', refine: { query: 'author:alexdima' }, at: '2026-10-28T10:00:00Z' }, { source: 'bugs', refine: null }] });
+		const history = (await data.getSettings()).browseHistory;
+		assert.equal(history.length, 1, 'entries without a filter are dropped');
+		assert.equal(history[0].refine.query, 'author:alexdima');
+	} finally {
+		await server.stop();
+	}
+});
+
+test('screenshots pasted in the panel reach the chat as private file paths', async () => {
+	const http = await import('node:http');
+	const { promises: fsp } = await import('node:fs');
+	const { TriageServer } = await import(new URL('lib/server.mjs', ext));
+	const sent = [];
+	const server = new TriageServer(() => { }, async prompt => { sent.push(prompt); });
+	const base = await server.start();
+	const post = (p, body) => new Promise((resolve, reject) => {
+		const req = http.request(new URL(p, base), { method: 'POST', headers: { 'content-type': 'application/json', 'x-triage-token': server.token } }, res => {
+			let d = ''; res.on('data', c => d += c); res.on('end', () => resolve({ status: res.statusCode, body: JSON.parse(d || '{}') }));
+		});
+		req.on('error', reject); req.end(JSON.stringify(body));
+	});
+	try {
+		const png = Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex').toString('base64');
+		assert.equal((await post('/api/attachment', { mimeType: 'text/html', data: png })).status, 400, 'only images');
+		const up = await post('/api/attachment', { mimeType: 'image/png', data: png });
+		assert.match(up.body.name, /^[0-9a-f-]{36}\.png$/);
+		const file = path.join(home, 'data', 'attachments', up.body.name);
+		assert.equal((await fsp.stat(file)).mode & 0o777, 0o600, 'saved privately');
+		await post('/api/message', { key: 'my-work', text: '', images: [up.body.name, '../../etc/passwd'] });
+		assert.ok(sent.at(-1).includes(JSON.stringify(file)), 'the chat gets the screenshot path');
+		assert.doesNotMatch(sent.at(-1), /passwd/, 'unknown names are dropped');
 	} finally {
 		await server.stop();
 	}

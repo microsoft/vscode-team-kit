@@ -10,6 +10,7 @@ import { spawnJudgeRequest, implementPrompt, createIssueChatPrompt, forwardToIss
 import { getVsCodeTheme, watchVsCodeTheme } from './vscodeTheme.mjs';
 import { getMyWork, moveToMilestone, issueDetails, closingIssues, workSource, sourceQuery, myLogin } from './work.mjs';
 import { config } from './config.mjs';
+import { saveImage, imagePaths, MAX_IMAGE_BYTES } from './attachments.mjs';
 import { listMsrcItems, saveMsrcItem, removeMsrcItem, getMsrcItem, parseIncident, INCIDENT_RE } from './msrcItems.mjs';
 import { sessionsFor, sessionsMentioning, sessionsById, recentSessions, issueCandidates, sessionTranscript } from './sessions.mjs';
 import { listPinned, pinSession, unpinSessions, parseSessionRef, getMyWorkChat, getHiddenSessions, setSessionHidden, setSessionBucket, BUCKETS, listPinnedIssues, pinIssue, setIssueBucket, unpinIssues, markSummaryRequested, markSessionSummaryRequested, getSessionSummaries, getIssueChat, setIssueChat, setMyWorkChat } from './workSessions.mjs';
@@ -52,13 +53,13 @@ function bad(message) {
 	return Object.assign(new Error(message), { status: 400 });
 }
 
-function readBody(req) {
+function readBody(req, limit = 256 * 1024) {
 	return new Promise((resolve, reject) => {
 		let size = 0;
 		const chunks = [];
 		req.on('data', c => {
 			size += c.length;
-			if (size > 256 * 1024) { reject(bad('body too large')); req.destroy(); return; }
+			if (size > limit) { reject(bad('body too large')); req.destroy(); return; }
 			chunks.push(c);
 		});
 		req.on('end', () => {
@@ -337,6 +338,14 @@ export class TriageServer {
 			this.json(res, 200, await data.getGitHubDetail(key, url.searchParams.get('fresh') === '1'));
 			return;
 		}
+		if (route === 'GET /api/attachment') {
+			const [file] = await imagePaths([url.searchParams.get('name')]);
+			if (!file) throw Object.assign(new Error('not found'), { status: 404 });
+			const type = { png: 'image/png', jpg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp' }[file.split('.').pop()];
+			res.writeHead(200, { 'content-type': type, 'cache-control': 'private, max-age=86400', 'x-content-type-options': 'nosniff' });
+			res.end(await fs.readFile(file));
+			return;
+		}
 		if (route === 'GET /api/issue') {
 			const key = url.searchParams.get('key') || '';
 			if (!KEY_RE.test(key)) throw bad('invalid key');
@@ -346,7 +355,8 @@ export class TriageServer {
 
 		if (req.method !== 'POST') throw Object.assign(new Error('not found'), { status: 404 });
 		this.checkWrite(req);
-		const body = await readBody(req);
+		// Pasted screenshots are the only large uploads (base64 of up to 8 MB).
+		const body = await readBody(req, url.pathname === '/api/attachment' ? Math.ceil(MAX_IMAGE_BYTES * 4 / 3) + 4096 : undefined);
 		let result;
 		switch (url.pathname) {
 			case '/api/apply': {
@@ -374,6 +384,10 @@ export class TriageServer {
 				}
 				if (body.recentCollapsed !== undefined) patch.recentCollapsed = !!body.recentCollapsed;
 				if (body.browse !== undefined) patch.browse = cleanBrowse(body.browse);
+				if (body.browseHistory !== undefined) {
+					if (!Array.isArray(body.browseHistory)) throw bad('invalid browseHistory');
+					patch.browseHistory = body.browseHistory.slice(0, 15).map(h => ({ ...cleanBrowse(h), at: typeof h?.at === 'string' && !Number.isNaN(Date.parse(h.at)) ? h.at : new Date().toISOString() })).filter(h => h.refine);
+				}
 				if (body.theme !== undefined) {
 					if (!THEMES.has(body.theme)) throw bad('invalid theme');
 					patch.theme = body.theme;
@@ -515,9 +529,10 @@ export class TriageServer {
 			}
 			case '/api/open-session': {
 				const link = String(body.link || '');
-				const m = /^agent-host-session:\/\/([\w-]+)\/([\w-]+)$/.exec(link);
+				// A nested chat's link carries ?chat=<id>; the Agents window takes it as a /chat/<id> path segment.
+				const m = /^agent-host-session:\/\/([\w-]+)\/([\w-]+)(?:\?chat=([\w-]+))?$/.exec(link);
 				if (!m || !PRODUCT_SCHEME) throw bad('not a session link');
-				await openExternal(`${PRODUCT_SCHEME}://agents/agent-host-session/${m[1].toLowerCase()}/${m[2]}`);
+				await openExternal(`${PRODUCT_SCHEME}://agents/agent-host-session/${m[1].toLowerCase()}/${m[2]}${m[3] ? `/chat/${m[3]}` : ''}`);
 				this.json(res, 200, { opened: link });
 				return;
 			}
@@ -661,10 +676,18 @@ export class TriageServer {
 				this.json(res, 200, { opened: url.href, via: inVsCode ? 'vscode' : 'browser' });
 				return;
 			}
+			case '/api/attachment': {
+				result = { name: await saveImage(String(body.mimeType || ''), body.data) };
+				break;
+			}
 			case '/api/message': {
 				if (body.key !== 'my-work' && !KEY_RE.test(body.key || '')) throw bad('invalid key');
-				const text = typeof body.text === 'string' ? body.text.trim() : '';
-				if (!text || text.length > 4000) throw bad('message must be 1-4000 characters');
+				const images = await imagePaths(body.images);
+				const typed = typeof body.text === 'string' ? body.text.trim() : '';
+				if ((!typed && !images.length) || typed.length > 4000) throw bad('message must be 1-4000 characters');
+				const text = images.length
+					? `${typed || 'See the attached screenshot.'}\n\nAttached screenshot${images.length > 1 ? 's' : ''} (open with the view tool): ${images.map(p => JSON.stringify(p)).join(', ')}`
+					: typed;
 				if (!this.sendToChat) throw Object.assign(new Error('This canvas is not attached to a chat'), { status: 409 });
 				// fresh: the previous chat never answered, so forget it and resend (the message is already in the thread).
 				const fresh = body.fresh === true;

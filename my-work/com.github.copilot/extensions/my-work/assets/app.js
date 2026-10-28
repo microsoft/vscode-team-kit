@@ -1358,6 +1358,64 @@ function setCommentView(view) {
 	if (view === 'edit') ta.focus();
 }
 
+// Pasted screenshots: uploaded at once, sent with the message as file paths, shown as thumbnails.
+const ATTACH_LINE_RE = /\n*Attached screenshots? \(open with the view tool\): (.+)$/;
+function attachmentUrl(name) {
+	return `/api/attachment?name=${encodeURIComponent(name)}&t=${encodeURIComponent(TOKEN)}`;
+}
+function userBubbleHtml(text) {
+	const m = String(text).match(ATTACH_LINE_RE);
+	const body = m ? text.slice(0, m.index) : text;
+	const names = m ? [...m[1].matchAll(/"([^"]+)"/g)].map(x => x[1].split('/').pop()) : [];
+	const thumbs = names.length ? `<div class="bubble-images">${names.map(n => `<img src="${esc(attachmentUrl(n))}" alt="Screenshot" loading="lazy">`).join('')}</div>` : '';
+	return `${linkify(body).replace(/\n/g, '<br>')}${thumbs}`;
+}
+function pastedHtml(key) {
+	const list = ui.pasted?.[key] || [];
+	return list.length ? `<div class="composer-images">${list.map((p, i) => `<span class="composer-image">${p.name ? `<img src="${esc(attachmentUrl(p.name))}" alt="Pasted screenshot">` : '<i class="codicon codicon-loading spin" aria-hidden="true"></i>'}<button type="button" class="link-btn" data-act="unpaste" data-key="${esc(key)}" data-i="${i}" aria-label="Remove screenshot" title="Remove"><i class="codicon codicon-close" aria-hidden="true"></i></button></span>`).join('')}</div>` : '';
+}
+function refreshPasted(key) {
+	for (const form of document.querySelectorAll(`.composer[data-key="${CSS.escape(key)}"]`)) {
+		form.querySelector('.composer-images')?.remove();
+		form.insertAdjacentHTML('afterbegin', pastedHtml(key));
+	}
+}
+document.addEventListener('paste', e => {
+	const form = e.target.closest?.('.composer');
+	if (!form) return;
+	const files = [...(e.clipboardData?.items || [])].filter(i => i.kind === 'file' && /^image\/(png|jpeg|gif|webp)$/.test(i.type)).map(i => i.getAsFile()).filter(Boolean);
+	if (!files.length) return;
+	e.preventDefault();
+	const key = form.dataset.key;
+	ui.pasted ??= {};
+	const list = (ui.pasted[key] ??= []);
+	for (const file of files.slice(0, 6 - list.length)) {
+		const entry = { name: null };
+		list.push(entry);
+		const reader = new FileReader();
+		reader.onload = async () => {
+			try {
+				const data = String(reader.result).split(',')[1];
+				entry.name = (await api('/api/attachment', { mimeType: file.type, data })).name;
+			} catch (error) {
+				list.splice(list.indexOf(entry), 1);
+				toast(`Could not attach the screenshot: ${error.message}`, true);
+			}
+			refreshPasted(key);
+		};
+		reader.readAsDataURL(file);
+	}
+	refreshPasted(key);
+});
+document.addEventListener('click', e => {
+	const b = e.target.closest('[data-act="unpaste"]');
+	if (!b) return;
+	e.preventDefault();
+	e.stopPropagation();
+	ui.pasted?.[b.dataset.key]?.splice(Number(b.dataset.i), 1);
+	refreshPasted(b.dataset.key);
+}, true);
+
 // A message the chat never answered (e.g. the chat was deleted or the Agents window lost it) can be resent to a new chat.
 const STALL_MS = 3 * 60 * 1000;
 function waitingHtml(key, since) {
@@ -1384,7 +1442,7 @@ function threadHtml(key, title) {
 		: '';
 	const bubbles = entries.map(e => `<div class="bubble ${e.role === 'user' ? 'me' : 'agent'}">
 		<div class="bubble-meta">${e.role === 'user' ? 'You' : 'Chat'} · ${esc(agoText(e.at))}</div>
-		<div class="bubble-text">${e.role === 'user' ? linkify(e.text).replace(/\n/g, '<br>') : `<div class="md">${renderMarkdown(e.text)}</div>`}</div>
+		<div class="bubble-text">${e.role === 'user' ? userBubbleHtml(e.text) : `<div class="md">${renderMarkdown(e.text)}</div>`}</div>
 		${e === last ? choices : ''}
 	</div>`).join('');
 	const count = entries.length ? `${entries.length} message${entries.length > 1 ? 's' : ''}` : 'No messages yet';
@@ -1396,7 +1454,7 @@ function threadHtml(key, title) {
 			<i class="codicon codicon-chevron-right" aria-hidden="true"></i><span>Conversation</span><span class="cd">· ${count}${waiting ? ' · waiting for reply' : ''}</span>
 		</button>` : ''}${openChat}
 		${entries.length ? `<div class="bubbles" tabindex="0" aria-label="Conversation with the chat" style="height:${height}px">${bubbles}${waiting ? waitingHtml(key, last.at) : ''}</div>` : ''}
-		<form class="composer" data-key="${esc(key)}" data-title="${esc(title || '')}">
+		<form class="composer" data-key="${esc(key)}" data-title="${esc(title || '')}">${pastedHtml(key)}
 			<textarea class="ask-input" rows="1" aria-label="Message to the chat about this issue" placeholder="${chat ? `Message the ${esc(shortKey(key))} chat…` : `Discuss ${esc(shortKey(key))} (starts its own chat)…`}" title="Enter to send · Shift+Enter for a new line"></textarea>
 			<button type="submit" class="send" aria-label="Send" title="Send (Enter)"><i class="codicon codicon-send" aria-hidden="true"></i></button>
 		</form>
@@ -1797,9 +1855,11 @@ function renderFindWorkInto(el) {
 		<div class="detail-body find-view">
 			<div class="find-tools">
 				<div class="seg" role="group" aria-label="Source">${pills}</div>${areaSel}
+				<button type="button" class="btn sm icon${ui.find?.loading ? ' busy' : ''}" data-find-refresh title="Run this search again on GitHub" aria-label="Refresh results"><i class="codicon codicon-refresh${ui.find?.loading ? ' spin' : ''}" aria-hidden="true"></i></button>
+				<button type="button" class="btn sm icon${ui.findHistoryOpen ? ' on' : ''}" data-find-history aria-expanded="${!!ui.findHistoryOpen}" title="Recent filters" aria-label="Recent filters"><i class="codicon codicon-history" aria-hidden="true"></i></button>
 				<div class="find-search"><i class="codicon codicon-search" aria-hidden="true"></i><label class="sr-only" for="find-filter">Filter, press Enter to apply</label><input id="find-filter" type="search" placeholder="Filter, press Enter to apply (e.g. created by alexdima)" value="${esc(ui.findFilter || '')}"></div>
 			</div>
-			${queryBar}${asking}
+			${ui.findHistoryOpen ? browseHistoryHtml() : ''}${queryBar}${asking}
 			${ui.find?.error ? `<p class="cd" style="color:var(--bad)">${esc(ui.find.error)}</p>` : ui.find?.loading && !items.length ? '<p class="cd"><i class="codicon codicon-loading spin" aria-hidden="true"></i> Searching GitHub…</p>'
 				: `<p class="find-count">${items.length}${items.length >= 100 ? '+' : ''} ${src === 'reviews' ? (items.length === 1 ? 'pull request' : 'pull requests') : (items.length === 1 ? 'issue' : 'issues')}${filter ? ' matching' : ''} · ${items.filter(i => inMyWork(i.key)).length} already in My Work</p><ul class="find-list">${items.map(row).join('')}</ul>`}
 		</div>`;
@@ -2167,8 +2227,25 @@ function switchTab(tab) {
 }
 function saveBrowse() {
 	const browse = { source: ui.findSource || 'bugs', area: ui.findArea || '', refine: ui.findRefine || null };
-	if (ui.state?.settings) ui.state.settings.browse = browse;
-	api('/api/settings', { browse }).catch(() => { });
+	const patch = { browse };
+	// Every filter you apply is kept (most recent first, no duplicates) so you can run it again.
+	if (browse.refine) {
+		const same = h => h.source === browse.source && (h.area || '') === browse.area && h.refine?.query === browse.refine.query;
+		patch.browseHistory = [{ ...browse, at: new Date().toISOString() }, ...(ui.state?.settings?.browseHistory || []).filter(h => !same(h))].slice(0, 15);
+	}
+	if (ui.state?.settings) Object.assign(ui.state.settings, patch);
+	api('/api/settings', patch).catch(() => { });
+}
+function browseHistoryHtml() {
+	const list = ui.state?.settings?.browseHistory || [];
+	const label = id => (FIND_SOURCES.find(s => s[0] === id) || [])[1] || id;
+	const areaName = id => (ui.state.areas || []).find(a => a.id === id)?.name || id;
+	return `<div class="find-history dcard" role="menu" aria-label="Recent filters">
+		${list.length ? list.map((h, i) => `<button type="button" class="find-history-item" role="menuitem" data-find-history-run="${i}" title="${esc(h.refine.query)}">
+			<span>${esc(h.refine.text || h.refine.query)}</span><span class="cd">${esc(h.source === 'area' ? `Area: ${areaName(h.area)}` : label(h.source))} · ${esc(agoText(h.at))}</span></button>`).join('')
+		+ '<button type="button" class="link-btn find-history-clear" data-find-history-clear>Clear history</button>'
+		: '<p class="cd" style="padding:8px 10px;margin:0">Filters you apply show up here.</p>'}
+	</div>`;
 }
 function restoreBrowse() {
 	const b = ui.state?.settings?.browse;
@@ -2453,11 +2530,15 @@ $('areabar').addEventListener('submit', async e => {
 async function sendIssueMessage(form, preset) {
 	const ta = form.querySelector('.ask-input');
 	const text = (preset ?? ta.value).trim();
-	if (!text) return;
+	const key = form.dataset.key;
+	const pasted = preset === undefined ? ui.pasted?.[key] || [] : [];
+	if (pasted.some(p => !p.name)) { toast('Still attaching the screenshot…'); return; }
+	if (!text && !pasted.length) return;
 	const btn = form.querySelector('.send');
 	btn.disabled = true;
 	try {
-		await api('/api/message', { key: form.dataset.key, title: form.dataset.title, text });
+		await api('/api/message', { key, title: form.dataset.title, text, images: pasted.map(p => p.name) });
+		if (pasted.length) { ui.pasted[key] = []; refreshPasted(key); }
 		if (preset === undefined) { ta.value = ''; autoGrow(ta); }
 		toast('Sent to the chat');
 		await load();
@@ -2562,6 +2643,19 @@ $('detail').addEventListener('click', e => {
 	}
 	const p = e.target.closest('[data-find-src]');
 	if (p) { ui.findSource = p.dataset.findSrc; saveBrowse(); renderDetail(false, true); document.querySelector(`[data-find-src="${p.dataset.findSrc}"]`)?.focus(); return; }
+	if (e.target.closest('[data-find-refresh]')) { loadFindWork(true); return; }
+	if (e.target.closest('[data-find-history]')) { ui.findHistoryOpen = !ui.findHistoryOpen; renderDetail(false, true); return; }
+	if (e.target.closest('[data-find-history-clear]')) { ui.state.settings.browseHistory = []; api('/api/settings', { browseHistory: [] }).catch(() => { }); ui.findHistoryOpen = false; renderDetail(false, true); return; }
+	const run = e.target.closest('[data-find-history-run]');
+	if (run) {
+		const h = (ui.state.settings.browseHistory || [])[Number(run.dataset.findHistoryRun)];
+		if (!h) return;
+		ui.findHistoryOpen = false;
+		ui.findSource = h.source;
+		ui.findArea = h.area || '';
+		setFindRefine({ ...h.refine });
+		return;
+	}
 	if (e.target.closest('[data-find-query-clear]')) { setFindRefine(null); document.getElementById('find-filter')?.focus(); return; }
 	if (e.target.closest('[data-find-ask-cancel]')) { ui.findAsking = null; renderDetail(false, true); }
 });
@@ -2681,6 +2775,8 @@ $('detail').addEventListener('click', e => {
 async function sendWorkChat(form) {
 	const ta = form.querySelector('.ask-input');
 	const text = ta.value.trim();
+	// With a screenshot it's always a message for the chat.
+	if (ui.pasted?.['my-work']?.length) { sendIssueMessage(form); return; }
 	if (!text) return;
 	const [first, ...rest] = text.split(/\s+/);
 	const restText = text.slice(text.indexOf(first) + first.length).trim();

@@ -822,3 +822,16 @@ html.narrow .title-sub { gap: 8px; }
 .sess-summary { margin-top: 6px; font-size: 12.5px; }
 .sess-summary p { margin: 2px 0 0; line-height: 1.45; }
 .sess-summary .link-btn { font-size: 12px; }
+.composer { flex-wrap: wrap; }
+.composer-images { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 4px 2px; }
+.composer-image { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 48px; border-radius: 6px; overflow: hidden; background: var(--surface-2); border: 1px solid var(--border, transparent); }
+.composer-image img { width: 100%; height: 100%; object-fit: cover; }
+.composer-image .link-btn { position: absolute; top: 1px; right: 1px; padding: 0 2px; background: var(--surface); border-radius: 4px; line-height: 1; }
+.bubble-images { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.bubble-images img { max-width: 220px; max-height: 160px; border-radius: 6px; display: block; }
+.find-tools .btn.icon { padding: 4px 7px; }
+.find-history { display: flex; flex-direction: column; margin: -4px 0 10px; padding: 4px; max-height: 280px; overflow: auto; }
+.find-history-item { display: flex; justify-content: space-between; gap: 12px; text-align: left; border: 0; background: transparent; color: var(--fg); font: inherit; font-size: 12.5px; padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+.find-history-item:hover, .find-history-item:focus-visible { background: var(--surface-2); }
+.find-history-item .cd { white-space: nowrap; font-size: 11.5px; }
+.find-history-clear { align-self: flex-end; font-size: 11.5px; margin: 4px 6px 2px; }
