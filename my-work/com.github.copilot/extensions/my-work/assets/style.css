@@ -1085,3 +1085,57 @@ html[data-density] .list-body { padding: 0 0 8px; }
 .areabar .area-pick select { min-width: 0; width: 100%; text-overflow: ellipsis; }
 .codicon-collapse-all::before { content: "\eac5"; }
 .codicon-expand-all::before { content: "\eb95"; }
+
+/* ---------- Detail pane like a VS Code editor: flat sections with pane headers, no boxes ---------- */
+.detail-body { --dpad: 20px; padding: 0 var(--dpad) 18px; }
+[data-density="compact"] .detail-body { --dpad: 14px; padding: 0 var(--dpad) 12px; }
+.detail-head { padding: 12px var(--dpad, 20px) 10px; }
+[data-density="compact"] .detail-head { --dpad: 14px; padding: 10px 14px 8px; }
+.detail-head h2 { font-size: 15px; }
+
+/* Section headers */
+.dsec-h { display: flex; align-items: center; gap: 4px; height: 22px; min-height: 22px; margin: 14px calc(-1 * var(--dpad)) 8px; padding: 0 var(--dpad) 0 calc(var(--dpad) - 18px); background: var(--section-bg, transparent); color: var(--section-fg, var(--fg)); border-top: 1px solid var(--section-border, var(--line)); cursor: pointer; user-select: none; }
+.dsec-h .section-label, .dsec-h.section-label { font-size: 11px; font-weight: 700; letter-spacing: 0; text-transform: uppercase; color: var(--section-fg, var(--fg)); }
+.dsec-h.gh-title { font-size: 11px; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+.dsec-h > :not(.dsec-chev):not(.section-label):first-of-type { margin-left: 0; }
+.dsec-h .section-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dsec-h > .link-btn, .dsec-h > .cd, .dsec-h > .seg, .dsec-h > a { margin-left: auto; text-transform: none; font-weight: normal; font-size: 12px; }
+.dsec-h .section-label + .link-btn, .dsec-h .section-label + .cd, .dsec-h .section-label + a, .dsec-h .section-label + .seg { margin-left: 0; }
+.dsec-h .dsec-chev { flex: none; width: 16px; font-size: 16px; color: var(--icon-fg, currentColor); transition: transform .12s; }
+.dsec-h[aria-expanded="true"] .dsec-chev { transform: rotate(90deg); }
+.dsec-h:focus-visible { outline: 1px solid var(--focus, var(--accent)); outline-offset: -1px; }
+.dsec-collapsed > :not(.dsec-h) { display: none !important; }
+.comments-collapsed > .gh-comment, .comments-collapsed > .gh-c-more { display: none !important; }
+.gh-comments-h.dsec-h { font-size: 11px; }
+
+/* Sections without boxes */
+.linked, .dcard { margin-top: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
+.dcard .linked-head.dsec-h, .linked > .linked-head.dsec-h { margin-bottom: 8px; }
+.reco { margin-top: 0; }
+.gh-title { margin-bottom: 8px; }
+.gh-body { padding: 0; border: 0; border-radius: 0; background: none; margin-top: 10px; }
+.gh-body.clamped::after { background: linear-gradient(transparent, var(--surface)); border-radius: 0; }
+
+/* Status messages (Needs you, Your rules, Sweeper proposes): an icon line, like VS Code's editor status, not a coloured card */
+.triage-card { padding: 6px 0 6px 10px; margin-top: 10px; border: 0; border-left: 2px solid var(--tone); border-radius: 0; background: none; }
+.triage-card::before { display: none; }
+.triage-card + .triage-card { margin-top: 6px; }
+.triage-card p { font-size: 12.5px; color: var(--fg); }
+
+/* Recommendations: list rows, not tinted cards */
+.reco-item { border: 0; border-radius: 0; background: none; padding: 6px 4px; }
+.reco-item:hover { background: var(--hover); }
+.reco-list { margin: 0; padding: 0; }
+
+/* Comments: author line, quiet association, clamp long bodies */
+.gh-comment { padding: 8px 0 10px; }
+.gh-c-head .tag { background: none; padding: 0; color: var(--muted); font-size: 11px; }
+.gh-comment > .md.clamped { max-height: 240px; overflow: hidden; position: relative; -webkit-mask-image: linear-gradient(#000 70%, transparent); mask-image: linear-gradient(#000 70%, transparent); }
+.gh-c-more { margin-top: 2px; font-size: 12px; }
+.reco-list { border: 0; border-radius: 0; }
+.reco-item + .reco-item { border-top: 0; }
+.reco-item.top { background: none; }
+.dsec-h { padding-left: 6px; }
+#detail .detail-body .linked { padding: 0; margin-top: 0; border: 0; background: none; }
+#detail .detail-body .linked > div:not(.dsec-h), #detail .detail-body .linked > details { padding-left: 0; padding-right: 0; }
+#detail .detail-body .linked > ul { padding-left: 18px; }

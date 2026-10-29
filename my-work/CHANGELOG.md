@@ -13,6 +13,11 @@
   - Each view has one toolbar row: the area picker, then an icon action bar with counts (Route, Auto-dismiss, Safe to dismiss, Re-check rules), then Refresh. Labels and "Updated …" are in the tooltips. Toggled filters use VS Code's `inputOption.active*` colours.
   - **Collapse All / Expand All** in every view's action bar folds or opens all its bands at once, like a VS Code view. The choice is remembered.
   - Browse works like the Settings editor: a search box with Group by, Recent filters and Refresh inside it, and Bugs / Features / All / Reviews tabs underneath next to the area picker.
+- **Details pane like a VS Code editor:**
+  - Recommended next, On GitHub, Comments, Your checks, Sweeper's evidence, Works on, Latest reply and the other sections are VS Code view pane sections: a full-width uppercase header with a chevron that folds the section. Folded sections stay folded.
+  - Section content sits flat on the pane: no cards, boxes or tinted backgrounds.
+  - Status messages (Needs you, Your rules, Sweeper proposes) are an icon line with a thin coloured edge.
+  - Long comments are clipped, with **Show more**, and a commenter's role is shown as quiet text.
 - Notification rows drop the description line and show just the title, the issue number and the age. The reason is in the tooltip and the details.
 - **VS Code look:** the panel uses VS Code's own theme colours and shapes.
   - Bands are VS Code view pane headers: `sideBarSectionHeader.*` colours, 22px tall and uppercase, with `badge.*` count badges.

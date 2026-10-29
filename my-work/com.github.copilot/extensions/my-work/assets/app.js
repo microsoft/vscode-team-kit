@@ -3111,6 +3111,66 @@ $('detail').addEventListener('keydown', e => {
 	e.preventDefault();
 	setChatHeight((ui.state.settings.chatHeight || 160) + (e.key === 'ArrowUp' ? 24 : -24), true);
 });
+// Detail sections behave like VS Code view panes: a full-width header with a chevron folds the section,
+// and the choice is remembered per section name. Long comments are clamped with "Show more".
+const DETAIL_HEADS = '.reco-h, .linked > .linked-head, .gh-title, .gh-comments-h';
+ui.openComments = new Set();
+function detailSectionKey(head) {
+	const label = (head.querySelector('.section-label') || head).textContent.split('·')[0];
+	return `d-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'section'}`;
+}
+function detailSectionBox(head) {
+	return head.matches('.gh-comments-h') ? head.parentElement : head.matches('.reco-h') ? (head.closest('.reco') || head.parentElement) : head.parentElement;
+}
+function applyDetailSection(head, collapsed) {
+	head.setAttribute('aria-expanded', String(!collapsed));
+	detailSectionBox(head).classList.toggle(head.matches('.gh-comments-h') ? 'comments-collapsed' : 'dsec-collapsed', collapsed);
+}
+function sectionizeDetail() {
+	const folded = new Set(ui.state?.settings?.collapsedGroups || []);
+	for (const head of document.querySelectorAll(`#detail :is(${DETAIL_HEADS})`)) {
+		if (!head.classList.contains('dsec-h')) {
+			head.classList.add('dsec-h');
+			head.dataset.secKey = detailSectionKey(head);
+			head.tabIndex = 0;
+			head.setAttribute('role', 'button');
+			head.insertAdjacentHTML('afterbegin', '<i class="codicon codicon-chevron-right dsec-chev" aria-hidden="true"></i>');
+		}
+		const collapsed = folded.has(head.dataset.secKey);
+		if (head.getAttribute('aria-expanded') !== String(!collapsed)) applyDetailSection(head, collapsed);
+	}
+	for (const md of document.querySelectorAll('#detail .gh-comment > .md:not([data-clamp])')) {
+		md.dataset.clamp = '1';
+		const id = md.parentElement.querySelector('.gh-c-head a[href]')?.getAttribute('href') || '';
+		if (md.scrollHeight <= 260 || ui.openComments.has(id)) continue;
+		md.classList.add('clamped');
+		md.insertAdjacentHTML('afterend', `<button type="button" class="link-btn gh-c-more" data-comment-more="${esc(id)}">Show more</button>`);
+	}
+}
+function toggleDetailSection(head) {
+	const set = new Set(ui.state.settings.collapsedGroups || []);
+	const key = head.dataset.secKey;
+	const collapse = !set.has(key);
+	if (collapse) set.add(key); else set.delete(key);
+	ui.state.settings.collapsedGroups = [...set].slice(-200);
+	for (const h of document.querySelectorAll(`#detail .dsec-h[data-sec-key="${key}"]`)) applyDetailSection(h, collapse);
+	saveSettings({ collapsedGroups: ui.state.settings.collapsedGroups });
+}
+new MutationObserver(() => sectionizeDetail()).observe($('detail'), { childList: true, subtree: true });
+$('detail').addEventListener('click', e => {
+	const more = e.target.closest('[data-comment-more]');
+	if (more) {
+		ui.openComments.add(more.dataset.commentMore);
+		more.previousElementSibling?.classList.remove('clamped');
+		more.remove();
+		return;
+	}
+	const head = e.target.closest('.dsec-h');
+	if (head && !e.target.closest('button, a, input, select, textarea, .seg')) toggleDetailSection(head);
+});
+$('detail').addEventListener('keydown', e => {
+	if ((e.key === 'Enter' || e.key === ' ') && e.target.classList?.contains('dsec-h')) { e.preventDefault(); toggleDetailSection(e.target); }
+});
 $('detail').addEventListener('click', e => {
 	// A click anywhere on a Browse row (except its buttons and links) opens the issue, like clicking its title.
 	const rowEl = e.target.closest('button, a, input, select') ? null : e.target.closest('.find-row');
