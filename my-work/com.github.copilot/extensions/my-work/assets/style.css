@@ -907,3 +907,14 @@ html.narrow .title-sub { gap: 8px; }
 /* Stage headers share the group headers' left edge: chevrons line up in one column with the row dots. */
 .stage-h { padding: 8px 10px 4px 10px; gap: 4px; }
 .stage-h .stage-icon { margin: 0 2px 0 0; }
+/* Tree: a stage's chevron sits under its group's title, and its rows are indented one step. */
+.stage-h { padding-left: 22px; }
+.stage-body { padding-left: 12px; }
+.works-on-body { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 4px 12px 10px; }
+.link-chip { display: inline-flex; align-items: center; gap: 2px; background: var(--surface-2); border-radius: 6px; padding: 2px 6px; font-size: 12.5px; }
+.link-form { display: flex; gap: 6px; flex: 1 1 260px; }
+.link-form input { flex: 1; min-width: 0; font: inherit; font-size: 12.5px; padding: 4px 8px; color: var(--fg); background: var(--surface-2); border: 1px solid transparent; border-radius: 6px; outline: none; }
+.link-form input:focus { border-color: var(--accent); background: var(--surface); }
+/* Tree grid (16px steps): group chevron 16 → stage chevron 32 (under the group title) → row dot 48 (under the stage icon). */
+.stage-h { padding-left: 26px; }
+.stage-body { padding-left: 33px; }

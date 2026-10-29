@@ -13,7 +13,7 @@ import { config } from './config.mjs';
 import { saveImage, imagePaths, MAX_IMAGE_BYTES } from './attachments.mjs';
 import { listSections, saveSection, setSectionOrder, moveSection, removeSection, listNotes, getNote, saveNote, removeNote, getSection, isGroup } from './sections.mjs';
 import { sessionsFor, sessionsMentioning, sessionsById, recentSessions, issueCandidates, sessionTranscript } from './sessions.mjs';
-import { listPinned, pinSession, unpinSessions, parseSessionRef, getMyWorkChat, getHiddenSessions, setSessionHidden, setSessionBucket, BUCKETS, moveBucket, listPinnedIssues, pinIssue, setIssueBucket, unpinIssues, markSummaryRequested, markSessionSummaryRequested, getSessionSummaries, getIssueChat, setIssueChat, setMyWorkChat } from './workSessions.mjs';
+import { listPinned, pinSession, unpinSessions, parseSessionRef, getMyWorkChat, getHiddenSessions, setSessionHidden, setSessionBucket, BUCKETS, moveBucket, listPinnedIssues, pinIssue, setIssueBucket, unpinIssues, markSummaryRequested, markSessionSummaryRequested, getSessionLinks, linkSessionIssue, getSessionSummaries, getIssueChat, setIssueChat, setMyWorkChat } from './workSessions.mjs';
 
 const ASSETS = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'assets');
 // Scripts, styles and data come only from this server; images and videos only from GitHub's own hosts
@@ -345,6 +345,14 @@ export class TriageServer {
 				return { ...p, title: d.title || p.key, url: d.url || `https://github.com/${p.key.replace('#', '/issues/')}`, labels: d.labels || [], isBug: (d.labels || []).includes('bug'), milestone: d.milestone || null, updatedAt: d.updatedAt || p.addedAt, state: doneState(d.state), stateReason: d.stateReason || null };
 			});
 			const sessions = await sessionsFor([...keys, ...pinnedIssues.map(p => p.key)]).catch(() => ({}));
+			// Sessions linked by hand show on their issues too.
+			const sessionLinks = await getSessionLinks();
+			const handLinked = await sessionsById(Object.keys(sessionLinks)).catch(() => ({}));
+			for (const [sid, keysOf] of Object.entries(sessionLinks)) {
+				const z = handLinked[sid];
+				if (!z) continue;
+				for (const k of keysOf) { const list = sessions[k] ||= []; if (!list.some(x => x.id === sid)) list.unshift({ ...z, link: `agent-host-session://ahp-session/${sid}`, linkedByHand: true }); }
+			}
 			// Sessions linked explicitly (resolved from a branch or PR) show on their issue too.
 			const linked = await sessionsById(pinnedIssues.flatMap(p => p.sessions || [])).catch(() => ({}));
 			for (const p of pinnedIssues) for (const sid of p.sessions || []) {
@@ -353,7 +361,7 @@ export class TriageServer {
 				const list = sessions[p.key] ||= [];
 				if (!list.some(x => x.id === sid)) list.unshift({ ...z, link: `agent-host-session://ahp-session/${sid}` });
 			}
-			this.json(res, 200, { ...work, sections, notes, pinnedSessions, pinnedIssues, recentSessions: recent, myWorkChat: await getMyWorkChat(), sessionSummaries: await getSessionSummaries(), noteSessions: await sessionsMentioning(notes.map(n => n.ref || n.title)).catch(() => ({})), sessions });
+			this.json(res, 200, { ...work, sections, notes, pinnedSessions, pinnedIssues, recentSessions: recent, myWorkChat: await getMyWorkChat(), sessionSummaries: await getSessionSummaries(), sessionLinks, noteSessions: await sessionsMentioning(notes.map(n => n.ref || n.title)).catch(() => ({})), sessions });
 			return;
 		}
 		if (route === 'GET /api/github') {
@@ -626,6 +634,10 @@ export class TriageServer {
 					result = { issue: body.key };
 				}
 				else if (body.op === 'hide' || body.op === 'unhide') result = await setSessionHidden(id, body.op === 'hide');
+				else if (body.op === 'link' || body.op === 'unlink') {
+					if (!KEY_RE.test(body.key || '')) throw bad('Enter an issue: #123, owner/repo#123 or its link');
+					result = { issues: await linkSessionIssue(id, body.key, body.op === 'link') };
+				}
 				else if (body.op === 'remove') { result = await unpinSessions([id]); await data.updatePriorities({ op: 'remove', key: prioKey }); }
 				else if (body.op === 'add' && body.resolve !== false && (result = await this.resolveSessionIssue(id))) {
 					// The session works on an issue: add the issue (linked to the session) instead of the session.

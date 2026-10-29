@@ -419,3 +419,15 @@ test('a batch tops up to its size when items leave it', () => {
 	const again = data.resolveBatch(tabs, 'notifications', left, new Set(['n19']), 25);
 	assert.equal(again.changed, false);
 });
+
+test('sessions can be linked to issues by hand', async () => {
+	const id = 'ffffffff-1111-2222-3333-444444444444';
+	assert.deepEqual(await workSessions.linkSessionIssue(id, 'octo/app#5'), ['octo/app#5']);
+	assert.deepEqual(await workSessions.linkSessionIssue(id, 'octo/app#6'), ['octo/app#5', 'octo/app#6']);
+	assert.deepEqual(await workSessions.linkSessionIssue(id, 'octo/app#5', false), ['octo/app#6']);
+	assert.deepEqual((await workSessions.getSessionLinks())[id], ['octo/app#6']);
+	await workSessions.linkSessionIssue(id, 'octo/app#6', false);
+	assert.equal((await workSessions.getSessionLinks())[id], undefined, 'no empty entries are kept');
+	await assert.rejects(workSessions.linkSessionIssue('../x', 'octo/app#1'), /invalid/);
+	await assert.rejects(workSessions.linkSessionIssue(id, 'not an issue'), /invalid/);
+});

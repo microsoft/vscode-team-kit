@@ -2,6 +2,7 @@
 
 ## 1.0.7 (2026-10-28)
 
+- Link an issue to a session by hand when the panel can't find it: **Works on** on a session (type #123, owner/repo#123 or a link; unlink with ✕), or **Link a session…** in an issue's menu to pick one of your sessions. Linked sessions show on the issue, and in My Work the session stands for that issue.
 - Browse issues & PRs: **Group by** reporter (team / community / bots), milestone, age, interest (👍 and comments) or label. Groups collapse, and the choice is remembered. Grouping uses the search results, so it costs no extra GitHub calls.
 - Browse issues & PRs: the feature-area picker sits next to the sources and narrows Bugs, Features or All (for example only the bugs in Agents Window). The separate Area source is gone; saved views and history that used it open as All with that area.
 - Messages forwarded to an issue's chat or the My Work chat are checked after sending: the Agents window can drop a message to a nested chat it lost track of while reporting success. If it didn't arrive, the panel says so. A late reply now offers **Resend** (same chat, keeps the conversation) next to **Resend in a new chat**.

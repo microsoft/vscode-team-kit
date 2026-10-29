@@ -163,6 +163,28 @@ export function markSessionSummaryRequested(id) {
 	return updateSessionSummary(id, { requestedAt: new Date().toISOString() });
 }
 
+// Issues the user linked to a session by hand (when the panel can't tell which issue a session works on).
+const LINKS_FILE = path.join(MY_WORK_DIR, 'session-links.json');
+const ISSUE_KEY_RE = /^[\w.-]+\/[\w.-]+#\d+$/;
+export async function getSessionLinks() {
+	try {
+		const d = JSON.parse(await fs.readFile(LINKS_FILE, 'utf8'));
+		return d?.format === 'my-work/session-links' && d.links && typeof d.links === 'object' ? d.links : {};
+	} catch { return {}; }
+}
+export async function linkSessionIssue(id, key, on = true) {
+	if (!SESSION_ID_RE.test(id || '') || !ISSUE_KEY_RE.test(key || '')) throw Object.assign(new Error('invalid session or issue'), { code: 'bad_input', status: 400 });
+	const links = await getSessionLinks();
+	const keys = new Set(links[id] || []);
+	if (on) keys.add(key); else keys.delete(key);
+	if (keys.size) links[id] = [...keys]; else delete links[id];
+	await fs.mkdir(MY_WORK_DIR, { recursive: true, mode: 0o700 });
+	const tmp = path.join(MY_WORK_DIR, `.tmp-${process.pid}-${randomUUID()}.json`);
+	await fs.writeFile(tmp, JSON.stringify({ format: 'my-work/session-links', version: 1, links }, null, 2), { mode: 0o600 });
+	await fs.rename(tmp, LINKS_FILE);
+	return links[id] || [];
+}
+
 // Each issue's own chat: where its discussion happens and, after Start session, its work session.
 const ISSUE_CHATS_FILE = path.join(MY_WORK_DIR, 'issue-chats.json');
 export async function listIssueChats() {

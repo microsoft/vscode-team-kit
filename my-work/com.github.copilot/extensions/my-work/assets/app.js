@@ -587,7 +587,10 @@ function renderBatchBar() {
 
 // ---- Agents window sessions working on an issue (matched by "#N" in their titles) ----
 function sessionsOf(key) {
-	return ui.state?.sessions?.[key] || ui.work?.data?.sessions?.[key] || [];
+	const a = ui.state?.sessions?.[key] || [], b = ui.work?.data?.sessions?.[key] || [];
+	if (!b.length) return a;
+	const seen = new Set();
+	return [...b, ...a].filter(z => !seen.has(z.id) && seen.add(z.id));
 }
 function sessTag(key) {
 	const list = sessionsOf(key).filter(s => !s.archived);
@@ -711,7 +714,7 @@ function workStage(i) {
 }
 // A session you added that works on (or fixed) an issue listed in the same group is the same work: list only the issue.
 function sessionIssueKeys(p) {
-	const keys = new Set(p.fixes || []);
+	const keys = new Set([...(p.fixes || []), ...(ui.work?.data?.sessionLinks?.[p.id] || [])]);
 	for (const it of ui.work?.data?.pinnedIssues || []) if ((it.sessions || []).includes(p.id)) keys.add(it.key);
 	for (const [key, list] of Object.entries(ui.work?.data?.sessions || {})) if (list.some(z => z.id === p.id)) keys.add(key);
 	return keys;
@@ -749,7 +752,7 @@ function groupItemsHtml(g) {
 	const doneTip = g.closed?.length ? `Closed in ${g.header.split(' · ')[0]} in the last 7 days (assigned to you), and finished items you added` : 'Finished items: clear them when you no longer need them';
 	return STAGES.filter(([id]) => by[id].length).map(([id, name, icon]) => {
 		const open = stageOpen(g.role, id);
-		return `<button type="button" class="stage-h stage-${id}" data-stage-toggle="${esc(`${g.role}:${id}`)}" aria-expanded="${open}"${id === 'done' ? ` title="${esc(doneTip)}"` : ''}><i class="codicon codicon-chevron-right" aria-hidden="true"></i><i class="codicon codicon-${icon} stage-icon" aria-hidden="true"></i>${name}<span class="group-n">${by[id].length}</span></button>${open ? by[id].map(rowHtml).join('') : ''}`;
+		return `<button type="button" class="stage-h stage-${id}" data-stage-toggle="${esc(`${g.role}:${id}`)}" aria-expanded="${open}"${id === 'done' ? ` title="${esc(doneTip)}"` : ''}><i class="codicon codicon-chevron-right" aria-hidden="true"></i><i class="codicon codicon-${icon} stage-icon" aria-hidden="true"></i>${name}<span class="group-n">${by[id].length}</span></button>${open ? `<div class="stage-body">${by[id].map(rowHtml).join('')}</div>` : ''}`;
 	}).join('');
 }
 // How an item is named in a section's saved order.
@@ -1726,7 +1729,7 @@ function workMenu(key, opts) {
 	// Issues planned on GitHub for current/next can go back to untriaged (milestone cleared on GitHub).
 	const planned = !localPin && (here === 'current' || here === 'next') && opts.work.milestone?.title;
 	const unplan = planned ? [{ act: 'move-milestone', key, milestone: 'none', label: `Remove from ${opts.work.milestone.title} (untriaged)` }] : [];
-	return [...browseAdds, ...localMoves, ...toSections, ...planMenu(key, opts.work.milestone?.title), ...unplan, ...(localPin ? [{ act: 'issue-unpin', key, label: 'Remove from My Work' }] : [])];
+	return [...browseAdds, ...localMoves, ...toSections, ...planMenu(key, opts.work.milestone?.title), ...unplan, { act: 'link-pick', key, label: 'Link a session…' }, ...(localPin ? [{ act: 'issue-unpin', key, label: 'Remove from My Work' }] : [])];
 }
 
 async function renderUnindexedInto(el, key, opts = {}) {
@@ -1740,7 +1743,7 @@ async function renderUnindexedInto(el, key, opts = {}) {
 	const primary = opts.work ? (live ? { act: 'open-session', link: live.link, label: 'Open session', icon: 'comment-discussion' } : { act: 'work-session', key, label: 'Start session', icon: 'rocket' }) : null;
 	const menu = opts.work ? [...(live ? [{ act: 'work-session-new', key, label: 'Start another session' }] : []), ...workMenu(key, opts)] : [];
 	el.innerHTML = `<div class="detail-head">${titleBarHtml({ title: g?.title || key, url, meta, primary, menu })}</div>
-		<div class="detail-body">${recoSlot(key)}${sessionsHtml(sessionsOf(key))}${ghSlot(key)}</div>
+		<div class="detail-body">${linkPickerHtml(key)}${recoSlot(key)}${sessionsHtml(sessionsOf(key))}${ghSlot(key)}</div>
 		<div class="footer">${threadHtml(key, g?.title || '')}</div>`;
 	hydrateGitHub();
 }
@@ -1831,7 +1834,7 @@ async function renderIssueInto(el, key, fetchDetail, nested, silent = false, opt
 		primary = live ? { act: 'open-session', link: live.link, label: 'Open session', icon: 'comment-discussion' } : { act: 'work-session', key, label: 'Start session', icon: 'rocket' };
 		menu = [...(live ? [{ act: 'work-session-new', key, label: 'Start another session' }] : []), ...workMenu(key, opts)];
 	} else if (!nested && ui.work?.data) {
-		menu = [...menu, ...planMenu(key, sel.detail?.milestone)];
+		menu = [...menu, ...planMenu(key, sel.detail?.milestone), { act: 'link-pick', key, label: 'Link a session…' }];
 	}
 	// In My Work the plan is what matters: an earlier triage decision doesn't hide the actions.
 	const decided = !opts.work && issue.outcome && issue.outcome.decision !== 'fixing' ? issue.outcome : null;
@@ -1873,7 +1876,7 @@ async function renderIssueInto(el, key, fetchDetail, nested, silent = false, opt
 		!isImplement && !fixing ? `<button type="button" class="btn" data-act="implement" data-key="${safeKey}"><i class="codicon codicon-rocket" aria-hidden="true"></i>Start fix session</button>` : '',
 	].join('');
 	const attention = isCleanup ? `<div id="attention-${safeKey}" class="attention-slot">${attentionHtml(key)}</div>` : '';
-	el.innerHTML = `<div class="detail-head">${head}</div><div class="detail-body${decided ? ' is-decided' : ''}">${outcome}${ctxHtml}${attention}${recoSlot(key)}${tools ? `<div class="toolbar issue-tools">${tools}</div>` : ''}${sessionsHtml(sessionsOf(key))}${cards}${ghSlot(key)}</div><div class="footer">${threadHtml(key, issue.title)}</div>`;
+	el.innerHTML = `<div class="detail-head">${head}</div><div class="detail-body${decided ? ' is-decided' : ''}">${linkPickerHtml(key)}${outcome}${ctxHtml}${attention}${recoSlot(key)}${tools ? `<div class="toolbar issue-tools">${tools}</div>` : ''}${sessionsHtml(sessionsOf(key))}${cards}${ghSlot(key)}</div><div class="footer">${threadHtml(key, issue.title)}</div>`;
 }
 
 // ---------- Your sections and their notes ----------
@@ -2181,8 +2184,27 @@ function renderPinnedSessionInto(el, id) {
 	</div></section>` : '';
 	const moves = ['current', 'next', 'priorities', ...(ui.work?.data?.sections || []).map(x => x.id)].filter(b => b !== (p.bucket || 'current')).map(b => ({ act: 'sess-move', key: id, milestone: b, label: `Move to ${groupLabel(b)}` }));
 	el.innerHTML = `<div class="detail-head">${titleBarHtml({ title: z?.title || p.note || 'Session', meta, primary: { act: 'open-session', link, label: 'Open session', icon: 'comment-discussion' }, menu: [...moves, { act: 'unpin-session', key: id, label: 'Remove from My Work' }] })}</div>
-		<div class="detail-body">${sessionInsightsHtml(id, true)}${p.summary ? about : ''}${z ? facts : '<p class="cd" style="padding:12px">This session is not in the Agents window\'s session store anymore.</p>'}
+		<div class="detail-body">${worksOnHtml(id, p)}${sessionInsightsHtml(id, true)}${p.summary ? about : ''}${z ? facts : '<p class="cd" style="padding:12px">This session is not in the Agents window\'s session store anymore.</p>'}
 			<p class="cd" style="padding:0 12px">In ${esc(groupLabel(p.bucket || 'current'))}. Drag it to another group or use the menu; marking the session done (archiving it) removes it from My Work.</p></div>`;
+}
+// Which issues a session works on: found automatically (its title, PRs, how it was added) or linked by hand.
+function worksOnHtml(id, p) {
+	const manual = ui.work?.data?.sessionLinks?.[id] || [];
+	const auto = [...sessionIssueKeys(p)].filter(k => !manual.includes(k));
+	const chip = (k, removable) => `<span class="link-chip"><button type="button" class="link-btn" data-open-issue="${esc(k)}" title="Open ${esc(shortKey(k))}">${esc(shortKey(k))}</button>${removable ? `<button type="button" class="link-btn" data-act="session-unlink" data-key="${esc(id)}" data-issue="${esc(k)}" title="Unlink" aria-label="Unlink ${esc(shortKey(k))}"><i class="codicon codicon-close" aria-hidden="true"></i></button>` : '<span class="cd" title="Found automatically"> · auto</span>'}</span>`;
+	return `<section class="linked dcard works-on"><div class="linked-head"><span class="section-label">Works on</span></div>
+		<div class="works-on-body">${[...auto.map(k => chip(k, false)), ...manual.map(k => chip(k, true))].join('') || '<span class="cd">No issue found automatically.</span>'}
+		<form class="link-form" data-link-form data-session="${esc(id)}"><label class="sr-only" for="link-issue">Issue</label><input id="link-issue" type="text" placeholder="#123, owner/repo#123 or issue link" spellcheck="false"><button type="submit" class="btn sm">Link issue</button></form></div></section>`;
+}
+// Issue page: pick one of your sessions to link to this issue.
+function linkPickerHtml(key) {
+	if (ui.linkPick !== key) return '';
+	const pinned = (ui.work?.data?.pinnedSessions || []).map(p => ({ id: p.id, title: p.session?.title || p.note || 'Session', meta: p.session?.project || '' }));
+	const recent = (ui.work?.data?.recentSessions || []).filter(z => !pinned.some(p => p.id === z.id)).map(z => ({ id: z.id, title: z.title || 'Untitled session', meta: z.project || '' }));
+	const linked = new Set(sessionsOf(key).map(z => z.id));
+	const row = z => `<li class="sess-row"><div class="sess-main"><div class="sess-title">${esc(z.title)}</div><div class="sess-meta cd">${esc(z.meta)}</div></div>${linked.has(z.id) ? '<span class="cd">linked</span>' : `<button type="button" class="btn sm" data-act="session-link" data-key="${esc(z.id)}" data-issue="${esc(key)}">Link</button>`}</li>`;
+	return `<section class="linked dcard sess-card"><div class="linked-head"><span class="section-label">Link a session to ${esc(shortKey(key))}</span><button type="button" class="link-btn" data-act="link-pick-close" style="margin-left:auto">Close</button></div>
+		<ul class="sess-list">${[...pinned, ...recent].slice(0, 25).map(row).join('') || '<li class="cd" style="padding:8px 12px">No sessions to link.</li>'}</ul></section>`;
 }
 // Session insights read from its local transcript (what it was asked, its latest reply, files, activity).
 async function loadSessionInfo(id) {
@@ -2269,6 +2291,7 @@ async function act(button) {
 	const key = button.dataset.key;
 	if (act === 'recheck') { loadChecks(key, true); return; }
 	if (act === 'note-edit') { closeMenus(); ui.noteEditing = key; renderDetail(false); return; }
+	if (act === 'link-pick' || act === 'link-pick-close') { closeMenus(); ui.linkPick = act === 'link-pick' ? key : null; renderDetail(false, true); return; }
 	if (act === 'cancel-opinion') {
 		try { await api('/api/cancel-opinion', { key, mode: button.dataset.mode || 'blind' }); toast('Judgement request cancelled'); await load(); } catch (error) { toast(error.message, true); }
 		return;
@@ -2341,6 +2364,11 @@ async function act(button) {
 			await api('/api/open-session', { link: button.dataset.link });
 			msg = 'Opening the session in the Agents window';
 			move = false;
+		} else if (act === 'session-link' || act === 'session-unlink') {
+			await api('/api/work-pin', { op: act === 'session-link' ? 'link' : 'unlink', id: key, key: button.dataset.issue });
+			msg = act === 'session-link' ? `Linked to ${shortKey(button.dataset.issue)}` : `Unlinked ${shortKey(button.dataset.issue)}`;
+			move = false;
+			await loadWork();
 		} else if (act === 'resend-new-chat' || act === 'resend-same-chat') {
 			const entries = ui.state.threads?.[key] || [];
 			const lastMine = [...entries].reverse().find(e => e.role === 'user');
@@ -3016,7 +3044,21 @@ $('detail').addEventListener('dragend', () => {
 	$('list').classList.remove('drop-ready');
 	for (const r of document.querySelectorAll('.dragging')) r.classList.remove('dragging');
 });
+$('detail').addEventListener('click', e => {
+	const oi = e.target.closest('[data-open-issue]');
+	if (!oi) return;
+	const key = oi.dataset.openIssue;
+	select(inMyWork(key) ? 'work' : 'browseitem', key);
+});
 $('detail').addEventListener('submit', async e => {
+	const lf = e.target.closest('[data-link-form]');
+	if (lf) {
+		e.preventDefault();
+		const key = parseIssueRef(lf.querySelector('input').value);
+		if (!key) { toast('Enter an issue: #123, owner/repo#123 or its link', true); return; }
+		try { await api('/api/work-pin', { op: 'link', id: lf.dataset.session, key }); toast(`Linked to ${shortKey(key)}`); await loadWork(); } catch (error) { toast(error.message, true); }
+		return;
+	}
 	const form = e.target.closest('[data-note-form], [data-section-form]');
 	if (!form) return;
 	e.preventDefault();
