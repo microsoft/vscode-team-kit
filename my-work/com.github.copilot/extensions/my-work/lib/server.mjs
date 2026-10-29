@@ -706,10 +706,12 @@ export class TriageServer {
 				if (!this.sendToChat) throw Object.assign(new Error('This canvas is not attached to a chat'), { status: 409 });
 				// fresh: the previous chat never answered, so forget it and resend (the message is already in the thread).
 				const fresh = body.fresh === true;
+				// resend: the same chat never got it (e.g. a delivery the Agents window dropped); send it again without repeating it in the thread.
+				const again = fresh || body.resend === true;
 				if (body.key === 'my-work') {
 					if (fresh) await setMyWorkChat(null);
 					await this.sendToMyWorkChat(text);
-					result = { key: body.key, entries: fresh ? await data.getThread(body.key) : await data.appendThread(body.key, 'user', text) };
+					result = { key: body.key, entries: again ? await data.getThread(body.key) : await data.appendThread(body.key, 'user', text) };
 					break;
 				}
 				if (fresh) await setIssueChat(body.key, null);
@@ -719,7 +721,7 @@ export class TriageServer {
 				const chat = await getIssueChat(body.key);
 				if (chat) await this.sendToChat(forwardToIssueChatPrompt({ link: chat.link, key: body.key, text }));
 				else await this.sendToMyWorkSession(createIssueChatPrompt({ key: body.key, url: `https://github.com/${owner}/${repo}/issues/${number}`, title, text }));
-				result = { key: body.key, entries: fresh ? await data.getThread(body.key) : await data.appendThread(body.key, 'user', text) };
+				result = { key: body.key, entries: again ? await data.getThread(body.key) : await data.appendThread(body.key, 'user', text) };
 				break;
 			}
 			case '/api/cancel-opinion':

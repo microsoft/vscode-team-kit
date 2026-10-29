@@ -286,6 +286,11 @@ test('discussing an issue uses its own chat, and Start session turns that chat i
 		await post('/api/message', { key, title: 'Crash on save', text: 'try the other fix' });
 		assert.match(sent.at(-1), /forward a message to the chat for octo\/app#42/);
 		assert.match(sent.at(-1), /send_message with session "agent-host-session:\/\/ahp-session\/aaaaaaaa-/);
+		assert.match(sent.at(-1), /check it arrived: .*get_session_context/, 'the forwarder checks delivery (send_message can report success for a dropped message)');
+		const n = (await data.getThread(key)).length;
+		await post('/api/message', { key, title: 'Crash on save', text: 'try the other fix', resend: true });
+		assert.match(sent.at(-1), /forward a message to the chat for octo\/app#42/, 'Resend goes to the same chat');
+		assert.equal((await data.getThread(key)).length, n, 'and does not repeat the message in the conversation');
 
 		const r = await post('/api/work-session', { key, title: 'Crash on save', url: 'https://github.com/octo/app/issues/42' });
 		assert.equal(r.body.via, 'issue-chat', 'the discussion chat becomes the session');

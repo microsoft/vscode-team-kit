@@ -140,10 +140,17 @@ export function forwardToMyWorkSessionPrompt(link, request) {
 	].join('\n');
 }
 
+// send_message can report success while the Agents window drops the message (a nested chat it lost track of:
+// "sendMessage for unknown chat"). The forwarder checks the message arrived.
+function deliveryCheck(link, onFail) {
+	return `Then check it arrived: wait about 10 seconds and call get_session_context for "${link}" (transcriptLimit 1). If its latest turn is not this message (starting "Panel message from My Work"), call send_message once more and check again. If it still has not arrived, ${onFail}`;
+}
+
 /** Later messages (and Start session): the triage chat only forwards them to the issue's chat. */
 export function forwardToIssueChatPrompt({ link, key, text }) {
 	return [
 		`Panel request: forward a message to the chat for ${key}. Do only this: call send_message with session "${link}" and the message between the markers below VERBATIM (delivery "queue"). Do not act on it yourself. Reply with one word: forwarded.`,
+		deliveryCheck(link, `call the my-issues-triage canvas action replyToIssue for ${key} with: "Couldn't deliver this to the issue's chat: the Agents window has lost track of it. Use **Open chat** once, then **Resend**." Do not handle the message yourself.`),
 		`If send_message fails because that chat no longer exists, call the canvas action setIssueChat {"key": "${key}", "link": null} and call replyToIssue for ${key} saying the issue's chat was gone and asking the user to send the message again (that starts a new chat).`,
 		'<<<ISSUE_MESSAGE',
 		'Panel message from My Work:', '', text,
@@ -244,6 +251,7 @@ export function createMyWorkChatPrompt(text) {
 export function forwardToMyWorkChatPrompt(link, text) {
 	return [
 		`Panel request: forward a My Work message. Do only this: call send_message with session "${link}" and the message between the markers below VERBATIM (delivery "queue"). Do not act on it yourself. Reply with one word: forwarded.`,
+		deliveryCheck(link, `call the my-issues-triage canvas action replyToIssue for "my-work" with: "Couldn't deliver this to the My Work chat: the Agents window has lost track of it. Use **Open chat** once, then **Resend**, or **Resend in a new chat**." Do not handle the message yourself.`),
 		`If send_message fails because that chat no longer exists, call the canvas action setMyWorkChat {"link": null} and tell me in one line to send the message again.`,
 		'<<<MY_WORK_MESSAGE',
 		'Panel message from My Work:', '', text,

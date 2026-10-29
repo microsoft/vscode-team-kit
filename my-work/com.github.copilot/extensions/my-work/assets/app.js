@@ -1522,7 +1522,7 @@ const STALL_MS = 3 * 60 * 1000;
 function waitingHtml(key, since) {
 	const stalled = Date.now() - new Date(since).getTime() > STALL_MS;
 	return stalled
-		? `<div class="cd waiting stalled" role="status"><i class="codicon codicon-warning" aria-hidden="true"></i> No reply yet: the chat may be gone. <button type="button" class="link-btn" data-act="resend-new-chat" data-key="${esc(key)}" title="Forget the old chat and send your last message to a new one">Resend in a new chat</button></div>`
+		? `<div class="cd waiting stalled" role="status"><i class="codicon codicon-warning" aria-hidden="true"></i> No reply yet: the message may not have reached the chat. <button type="button" class="link-btn" data-act="resend-same-chat" data-key="${esc(key)}" title="Send your last message to the same chat again (use Open chat first if the Agents window lost track of it)">Resend</button> · <button type="button" class="link-btn" data-act="resend-new-chat" data-key="${esc(key)}" title="Forget the old chat and send your last message to a new one">Resend in a new chat</button></div>`
 		: `<div class="cd waiting" data-since="${esc(since)}" data-key="${esc(key)}"><i class="codicon codicon-loading" aria-hidden="true"></i> Waiting for the chat…</div>`;
 }
 setInterval(() => {
@@ -1554,7 +1554,7 @@ function threadHtml(key, title) {
 		${entries.length ? `<button type="button" class="dock-head" data-act="toggle-chat" aria-expanded="${!collapsed}">
 			<i class="codicon codicon-chevron-right" aria-hidden="true"></i><span>Conversation</span><span class="cd">· ${count}${waiting ? ' · waiting for reply' : ''}</span>
 		</button>` : ''}${openChat}
-		${entries.length ? `<div class="bubbles" tabindex="0" aria-label="Conversation with the chat" style="height:${height}px">${bubbles}${waiting ? waitingHtml(key, last.at) : ''}</div>` : ''}
+		${entries.length ? `<div class="bubbles" tabindex="0" aria-label="Conversation with the chat" style="height:${height}px">${bubbles}${waiting ? waitingHtml(key, ui.resentAt?.[key] > last.at ? ui.resentAt[key] : last.at) : ''}</div>` : ''}
 		<form class="composer" data-key="${esc(key)}" data-title="${esc(title || '')}">${pastedHtml(key)}
 			<textarea class="ask-input" rows="1" aria-label="Message to the chat about this issue" placeholder="${chat ? `Message the ${esc(shortKey(key))} chat…` : `Discuss ${esc(shortKey(key))} (starts its own chat)…`}" title="Enter to send · Shift+Enter for a new line"></textarea>
 			<button type="submit" class="send" aria-label="Send" title="Send (Enter)"><i class="codicon codicon-send" aria-hidden="true"></i></button>
@@ -2236,12 +2236,15 @@ async function act(button) {
 			await api('/api/open-session', { link: button.dataset.link });
 			msg = 'Opening the session in the Agents window';
 			move = false;
-		} else if (act === 'resend-new-chat') {
+		} else if (act === 'resend-new-chat' || act === 'resend-same-chat') {
 			const entries = ui.state.threads?.[key] || [];
 			const lastMine = [...entries].reverse().find(e => e.role === 'user');
 			if (!lastMine) return;
-			await api('/api/message', { key, title: ui.gh?.[key]?.data?.title || ui.selected?.detail?.issue?.title || '', text: lastMine.text, fresh: true });
-			msg = 'Resent to a new chat';
+			const fresh = act === 'resend-new-chat';
+			await api('/api/message', { key, title: ui.gh?.[key]?.data?.title || ui.selected?.detail?.issue?.title || '', text: lastMine.text, ...(fresh ? { fresh: true } : { resend: true }) });
+			ui.resentAt ??= {};
+			ui.resentAt[key] = new Date().toISOString();
+			msg = fresh ? 'Resent to a new chat' : 'Sent again to the same chat';
 			move = false;
 		} else if (act === 'work-session' || act === 'work-session-new') {
 			const w = ui.work?.data?.milestones.flatMap(m => m.items.map(i => ({ ...i, milestone: m.title }))).find(i => i.key === key);

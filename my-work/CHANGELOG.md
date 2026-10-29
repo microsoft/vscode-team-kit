@@ -2,6 +2,7 @@
 
 ## 1.0.7 (2026-10-28)
 
+- Messages forwarded to an issue's chat or the My Work chat are checked after sending: the Agents window can drop a message to a nested chat it lost track of while reporting success. If it didn't arrive, the panel says so. A late reply now offers **Resend** (same chat, keeps the conversation) next to **Resend in a new chat**.
 - Recommended next suggests **Reproduce** for open bugs whose report has steps: the issue's own chat tries the steps on the latest code (no code or GitHub changes) and reports back in the conversation whether it reproduces, with evidence and a suggested next step.
 - A batch tops itself up to your batch size when items leave it (for example notifications dismissed in bulk or from the chat), instead of making you press Next to see the rest.
 - The batch bar shows what's left instead of an internal batch number: "24 to go · 0 of 24 done · 23 more after these".
