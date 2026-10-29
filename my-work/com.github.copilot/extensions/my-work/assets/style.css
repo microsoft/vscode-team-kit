@@ -892,3 +892,15 @@ html.narrow .title-sub { gap: 8px; }
 .tag.closed-other { color: var(--muted); }
 .tag.closed-other .codicon { font-size: 11px; margin-right: 3px; }
 .codicon-circle-slash::before { content: "\eabd"; }
+/* In progress / To do / Done inside a My Work group: one style, aligned with the rows, collapsible. */
+.stage-h { display: flex; align-items: center; gap: 6px; width: 100%; border: 0; background: none; font: inherit; font-size: 12px; color: var(--muted); padding: 8px 10px 4px 4px; cursor: pointer; text-align: left; border-radius: var(--r); }
+.stage-h:hover { color: var(--fg); background: var(--hover); }
+.stage-h .codicon-chevron-right { font-size: 12px; color: var(--faint); transition: transform .12s; }
+.stage-h[aria-expanded="true"] .codicon-chevron-right { transform: rotate(90deg); }
+.stage-h .stage-icon { font-size: 13px; }
+.stage-progress .stage-icon { color: var(--accent); }
+.stage-todo .stage-icon { color: var(--faint); }
+.stage-done .stage-icon { color: var(--good, #2da44e); }
+.stage-h .group-n { margin-left: 2px; color: var(--faint); }
+.codicon-sync::before { content: "\ea77"; }
+.codicon-circle-large-outline::before { content: "\ebb5"; }

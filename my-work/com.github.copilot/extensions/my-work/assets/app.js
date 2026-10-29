@@ -705,13 +705,9 @@ function issueQuick(key, url, { removable = false, state = null } = {}) {
 // plus milestone issues closed this week). Sub-headers only show when a group has more than one kind.
 function workStage(i) {
 	if (i.kind === 'work') return i.w.state ? 'done' : liveSession(i.w.key) || i.w.outcome?.decision === 'fixing' ? 'progress' : 'todo';
-	if (i.kind === 'pinsess') return i.p.status ? 'done' : 'progress';
+	if (i.kind === 'pinsess') return i.p.status || ui.foldedDone?.has(i.p.id) ? 'done' : 'progress';
 	if (i.kind === 'note') return !i.n.draft && (ui.work?.data?.noteSessions?.[i.n.ref || i.n.title] || []).some(z => !z.archived) ? 'progress' : 'todo';
 	return 'todo';
-}
-function foldedSessTag(key) {
-	const list = ui.foldedSessions?.get(key) || [];
-	return list.length ? `<span class="tag sess" title="${esc(`Fixed in ${list.map(p => p.session?.title || 'a session').join(', ')}`)}"><i class="codicon codicon-comment-discussion" aria-hidden="true"></i>session</span>` : '';
 }
 // A session you added that works on (or fixed) an issue listed in the same group is the same work: list only the issue.
 function sessionIssueKeys(p) {
@@ -720,31 +716,41 @@ function sessionIssueKeys(p) {
 	for (const [key, list] of Object.entries(ui.work?.data?.sessions || {})) if (list.some(z => z.id === p.id)) keys.add(key);
 	return keys;
 }
-function foldSessions(g) {
+// The same work listed twice (a session and the issue it works on or fixed) shows as the session, tagged with
+// the issue. Such a session counts as done once all its issues are closed.
+function foldIssues(g) {
 	if (ui.tab !== 'work' || !g.toggle) return g;
-	const shownKeys = new Set([...g.items, ...(g.closed || [])].filter(i => i.kind === 'work').map(i => i.w.key));
-	const items = g.items.filter(i => {
-		if (i.kind !== 'pinsess') return true;
-		const hit = [...sessionIssueKeys(i.p)].find(k => shownKeys.has(k));
-		if (!hit) return true;
-		ui.foldedSessions.set(hit, [...(ui.foldedSessions.get(hit) || []), i.p]);
-		return false;
-	});
-	return items.length === g.items.length ? g : { ...g, items };
+	const works = new Map([...g.items, ...(g.closed || [])].filter(i => i.kind === 'work').map(i => [i.w.key, i.w]));
+	const hide = new Set();
+	for (const i of g.items) {
+		if (i.kind !== 'pinsess') continue;
+		const keys = [...sessionIssueKeys(i.p)].filter(k => works.has(k));
+		if (!keys.length) continue;
+		ui.foldedIssues.set(i.p.id, keys);
+		keys.forEach(k => hide.add(k));
+		if (keys.every(k => works.get(k).state)) ui.foldedDone.add(i.p.id);
+	}
+	if (!hide.size) return g;
+	return { ...g, items: g.items.filter(i => !(i.kind === 'work' && hide.has(i.w.key))), closed: (g.closed || []).filter(i => !hide.has(i.w.key)) };
+}
+// In progress, To do and Done inside a My Work group: same header for each, collapsible (Done starts collapsed).
+const STAGES = [['progress', 'In progress', 'sync'], ['todo', 'To do', 'circle-large-outline'], ['done', 'Done', 'pass-filled']];
+function stageOpen(role, stage) {
+	const set = new Set(ui.state?.settings?.collapsedGroups || []);
+	return stage === 'done' ? set.has(`${role}:done-open`) : !set.has(`${role}:${stage}`);
 }
 function groupItemsHtml(g) {
 	if (ui.tab !== 'work' || !g.toggle) return g.items.map(rowHtml).join('');
 	const by = { progress: [], todo: [], done: [...(g.closed || [])] };
 	for (const i of g.items) by[workStage(i)].push(i);
-	const label = (name, n) => `<div class="stage-h">${name}<span class="group-n">${n}</span></div>`;
-	const both = by.progress.length && by.todo.length;
-	const open = !!ui.closedOpen?.[g.role];
-	// Done, split by what happened: fixed issues, issues closed without a fix, and finished sessions.
-	const kinds = [['Fixed', i => i.kind !== 'pinsess' && (i.w?.state === 'merged' || !['not_planned', 'duplicate'].includes(i.w?.stateReason))], ['Closed without a fix', i => i.kind !== 'pinsess' && ['not_planned', 'duplicate'].includes(i.w?.stateReason)], ['Sessions finished', i => i.kind === 'pinsess']];
-	const doneParts = kinds.map(([name, test]) => [name, by.done.filter(test)]).filter(([, list]) => list.length);
-	const doneTip = g.closed?.length ? `Closed in ${g.header.split(' · ')[0]} in the last 7 days (assigned to you), plus finished items you added` : 'Finished items: clear them when you no longer need them';
-	const done = by.done.length ? `<button type="button" class="closed-fold" data-closed-fold="${esc(g.role)}" aria-expanded="${open}" title="${esc(doneTip)}"><i class="codicon codicon-chevron-right" aria-hidden="true"></i><i class="codicon codicon-pass-filled" aria-hidden="true"></i>Done<span class="group-n">${by.done.length}</span><span class="cd done-sum">${esc(doneParts.map(([name, list]) => `${list.length} ${name.toLowerCase()}`).join(' · '))}</span></button>${open ? doneParts.map(([name, list]) => `${doneParts.length > 1 ? label(name, list.length) : ''}${list.map(rowHtml).join('')}`).join('') : ''}` : '';
-	return `${by.progress.length ? `${both || by.done.length ? label('In progress', by.progress.length) : ''}${by.progress.map(rowHtml).join('')}` : ''}${by.todo.length ? `${both ? label('To do', by.todo.length) : ''}${by.todo.map(rowHtml).join('')}` : ''}${done}`;
+	// Done: issues and sessions together, most recently finished first.
+	const when = i => Date.parse(i.kind === 'pinsess' ? new Date(i.p.session?.modified || 0).toISOString() : i.w?.closedAt || i.w?.updatedAt || 0) || 0;
+	by.done.sort((a, b) => when(b) - when(a));
+	const doneTip = g.closed?.length ? `Closed in ${g.header.split(' · ')[0]} in the last 7 days (assigned to you), and finished items you added` : 'Finished items: clear them when you no longer need them';
+	return STAGES.filter(([id]) => by[id].length).map(([id, name, icon]) => {
+		const open = stageOpen(g.role, id);
+		return `<button type="button" class="stage-h stage-${id}" data-stage-toggle="${esc(`${g.role}:${id}`)}" aria-expanded="${open}"${id === 'done' ? ` title="${esc(doneTip)}"` : ''}><i class="codicon codicon-chevron-right" aria-hidden="true"></i><i class="codicon codicon-${icon} stage-icon" aria-hidden="true"></i>${name}<span class="group-n">${by[id].length}</span></button>${open ? by[id].map(rowHtml).join('') : ''}`;
+	}).join('');
 }
 // How an item is named in a section's saved order.
 function secRefOf(i) {
@@ -768,7 +774,7 @@ async function reorderSection(sectionId, ref, { to, dir } = {}) {
 }
 // Finished items the user can clear from My Work (milestone issues leave on their own a week after closing).
 function clearableDone(i) {
-	return (i.kind === 'pinsess' && !!i.p.status) || (i.kind === 'work' && !!i.w.state && (i.w.local || i.group === 'priorities'));
+	return (i.kind === 'pinsess' && (!!i.p.status || !!ui.foldedDone?.has(i.p.id))) || (i.kind === 'work' && !!i.w.state && (i.w.local || i.group === 'priorities'));
 }
 async function clearDone(role) {
 	const g = listGroups().find(x => x.role === role);
@@ -792,7 +798,7 @@ function rowHtml(item) {
 		const prio = item.milestone?.role === 'priorities';
 		const local = !!w.local;
 		return withQuick(`<button type="button" class="${cls}${w.state ? ' is-done' : w.isBug ? ' dot-action' : ''}${prio || local ? ' prio-row' : ''}" data-kind="work" data-id="${esc(w.key)}" data-group="${esc(item.group || '')}"${item.secRef ? ` data-sec-item="${esc(item.secRef)}"` : ''} aria-current="${!!current}"${prio ? ` draggable="true" data-prio="${esc(w.key)}" data-pin-issue="${esc(w.key)}" title="Drag to reorder or into current / next; Alt+↑/↓ moves the selected issue"` : local ? ` draggable="true" data-pin-issue="${esc(w.key)}" title="Added locally (GitHub milestone unchanged). Drag to another group."` : ''}>${prio || local ? '<span class="row-grip" aria-hidden="true" title="Drag to move"><i class="codicon codicon-gripper"></i></span>' : ''}
-			<span class="row-title" title="${esc(w.title)}">${prio ? `<span class="prio-rank">${w.rank}</span>` : ''}${esc(w.title)}</span><span class="row-meta"><span>${esc(shortKey(w.key))}</span>${w.isBug ? '<span>bug</span>' : ''}${prio && w.milestone ? `<span>${esc(w.milestone)}</span>` : ''}${local ? '<span class="tag" title="Added to My Work locally; its GitHub milestone is unchanged">local</span>' : ''}${doneTag(w.state, '', w.stateReason)}${w.state ? foldedSessTag(w.key) : sessTag(w.key)}</span>
+			<span class="row-title" title="${esc(w.title)}">${prio ? `<span class="prio-rank">${w.rank}</span>` : ''}${esc(w.title)}</span><span class="row-meta"><span>${esc(shortKey(w.key))}</span>${w.isBug ? '<span>bug</span>' : ''}${prio && w.milestone ? `<span>${esc(w.milestone)}</span>` : ''}${local ? '<span class="tag" title="Added to My Work locally; its GitHub milestone is unchanged">local</span>' : ''}${doneTag(w.state, '', w.stateReason)}${w.state ? '' : sessTag(w.key)}</span>
 		</button>`, issueQuick(w.key, w.url, { removable: local || prio, state: w.state }));
 	}
 	if (item.kind === 'workhome') {
@@ -814,7 +820,7 @@ function rowHtml(item) {
 		const inPrio = item.group === 'priorities';
 		return withQuick(`<button type="button" class="${cls}${p.status ? ' is-done' : z && !z.read ? ' dot-action' : ''} prio-row" data-kind="pinsess" data-id="${esc(p.id)}" data-group="${esc(item.group || 'current')}" data-sess="${esc(p.id)}"${item.secRef ? ` data-sec-item="${esc(item.secRef)}"` : ''}${inPrio ? ` data-prio="session:${esc(p.id)}"` : ''} draggable="true" title="Drag to another group${inPrio ? ' or reorder' : ''}" aria-current="${!!current}"><span class="row-grip" aria-hidden="true" title="Drag to move"><i class="codicon codicon-gripper"></i></span>
 			<span class="row-title" title="${esc(z?.title || '')}">${inPrio ? `<span class="prio-rank">${item.rank}</span>` : ''}<i class="codicon codicon-comment-discussion" aria-hidden="true"></i> ${esc(z?.title || p.note || 'Session not found')}</span>
-			<span class="row-meta">${z?.project ? `<span>${esc(z.project)}</span>` : ''}${z?.modified ? `<span>active ${esc(agoText(new Date(z.modified).toISOString()))}</span>` : ''}${z?.changes ? `<span class="add">+${esc(z.changes.additions)}</span><span class="del">−${esc(z.changes.deletions)}</span>` : ''}${p.status ? doneTag(p.status, p.status === 'done' ? '' : 'PR ') : z && !z.read ? '<span class="tag acc">unread</span>' : ''}</span>
+			<span class="row-meta">${z?.project ? `<span>${esc(z.project)}</span>` : ''}${z?.modified ? `<span>active ${esc(agoText(new Date(z.modified).toISOString()))}</span>` : ''}${z?.changes ? `<span class="add">+${esc(z.changes.additions)}</span><span class="del">−${esc(z.changes.deletions)}</span>` : ''}${(ui.foldedIssues?.get(p.id) || []).map(k => `<span title="This session works on ${esc(shortKey(k))}">${esc(shortKey(k))}</span>`).join('')}${p.status ? doneTag(p.status, p.status === 'done' ? '' : 'PR ') : ui.foldedDone?.has(p.id) ? doneTag('closed', '', 'completed') : z && !z.read ? '<span class="tag acc">unread</span>' : ''}</span>
 		</button>`, [{ act: 'open-session', link: `agent-host-session://ahp-session/${p.id}`, icon: 'comment-discussion', label: 'Open session' }, p.status ? { act: 'unpin-session', key: p.id, icon: 'check', label: 'Clear from My Work (done)' } : { act: 'unpin-session', key: p.id, icon: 'close', label: 'Remove from My Work' }]);
 	}
 	if (item.kind === 'note') {
@@ -881,8 +887,9 @@ function rowHtml(item) {
 // (the open item stays in place until you move on, and bulk runs keep their rows for progress).
 const keepInPlace = i => (ui.selected && i.kind === ui.selected.kind && i.id === ui.selected.id) || ui.bulkRun?.ids.includes(i.id);
 function renderList() {
-	ui.foldedSessions = new Map(); // issue key -> sessions folded into it (same work)
-	const all = listGroups().map(foldSessions).filter(g => g.items.length || g.keepEmpty);
+	ui.foldedIssues = new Map(); // session id -> issue keys it stands for (same work)
+	ui.foldedDone = new Set(); // sessions whose issues are all closed
+	const all = listGroups().map(foldIssues).filter(g => g.items.length || g.keepEmpty);
 	const done = all.flatMap(g => g.items.filter(i => isHandled(i) && !keepInPlace(i)));
 	const doneSet = new Set(done);
 	const groups = all.map(g => ({ ...g, items: g.items.filter(i => !doneSet.has(i)) })).filter(g => g.items.length || g.keepEmpty);
@@ -2669,8 +2676,17 @@ $('list').addEventListener('click', e => {
 	if (nn) { startNoteDraft(nn.dataset.noteNew); return; }
 	const se = e.target.closest('[data-section-edit]');
 	if (se) { select('section', se.dataset.sectionEdit); return; }
-	const fold = e.target.closest('[data-closed-fold]');
-	if (fold) { ui.closedOpen ??= {}; ui.closedOpen[fold.dataset.closedFold] = !ui.closedOpen[fold.dataset.closedFold]; renderList(); return; }
+	const st = e.target.closest('[data-stage-toggle]');
+	if (st) {
+		const [role, stage] = st.dataset.stageToggle.split(':');
+		const set = new Set(ui.state.settings.collapsedGroups || []);
+		const token = stage === 'done' ? `${role}:done-open` : `${role}:${stage}`;
+		if (set.has(token)) set.delete(token); else set.add(token);
+		ui.state.settings.collapsedGroups = [...set];
+		renderList();
+		saveSettings({ collapsedGroups: ui.state.settings.collapsedGroups });
+		return;
+	}
 	const clr = e.target.closest('[data-clear-done]');
 	if (clr) { clearDone(clr.dataset.clearDone); return; }
 	if (e.target.closest('[data-done-toggle]')) { ui.showDone = !ui.showDone; renderList(); return; }
