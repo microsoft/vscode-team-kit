@@ -572,8 +572,8 @@ function renderBatchBar() {
 	const done = size - b.open;
 	const pct = size ? Math.round((done / size) * 100) : 100;
 	$('batchbar').innerHTML = size
-		? `<span class="bt">Batch ${esc(b.number)}</span>
-			<span class="bm">${esc(done)}/${esc(size)} done · ${esc(b.remaining)} more</span>
+		? `<span class="bt">${b.open ? `${esc(b.open)} to go` : 'Batch done'}</span>
+			<span class="bm">${esc(done)} of ${esc(size)} done${b.remaining ? ` · ${esc(b.remaining)} more after these` : ' · last batch'}</span>
 			${key.startsWith('cleanup:') ? `<button type="button" class="next" id="judge-batch" title="Start one separate chat that judges every unjudged issue in this batch without seeing Sweeper"><i class="codicon codicon-law" aria-hidden="true"></i>Judge all</button>` : ''}
 			<button type="button" class="next" id="next-batch" ${b.remaining ? '' : 'disabled'}>Next<i class="codicon codicon-arrow-right" aria-hidden="true"></i></button>
 			<span class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="${size}" aria-valuenow="${done}" aria-label="Batch progress"><span style="width:${pct}%"></span></span>`
