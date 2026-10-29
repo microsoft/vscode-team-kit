@@ -70,6 +70,32 @@ function toTokens(data) {
 		'--warn': first(cm, 'editorWarning.foreground', 'charts.yellow', 'list.warningForeground') || (dark ? '#fbbf24' : '#d97706'),
 		'--bad': first(cm, 'errorForeground', 'editorError.foreground', 'charts.red') || (dark ? '#f87171' : '#dc2626'),
 	};
+	// VS Code component tokens (pane headers, lists, badges, buttons, inputs); unset ones fall back in CSS.
+	Object.assign(tokens, {
+		'--section-bg': first(cm, 'sideBarSectionHeader.background'),
+		'--section-fg': first(cm, 'sideBarSectionHeader.foreground', 'sideBarTitle.foreground'),
+		'--section-border': first(cm, 'sideBarSectionHeader.border', 'sideBar.border', 'contrastBorder'),
+		'--sel-bg': first(cm, 'list.inactiveSelectionBackground'),
+		'--sel-fg': first(cm, 'list.inactiveSelectionForeground'),
+		'--sel-active-bg': first(cm, 'list.activeSelectionBackground'),
+		'--sel-active-fg': first(cm, 'list.activeSelectionForeground'),
+		'--focus': first(cm, 'list.focusOutline', 'focusBorder'),
+		'--badge-bg': first(cm, 'badge.background'),
+		'--badge-fg': first(cm, 'badge.foreground'),
+		'--btn-hover': first(cm, 'button.hoverBackground'),
+		'--btn-border': first(cm, 'button.border'),
+		'--btn2-bg': first(cm, 'button.secondaryBackground'),
+		'--btn2-fg': first(cm, 'button.secondaryForeground'),
+		'--btn2-hover': first(cm, 'button.secondaryHoverBackground'),
+		'--btn2-border': first(cm, 'button.secondaryBorder'),
+		'--input-bg': first(cm, 'input.background'),
+		'--input-fg': first(cm, 'input.foreground'),
+		'--input-border': first(cm, 'input.border'),
+		'--dropdown-bg': first(cm, 'dropdown.background'),
+		'--dropdown-border': first(cm, 'dropdown.border'),
+		'--toolbar-hover': first(cm, 'toolbar.hoverBackground'),
+		'--icon-fg': first(cm, 'icon.foreground'),
+	});
 	tokens['--accent-soft'] = `color-mix(in srgb, ${tokens['--accent']} ${dark ? 22 : 12}%, ${tokens['--surface']})`;
 	tokens['--shadow'] = hc ? 'none' : dark ? '0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25)' : '0 1px 2px rgba(16,24,40,.04), 0 4px 16px rgba(16,24,40,.06)';
 	return { name: data.settingsId || data.label || base, base, dark, highContrast: hc, tokens };

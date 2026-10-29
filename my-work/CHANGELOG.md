@@ -9,6 +9,11 @@
   - Simpler toolbars: Today drops its section pills (the bands are the sections) and the Re-check buttons are icon-only.
 - **Layout like VS Code:** the list and details panes follow VS Code's Layout Density (`window.density.layout`, View > Appearance > Layout Density). Default shows them as cards with a small gap; Compact joins them with a single border. The Density setting now offers VS Code (the default), Default and Compact.
 - **Resizable panes:** drag the sash between the list and details to resize them, or use the arrow keys on it. Double-click resets the size, and the panel remembers it.
+- **VS Code look:** the panel uses VS Code's own theme colours and shapes.
+  - Bands are VS Code view pane headers: `sideBarSectionHeader.*` colours, 22px tall and uppercase, with `badge.*` count badges.
+  - Rows are square list rows with `list.hoverBackground` and `list.*SelectionBackground`.
+  - Buttons use `button.*` and `button.secondary*`, the area picker uses `dropdown.*`, and row actions are a 22px icon action bar with `toolbar.hoverBackground`.
+  - Focus outlines use `focusBorder`, corners are 4px, and the font is VS Code's system font.
 - An issue with a session shows **Open session** as its main action (Start another session in the menu), and a closed issue never offers to start a fix session; the panel uses the live GitHub state when the index lags. Recommended next no longer says a fix session is running, or suggests one, for closed issues or issues that already have a session.
 - Link an issue to a session by hand when the panel can't find it: **Works on** on a session (type #123, owner/repo#123 or a link; unlink with ✕), or **Link a session…** in an issue's menu to pick one of your sessions. Linked sessions show on the issue, and in My Work the session stands for that issue.
 - Browse issues & PRs: **Group by** reporter (team / community / bots), milestone, age, interest (👍 and comments) or label. Groups collapse, and the choice is remembered. Grouping uses the search results, so it costs no extra GitHub calls.

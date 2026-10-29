@@ -984,3 +984,67 @@ html[data-density="compact"].narrow .list { border-bottom: 1px solid var(--line)
 html[data-density="compact"].narrow .split-handle { height: 0; }
 html[data-density="compact"].narrow .split-handle::before { content: ""; position: absolute; left: 0; right: 0; top: -3px; height: 6px; cursor: ns-resize; }
 html[data-density="compact"].narrow .split-handle::after { display: none; }
+
+/* ---------- VS Code UX: pane headers, list rows, count badges, buttons, dropdowns and action bars ---------- */
+:root { --r-sm: 4px; --r: 4px; --r-lg: 6px; }
+html[data-theme="vscode"] { --font: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", system-ui, "Ubuntu", "Droid Sans", sans-serif; }
+:focus-visible { outline: 1px solid var(--focus, var(--accent)); outline-offset: -1px; border-radius: 0; }
+
+/* Pane headers: 22px, 11px bold uppercase title, full width, section header colours */
+.list-body { padding: 0 0 8px; }
+.band.group-h { margin: 0; padding: 0 8px 0 2px; min-height: 22px; height: 22px; border-radius: 0; background: var(--section-bg, transparent); color: var(--section-fg, var(--fg)); border-top: 1px solid var(--section-border, var(--line)); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0; }
+.band.group-h:first-child { margin-top: 0; }
+.band-toggle { gap: 2px; padding: 0; line-height: 22px; }
+.band-toggle .codicon { font-size: 16px; color: var(--icon-fg, currentColor); }
+.band-tools .link-btn, .band-tools button { text-transform: none; font-weight: normal; }
+.band + .row-act, .band + .row, .band + .stage-h, .band + .row-wrap { margin-top: 0; }
+
+/* Count badges */
+.band-n, .stage-h .group-n { display: inline-block; box-sizing: border-box; min-width: 18px; padding: 3px 5px; border-radius: 11px; font-size: 11px; line-height: 11px; font-weight: normal; text-align: center; text-transform: none; background: var(--badge-bg, var(--surface-2)); color: var(--badge-fg, var(--muted)); }
+.band-n:empty { display: none; }
+
+/* List rows: square, list hover / selection colours */
+.row { border-radius: 0; }
+.row:hover { background: var(--hover); }
+.row[aria-current="true"] { background: var(--sel-bg, var(--accent-soft)); color: var(--sel-fg, var(--fg)); box-shadow: none; }
+.list-body:focus-within .row[aria-current="true"] { background: var(--sel-active-bg, var(--accent-soft)); color: var(--sel-active-fg, var(--fg)); }
+.row:focus-visible { outline: 1px solid var(--focus, var(--accent)); outline-offset: -1px; }
+.stage-h { border-radius: 0; }
+
+/* Row hover actions: an action bar of 22px icon buttons */
+.row-quick { top: 6px; right: 4px; padding: 0; gap: 0; border-radius: 0; box-shadow: none; background: transparent; }
+.row-act:hover .row-quick, .row-act:focus-within .row-quick { background: var(--hover); }
+.row-act:has(.row[aria-current="true"]) .row-quick { background: var(--sel-bg, var(--accent-soft)); }
+.row-quick .row-pin { width: 22px; height: 22px; border-radius: 5px; color: var(--icon-fg, var(--muted)); }
+.row-quick .row-pin:hover { background: var(--toolbar-hover, var(--surface-2)); color: var(--icon-fg, var(--fg)); }
+
+/* Buttons: primary = button.*, others = secondary button */
+.btn { border-radius: 4px; border: 1px solid var(--btn2-border, transparent); background: var(--btn2-bg, var(--surface-2)); color: var(--btn2-fg, var(--fg)); font-weight: normal; box-shadow: none; }
+.btn:hover:not(:disabled) { background: var(--btn2-hover, var(--hover)); }
+.btn.primary { border-color: var(--btn-border, var(--accent)); background: var(--accent); color: var(--accent-fg); font-weight: normal; box-shadow: none; }
+.btn.primary:hover:not(:disabled) { background: var(--btn-hover, var(--accent)); filter: none; }
+.btn.quiet { border-color: transparent; background: transparent; color: var(--fg); }
+.btn.quiet:hover:not(:disabled) { background: var(--toolbar-hover, var(--hover)); }
+.btn.danger { background: transparent; }
+.btn.sm.on { background: var(--sel-active-bg, var(--accent-soft)); color: var(--sel-active-fg, var(--accent)); border-color: transparent; }
+.pill { border-radius: 4px; border: 1px solid var(--btn2-border, transparent); background: var(--btn2-bg, var(--surface-2)); color: var(--btn2-fg, var(--fg)); }
+.pill:hover:not(:disabled) { background: var(--btn2-hover, var(--hover)); color: var(--btn2-fg, var(--fg)); }
+.pill[aria-pressed="true"], .pill.active, .pill.on { background: var(--sel-active-bg, var(--accent-soft)); color: var(--sel-active-fg, var(--accent)); border-color: var(--focus, var(--accent)); }
+.pill.classify { color: var(--btn2-fg, var(--fg)); border-color: var(--btn2-border, transparent); }
+.pill.classify.busy { background: transparent; border: 1px dashed var(--line); color: var(--muted); }
+.list-refresh { padding: 2px 4px; border-radius: 5px; color: var(--fg); }
+.list-refresh:hover { background: var(--toolbar-hover, var(--hover)); color: var(--fg); }
+.list-refresh .codicon { color: var(--icon-fg, currentColor); }
+
+/* Dropdowns and inputs */
+.area-pick { border-radius: 4px; background: var(--dropdown-bg, var(--surface)); border-color: var(--dropdown-border, var(--line)); color: var(--fg); }
+.area-pick:focus-within { outline: 1px solid var(--focus, var(--accent)); outline-offset: -1px; }
+input[type="text"], input[type="search"], input:not([type]), textarea { border-radius: 4px; }
+html[data-density] .list-body { padding: 0 0 8px; }
+.band-toggle { text-transform: inherit; letter-spacing: inherit; }
+.list-body .row, .list-body .row-wrap .row, .list-body .row-act .row { border-radius: 0; }
+/* list colours can be translucent: layer them on the surface so the action bar hides the title under it */
+.row-act:hover .row-quick, .row-act:focus-within .row-quick { background: linear-gradient(var(--hover), var(--hover)), var(--surface); }
+.row-act:has(.row[aria-current="true"]) .row-quick { background: linear-gradient(var(--sel-bg, var(--accent-soft)), var(--sel-bg, var(--accent-soft))), var(--surface); }
+.list-body:focus-within .row-act:has(.row[aria-current="true"]) .row-quick { background: linear-gradient(var(--sel-active-bg, var(--accent-soft)), var(--sel-active-bg, var(--accent-soft))), var(--surface); }
+.list-refresh { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
