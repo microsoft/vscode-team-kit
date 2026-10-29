@@ -1311,7 +1311,10 @@ async function loadGitHub(key, fresh = false) {
 	paintGitHub(key);
 	try {
 		const data = await api(`/api/github?key=${encodeURIComponent(key)}${fresh ? '&fresh=1' : ''}`);
+		const wasClosed = prev?.data?.state === 'closed';
 		ui.gh[key] = { data, at: Date.now() };
+		// Live GitHub says it is closed (the index can lag): redraw the title actions, which offer no new session for a closed issue.
+		if (data.state === 'closed' && !wasClosed && ui.selected?.id === key) { renderDetail(false, true); return; }
 	} catch (error) {
 		ui.gh[key] = { ...prev, loading: false, error: prev?.data ? null : error.message };
 		if (prev?.data) toast(`GitHub refresh failed: ${error.message}`, true);
@@ -1366,7 +1369,7 @@ function recommendations(key) {
 	const act = (label, a, primary) => ({ kind: 'act', label, act: a, key: n ? undefined : key, primary });
 	const link = (label, url) => ({ kind: 'link', label, url });
 
-	if (outcome?.decision === 'fixing') {
+	if (outcome?.decision === 'fixing' && g.state !== 'closed') {
 		recs.push({ icon: 'rocket', text: 'A fix session is already running for this issue.', actions: [ask('Get status', 'What is the status of the fix session for this issue? Summarize progress and what is left.')] });
 	}
 	if (g.state === 'closed') {
@@ -1447,7 +1450,7 @@ function recommendations(key) {
 		}
 	}
 	const ready = det?.readiness?.agentReadiness;
-	if (!g.isPr && (ready === 'implement' || ready === 'plan') && outcome?.decision !== 'fixing') {
+	if (!g.isPr && (ready === 'implement' || ready === 'plan') && outcome?.decision !== 'fixing' && !liveSession(key)) {
 		recs.push({ icon: 'rocket', text: 'Agent-ready: a fix session could take this.', actions: [n ? act('Start fix session', 'notification-start') : act('Start fix session', 'implement')] });
 	}
 	return recs.slice(0, 3);
@@ -1835,6 +1838,19 @@ async function renderIssueInto(el, key, fetchDetail, nested, silent = false, opt
 		menu = [...(live ? [{ act: 'work-session-new', key, label: 'Start another session' }] : []), ...workMenu(key, opts)];
 	} else if (!nested && ui.work?.data) {
 		menu = [...menu, ...planMenu(key, sel.detail?.milestone), { act: 'link-pick', key, label: 'Link a session…' }];
+	}
+	// A session already working on it (or that fixed it) comes first; a closed issue never offers to start one.
+	if (!nested) {
+		const live = liveSession(key);
+		const closed = ui.gh?.[key]?.data?.state === 'closed' || issue.state === 'closed' || issue.state === 'CLOSED';
+		const starts = new Set(['implement', 'work-session']);
+		if (live) {
+			primary = { act: 'open-session', link: live.link, label: 'Open session', icon: 'comment-discussion' };
+			if (!closed && !menu.some(m => m.act === 'work-session-new')) menu = [{ act: opts.work ? 'work-session-new' : 'implement', key, label: 'Start another session' }, ...menu];
+		} else if (closed && primary && starts.has(primary.act)) {
+			primary = null;
+		}
+		if (closed) menu = menu.filter(m => !starts.has(m.act) && m.act !== 'work-session-new');
 	}
 	// In My Work the plan is what matters: an earlier triage decision doesn't hide the actions.
 	const decided = !opts.work && issue.outcome && issue.outcome.decision !== 'fixing' ? issue.outcome : null;
