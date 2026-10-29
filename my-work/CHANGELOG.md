@@ -15,7 +15,7 @@
   - Each view has one toolbar row: the area picker, then an icon action bar with counts (Route, Auto-dismiss, Safe to dismiss, Re-check rules), then Refresh. Labels and "Updated …" are in the tooltips. Toggled filters use VS Code's `inputOption.active*` colours.
   - **Collapse All / Expand All** in every view's action bar folds or opens all its bands at once, like a VS Code view. The choice is remembered.
   - Browse works like the Settings editor: a search box with Group by, Recent filters and Refresh inside it, and Bugs / Features / All / Reviews tabs underneath next to the area picker.
-- **Activity bar like VS Code's:** 48px items with 24px icons, inactive and active icon colours, a 2px active edge, `activityBarBadge` counts on the icons and hover-style tooltips. The logo is gone.
+- **Activity bar like VS Code's:** 48px items with 24px icons, inactive and active icon colours, a 2px active edge, quiet counts under the icons and hover-style tooltips. The logo is gone.
 - **Collapse All Sections / Expand All Sections** in the details header, for every kind of item. Cleanup's Recommended next is now a section too.
 - **Chat inputs like VS Code's chat input:** every chat box (issue chats, notification chats and the My Work chat) is now one bordered input box. It is one line: the text, with Send as a small icon action at its end that turns blue when you type.
 - **Details pane like a VS Code editor:**

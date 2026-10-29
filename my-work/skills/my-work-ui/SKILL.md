@@ -37,7 +37,7 @@ Code: `com.github.copilot/extensions/my-work/assets/` (`app.js`, `style.css`, `i
 
 - **The activity bar (the left rail) is VS Code's activity bar.**
   - 48px square items with 24px icons and no logo. Inactive icons use `--ab-inactive` (`activityBar.inactiveForeground`); the active one uses `--ab-fg`, with a 2px `--ab-active-border` on its left edge.
-  - Counts are `activityBarBadge` badges at the bottom right of the icon.
+  - Counts are small, quiet numbers under the icon, in the icon's colour. Not `activityBarBadge` badges, which are too heavy here.
   - Tooltips use the hover widget colours (`editorHoverWidget.*`).
   - Settings and Refresh sit at the bottom, like Manage and Accounts.
 
