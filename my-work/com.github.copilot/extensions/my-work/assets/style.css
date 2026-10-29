@@ -1139,3 +1139,11 @@ html[data-density] .list-body { padding: 0 0 8px; }
 #detail .detail-body .linked { padding: 0; margin-top: 0; border: 0; background: none; }
 #detail .detail-body .linked > div:not(.dsec-h), #detail .detail-body .linked > details { padding-left: 0; padding-right: 0; }
 #detail .detail-body .linked > ul { padding-left: 18px; }
+/* Split buttons (VS Code button bar with a dropdown): one joined shape with a separator */
+.split > .btn.split-main:not(:only-child) { border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: 0; margin-right: 0; }
+.split > .btn.split-toggle { border-top-left-radius: 0; border-bottom-left-radius: 0; border-left: 1px solid var(--btn-separator, color-mix(in srgb, var(--accent-fg) 40%, transparent)); margin-left: 0; }
+.split > .btn:not(.primary).split-toggle { border-left-color: color-mix(in srgb, var(--fg) 20%, transparent); }
+/* never let wide content (long code lines) push the panes past the window */
+body { grid-template-columns: 48px minmax(0, 1fr); }
+body > * { min-width: 0; }
+.detail, .list { min-width: 0; }

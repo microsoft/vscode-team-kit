@@ -12,6 +12,7 @@ This is an Agent Plugins 1.0 package. The runtime discovers the canvas extension
 |---|---|
 | [my-work-setup](skills/my-work-setup/) | Onboarding: checks prerequisites, writes your config, builds the issue index and creates the daily indexer automation |
 | [my-issues](skills/my-issues/) | Queries and acts on the local index of your issues, runs the Sweeper cleanup workflow and drives the canvas |
+| [my-work-ui](skills/my-work-ui/) | UX principles for the panel (VS Code look, density, toolbars, lists, details pane), used before anyone changes, rebuilds or customises its UI |
 
 ## Getting started
 
@@ -99,9 +100,11 @@ my-work/
 │   │       ├── my_issues.py
 │   │       ├── my_work_config.py
 │   │       └── refresh_my_issues.py
-│   └── my-work-setup/
-│       ├── SKILL.md
-│       └── references/indexer-automation.md
+│   ├── my-work-setup/
+│   │   ├── SKILL.md
+│   │   └── references/indexer-automation.md
+│   └── my-work-ui/
+│       └── SKILL.md
 ├── com.github.copilot/extensions/my-work/
 │   ├── extension.mjs
 │   ├── lib/          (server, data, prompts, config, sessions, work, …)

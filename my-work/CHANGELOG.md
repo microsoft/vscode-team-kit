@@ -2,6 +2,8 @@
 
 ## 1.0.7 (2026-10-28)
 
+- New **my-work-ui** skill: the panel's UX principles (VS Code tokens and shapes, density, sash, bands, toolbars, search, rows, details sections, accessibility) plus a checklist for every UI change, so anyone who rebuilds or customises the panel keeps it consistent.
+- Fixed: the details header's split button was drawn as two separate buttons, and wide content could push the details pane past the window.
 - New look across all views:
   - The header shows a one-line summary of the view (for example "1.145.0 · 28 of 35 done · 80% · 7 in progress · due in 4 days", or "40 unread · 10 need you · 49 done today") with a segmented progress bar, and the date and index age on the right.
   - Every group is a band: a light full-width header with a chevron, title and count on the right. The band's description shows as a tooltip on its title. Every band collapses, in every view, and the panel remembers what you collapse.

@@ -84,6 +84,7 @@ function toTokens(data) {
 		'--badge-fg': first(cm, 'badge.foreground'),
 		'--btn-hover': first(cm, 'button.hoverBackground'),
 		'--btn-border': first(cm, 'button.border'),
+		'--btn-separator': first(cm, 'button.separator'),
 		'--btn2-bg': first(cm, 'button.secondaryBackground'),
 		'--btn2-fg': first(cm, 'button.secondaryForeground'),
 		'--btn2-hover': first(cm, 'button.secondaryHoverBackground'),
