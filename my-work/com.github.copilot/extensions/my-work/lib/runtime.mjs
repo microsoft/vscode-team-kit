@@ -491,11 +491,13 @@ function summarize(state) {
 
 // Chats other than the panel's own (e.g. the nested My Work chat) write threads and My Work data
 // from their own extension host; watch those folders so the panel refreshes.
+// Files other panels and chats write (a classification stored from another chat, a dismissal in another panel).
+const SHARED_DATA_FILES = new Set(['priorities.json', 'notification-triage.json', 'issue-rules.json', 'activity.json', 'notification-groups.json']);
 function watchShared(onChange) {
 	let timer;
 	const fire = () => { clearTimeout(timer); timer = setTimeout(onChange, 300); };
 	const watchers = [];
-	for (const [dir, filter] of [[data.THREADS_DIR, () => true], [MY_WORK_DIR, n => !String(n).startsWith('.tmp-')], [data.DATA_DIR, n => n === 'priorities.json']]) {
+	for (const [dir, filter] of [[data.THREADS_DIR, () => true], [MY_WORK_DIR, n => !String(n).startsWith('.tmp-')], [data.DATA_DIR, n => SHARED_DATA_FILES.has(String(n))]]) {
 		try { mkdirSync(dir, { recursive: true }); watchers.push(fsWatch(dir, (_, name) => { if (filter(name)) fire(); })); } catch { /* best effort */ }
 	}
 	return () => { clearTimeout(timer); for (const w of watchers) w.close(); };

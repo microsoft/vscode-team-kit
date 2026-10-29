@@ -478,22 +478,26 @@ function renderSubtabs() {
 		const route = bulkItems('route').length;
 		const auto = bulkItems('auto').length;
 		const safe = bulkItems('dismiss').length;
-		const show = (id, count) => count || ui.notifFilter === id;
+		// Fixed slots so the bar never jumps: the bulk actions always show (disabled at 0), and the
+		// classify action keeps its place, turning into a spinner while the chat works.
 		const p = st.notifTriagePending;
 		const busy = p && !p.stalled;
+		const bulk = (id, icon, count, label) => actHtml(`data-bulk="${esc(id)}"${count || ui.notifFilter === id ? '' : ' disabled'}`, icon, count, count ? `${label}: ${count}` : `${label}: none right now`, ui.notifFilter === id);
 		const classify = busy
 			? busyActHtml(`${p.recompute ? 'Re-checking' : 'Classifying'} ${p.total - p.left} of ${p.total}`, `${p.total - p.left}/${p.total}`)
-			: `${st.untriaged ? actHtml('data-classify="new"', 'sparkle', st.untriaged, `Classify ${st.untriaged} new: ask the chat to classify the notifications that are new or changed since they were classified`) : ''}${actHtml('data-classify="recompute"', 'law', '', `Re-check: ask the chat to re-check what is not yet in Auto-dismiss / Safe to dismiss / Route, and move everything that doesn't need you into them${p?.stalled ? ' (last request stalled)' : ''}`)}`;
+			: st.untriaged
+				? actHtml('data-classify="new"', 'sparkle', st.untriaged, `Classify ${st.untriaged} new: ask the chat to classify the notifications that are new or changed since they were classified`)
+				: actHtml('data-classify="recompute"', 'law', '', `Re-check: ask the chat to re-check what is not yet in Auto-dismiss / Safe to dismiss / Route, and move everything that doesn't need you into them${p?.stalled ? ' (last request stalled)' : ''}`);
 		$('subtabs').innerHTML = '';
 		($('area-acts') || $('subtabs')).innerHTML = [
-			show('route', route) ? actHtml('data-bulk="route"', 'person', route, `Route: ${route} that belong to other owners`, ui.notifFilter === 'route') : '',
-			show('auto', auto) ? actHtml('data-bulk="auto"', 'check-all', auto, `Auto-dismiss: ${auto} your rules dismiss`, ui.notifFilter === 'auto') : '',
-			show('dismiss', safe) ? actHtml('data-bulk="dismiss"', 'clear-all', safe, `Safe to dismiss: ${safe}`, ui.notifFilter === 'dismiss') : '',
+			bulk('route', 'person', route, 'Route (belong to other owners)'),
+			bulk('auto', 'check-all', auto, 'Auto-dismiss (your rules dismiss these)'),
+			bulk('dismiss', 'clear-all', safe, 'Safe to dismiss'),
 			...notifGroups().filter(g => g.custom && g.bulk !== 'none').map(g => {
 				const count = bulkItems(g.id).length;
-				return show(g.id, count) ? actHtml(`data-bulk="${esc(g.id)}"`, 'tag', count, `${g.label}: ${count}${g.criteria ? ` (${g.criteria})` : ''}`, ui.notifFilter === g.id) : '';
+				return count || ui.notifFilter === g.id ? actHtml(`data-bulk="${esc(g.id)}"`, 'tag', count, `${g.label}: ${count}${g.criteria ? ` (${g.criteria})` : ''}`, ui.notifFilter === g.id) : '';
 			}),
-			classify,
+			`<span class="act-slot">${classify}</span>`,
 		].join('');
 		autoClassify();
 		return;

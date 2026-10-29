@@ -74,6 +74,7 @@ Code: `com.github.copilot/extensions/my-work/assets/` (`app.js`, `style.css`, `i
 - **One toolbar row per view:** the area picker, then an icon action bar, then Refresh.
   - Counts sit next to their icons, for example Route 2, Auto-dismiss 7, Safe to dismiss 12.
   - Labels and status ("Updated 1m ago") go in tooltips.
+  - Actions keep fixed places: show them disabled at 0 rather than hiding them, and let a busy state replace an action in its own slot, so the bar never jumps.
   - Don't add rows of pills. A filter that switches on is a toggle action using `--toggle-*`.
 - **Search works like the Settings and Keyboard Shortcuts editors.**
   - One full-width input with its actions inside it on the right: Group by (an icon over an invisible native select), Recent filters, Refresh.

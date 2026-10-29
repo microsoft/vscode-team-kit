@@ -1210,3 +1210,6 @@ body > * { min-width: 0; }
 .vs-hover { position: fixed; z-index: 1000; max-width: 360px; padding: 4px 8px; border-radius: 4px; font-size: 12px; line-height: 1.4; white-space: pre-line; overflow-wrap: anywhere; pointer-events: none;
 	background: var(--hover-widget-bg, var(--surface)); color: var(--hover-widget-fg, var(--fg)); border: 1px solid var(--hover-widget-border, var(--line)); box-shadow: 0 2px 8px rgba(0, 0, 0, .16); }
 .rail-btn::after, [data-density="compact"] .rail-btn::after { display: none; }
+/* the classify slot keeps its width whether it shows an icon, a count or the spinner */
+.act-slot { display: inline-flex; min-width: 44px; justify-content: flex-start; }
+.act:disabled .act-n { color: var(--faint); }
