@@ -72,6 +72,7 @@ Install any plugin directly in VS Code:
 | Plugin | What it does |
 |---|---|
 | [pr-studio](pr-studio/) | `/pr-studio:generate-video <PR>` makes a short narrated explainer video of a pull request, checked against the diff and reviewed before it's delivered; `/pr-studio:generate-presentation <PR>` makes a slide deck of it in the same look, with every code line checked against the PR |
+| [changelog-videos](changelog-videos/) | `/changelog-videos:generate-changelog-video [date]` makes the daily VS Code changelog video: about a minute on the top five picks of the changelog report, each recorded in VS Code (the Agents window included) or drawn when it can't be, with arrows to what changed, checked against each PR and reviewed before it's delivered |
 
 ## How we use these
 
