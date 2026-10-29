@@ -8,14 +8,22 @@ import { createTimelineServer } from './server.mjs';
 const instances = new Map();
 let source;
 let starting;
+let stopping;
 let session;
 
 async function getSource() {
+	if (stopping) {
+		await stopping;
+	}
 	if (!starting) {
-		source = new TimelineSource(session);
-		starting = source.start().then(() => source).catch(error => {
-			source.dispose();
-			starting = undefined;
+		const next = new TimelineSource(session);
+		source = next;
+		starting = next.start().then(() => next).catch(async error => {
+			await next.dispose();
+			if (source === next) {
+				source = undefined;
+				starting = undefined;
+			}
 			throw new CanvasError('HISTORY_UNAVAILABLE', `Failed to load session history: ${error.message}`);
 		});
 	}
@@ -48,11 +56,14 @@ session = await joinSession({
 		actions: [
 			{
 				name: 'getStatus',
-				description: 'Return timeline event counts and any loading error.',
+				description: 'Return timeline event counts, current tool count, and any loading errors.',
 				async handler({ instanceId }) {
 					await instance(instanceId);
 					const snapshot = source.snapshot();
-					return { sessionId: snapshot.sessionId, totalRecords: snapshot.totalRecords, visibleEvents: snapshot.events.length, error: snapshot.error };
+					return {
+						sessionId: snapshot.sessionId, totalRecords: snapshot.totalRecords, visibleEvents: snapshot.events.length, error: snapshot.error, persistenceError: snapshot.persistenceError,
+						currentTools: snapshot.tools?.length ?? null, toolsError: snapshot.toolsError,
+					};
 				},
 			},
 			{
@@ -91,8 +102,15 @@ session = await joinSession({
 				await (await pending).close();
 			}
 			if (!instances.size) {
-				source?.dispose();
+				const closing = source;
+				source = undefined;
 				starting = undefined;
+				stopping = closing?.dispose();
+				try {
+					await stopping;
+				} finally {
+					stopping = undefined;
+				}
 			}
 		},
 	})],

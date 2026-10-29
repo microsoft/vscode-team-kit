@@ -28,11 +28,23 @@
 			<label><input id="follow" type="checkbox"> Follow latest</label>
 			<label><input id="announcements" type="checkbox" checked> Announce updates</label>
 		</div>
-		<p id="status" role="status" aria-live="polite">Loading session history...</p>
+		<div class="status-row">
+			<p id="status" role="status" aria-live="polite">Loading session history...</p>
+			<button id="tools" class="link" type="button" aria-expanded="false" aria-controls="tools-panel">Current tools</button>
+		</div>
+		<section id="tools-panel" aria-labelledby="tools-summary" hidden>
+			<h2 id="tools-summary">Current tools</h2>
+			<p>Current main-agent tool catalog, not a historical per-request inventory. Deferred tools are discoverable through tool search, not necessarily loaded for the model. Find includes this catalog; Text view and Export events cover event history only.</p>
+			<p id="tools-updated" class="meta"></p>
+			<p id="tools-error" role="alert" hidden></p>
+			<div id="tools-content" tabindex="0"></div>
+		</section>
 		<p id="error" role="alert" hidden></p>
 	</header>
 	<div class="layout">
-		<nav id="request-nav" aria-label="User requests"><h2>Requests</h2><ol id="requests"></ol></nav>
+		<aside id="sidebar" aria-label="Session navigation">
+			<nav id="request-nav" aria-label="User requests"><h2>Requests</h2><ol id="requests"></ol></nav>
+		</aside>
 		<main id="events" tabindex="-1" aria-label="Session timeline"></main>
 	</div>
 	<dialog id="dialog" aria-labelledby="dialog-title">

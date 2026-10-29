@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.1.0
+
+- Persist completed request tool snapshots through the SDK session-workspace file API and restore them after extension restarts without backfilling older requests.
+- Prune snapshots for removed requests, serialize and flush pending writes on close, and surface unsupported storage or read/write failures without hiding event history.
+- Sort Current tools and request Tools-card links alphabetically, with non-deferred tools before deferred tools; keep Find in the same order.
+- Start request Tools cards with links to individual tool metadata sections.
+- Include Current tools metadata in Find alongside request Tools cards, automatically expanding and highlighting matching tool details.
+- Keep current-catalog matches independent of event category filters and update them when the live catalog changes.
+- Expand Current tools inline below the record and timeline-event counts instead of opening a modal dialog.
+- Show each request's tool catalog snapshot in a separate expandable Tools card directly under its User card, using the System category filter.
+- Label snapshots as observed catalogs, not exact model-request payloads; older requests are not backfilled.
+- Show the current main-agent tool catalog with total/deferred counts, descriptions, and input schemas, refreshing on tool changes.
+- Keep current inventory separate from historical events and report unsupported hosts or inventory failures explicitly.
+
 ## 1.0.0 (2026-10-22)
 
 - BREAKING: Require Agent Plugins 1.0 with a root `plugin.json`. Marketplace metadata now lives only in `marketplace.json`; legacy manifests are removed.

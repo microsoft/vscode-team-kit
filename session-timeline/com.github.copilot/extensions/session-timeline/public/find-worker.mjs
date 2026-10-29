@@ -6,7 +6,13 @@ let generation = 0;
 self.onmessage = ({ data }) => {
 	generation++;
 	if (data.type === 'index') {
-		events = data.events;
+		events = [
+			...(data.tools ?? []).map(tool => ({
+				id: tool.name, target: 'current-tools',
+				sections: [{ content: JSON.stringify(tool, null, 2) }], rawRecords: [],
+			})),
+			...data.events,
+		];
 	} else if (data.type === 'find') {
 		void find(data.query, data.id, generation);
 	}
@@ -27,7 +33,10 @@ async function find(query, id, current) {
 			let offset = 0;
 			let occurrence = 0;
 			while (needle && (offset = haystack.indexOf(needle, offset)) !== -1) {
-				readableMatches.push({ id: event.id, section, occurrence: occurrence++ });
+				readableMatches.push({
+					id: event.id, section, occurrence: occurrence++,
+					...(event.target ? { target: event.target } : {}),
+				});
 				offset += needle.length;
 				if (performance.now() >= deadline) {
 					await new Promise(resolve => setTimeout(resolve, 0));
