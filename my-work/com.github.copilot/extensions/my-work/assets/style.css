@@ -880,3 +880,4 @@ html.narrow .title-sub { gap: 8px; }
 @media (hover: none) { .group-h .group-tools { opacity: 1; } }
 .codicon-note::before { content: "\eb26"; }
 .codicon-gear::before { content: "\eaf8"; }
+.codicon-beaker::before { content: "\ea79"; }

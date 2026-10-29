@@ -1280,6 +1280,12 @@ function ghSlot(key) {
 }
 
 // ---------- Recommended next actions ----------
+const REPRO_PROMPT = [
+	'Try to reproduce this bug with the reporter\'s steps, and tell me whether it reproduces.',
+	'Read the issue and its latest comments for the steps, version and OS. Use the local clone of the repository and run it the way the repository supports (for example a dev build); follow the steps exactly, on the latest code.',
+	'Do not change code, and do not comment, label or otherwise change GitHub.',
+	'Report back with: Reproduced (yes / no / partly), what you did and saw (with screenshots or logs if you have them), any difference from the report (version, OS, settings), and the next step you recommend (fix session, ask the reporter for info, or close).',
+].join(' ');
 // Rule-based suggestions from the live GitHub state, the chat's triage, Sweeper and recorded outcomes.
 // Actions either reuse a panel action (data-act) or ask the chat (which still needs approval for GitHub changes).
 function recommendations(key) {
@@ -1367,11 +1373,16 @@ function recommendations(key) {
 	if (p.group && p.proposedComment && n) {
 		recs.push({ icon: 'law', text: `Sweeper proposes: ${APPROVE_LABEL[p.group]}`, why: `confidence ${Number(p.confidence ?? 0).toFixed(2)}`, actions: [ask('Review proposal', `Review Sweeper's "${APPROVE_LABEL[p.group]}" proposal for this issue against the live issue, show me the comment, and ask me to approve with choices.`)] });
 	}
+	const text = g.body.replace(/<!--[\s\S]*?-->/g, '');
+	const isBug = labels.includes('bug') || det?.readiness?.itemType === 'bug' || /bug_report_template|Type:\s*\**\s*Bug\b/i.test(g.body);
+	const isFeature = !isBug && (labels.includes('feature-request') || det?.readiness?.itemType === 'feature' || /feature_request_template|Type:\s*\**\s*Feature Request/i.test(g.body));
+	const hasSteps = /steps to reproduce|repro steps|^\s*1[.)]\s/im.test(text);
+	const hasRepro = hasSteps || /repro|user-attachments|\.(png|gif|mp4)/i.test(text);
+	// A bug with steps: the issue's own chat can try them and report whether it reproduces.
+	if (!g.isPr && isBug && hasSteps && !labels.includes('info-needed') && outcome?.decision !== 'fixing') {
+		recs.push({ icon: 'beaker', text: 'Has steps to reproduce — check whether it reproduces.', actions: [ask('Reproduce', REPRO_PROMPT, !recs.length)] });
+	}
 	if (!g.isPr && !human.length && !labels.includes('info-needed') && !p.group) {
-		const text = g.body.replace(/<!--[\s\S]*?-->/g, '');
-		const isBug = labels.includes('bug') || det?.readiness?.itemType === 'bug' || /bug_report_template|Type:\s*\**\s*Bug\b/i.test(g.body);
-		const isFeature = !isBug && (labels.includes('feature-request') || det?.readiness?.itemType === 'feature' || /feature_request_template|Type:\s*\**\s*Feature Request/i.test(g.body));
-		const hasRepro = /steps to reproduce|repro|^\s*1[.)]\s/im.test(text) || /user-attachments|\.(png|gif|mp4)/i.test(text);
 		if (isFeature || (!isBug && /^(?:feature|add|support|allow|option)\b|would like/i.test(g.title + ' ' + text.slice(0, 400)))) {
 			recs.push({ icon: 'lightbulb', text: 'Feature request with no discussion yet.', actions: [ask('Backlog or close?', 'This is a feature request with no discussion. Check for duplicates and demand, then recommend keeping it (e.g. Backlog Candidates milestone) or closing it, with choices.', !recs.length)] });
 		} else if (!hasRepro) {
