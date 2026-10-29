@@ -2,6 +2,7 @@
 
 ## 1.0.7 (2026-10-28)
 
+- Fixed: dismissing a notification only marked it as read, so it stayed in your github.com/notifications inbox. Dismiss now marks it **Done** (`DELETE /notifications/threads/{id}`).
 - New **my-work-ui** skill: the panel's UX principles (VS Code tokens and shapes, density, sash, bands, toolbars, search, rows, details sections, accessibility) plus a checklist for every UI change, so anyone who rebuilds or customises the panel keeps it consistent.
 - Fixed: the details header's split button was drawn as two separate buttons, and wide content could push the details pane past the window.
 - New look across all views:

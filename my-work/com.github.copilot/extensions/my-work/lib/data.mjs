@@ -701,7 +701,8 @@ export async function dismissNotification({ id, unsubscribe }) {
 	if (unsubscribe) {
 		await run('gh', ['api', '--method', 'DELETE', `/notifications/threads/${id}/subscription`]);
 	}
-	await run('gh', ['api', '--method', 'PATCH', `/notifications/threads/${id}`]);
+	// DELETE marks the thread "done" (removed from the GitHub inbox); PATCH would only mark it read.
+	await run('gh', ['api', '--method', 'DELETE', `/notifications/threads/${id}`]);
 	if (notifCache.data) {
 		notifCache.data = notifCache.data.filter(n => n.id !== id);
 	}
