@@ -886,3 +886,5 @@ html.narrow .title-sub { gap: 8px; }
 .find-group-h:hover { color: var(--muted); }
 .find-group-h .codicon { font-size: 12px; transition: transform .12s; }
 .find-group-h[aria-expanded="true"] .codicon { transform: rotate(90deg); }
+.stage-h { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--faint); padding: 6px 10px 2px 12px; }
+.stage-h .group-n { margin-left: 2px; }

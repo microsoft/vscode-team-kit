@@ -14,7 +14,7 @@
 - My Work shows when work is finished instead of dropping it silently:
   - Issues and PRs you added locally or to My priorities get a **Closed** / **Merged** tag; sessions get **Done** (marked done in the Agents window) or **PR merged** / **PR closed** from their latest pull request.
   - Finished rows are dimmed and stay until you clear them, with a **Clear** quick action on each and **Clear done** on the group.
-  - Issues closed in the current or next milestone in the last 7 days fold into a **Closed this week** line at the bottom of the group.
+  - Every My Work group splits into **In progress** (has a running session, or is a session), **To do**, and a collapsed **Done** at the bottom (closed or merged items, finished sessions, and milestone issues closed in the last 7 days). Sub-headers only show when a group has more than one kind.
 - Every My Work section (MSRC, current and next milestone, My priorities) can be collapsed from its header; the panel remembers which are collapsed.
 
 ## 1.0.6 (2026-10-28)
