@@ -1925,14 +1925,19 @@ function renderWorkHomeInto(el) {
 }
 
 // Find work: pull candidates into My Work from live GitHub searches.
-const FIND_SOURCES = [['bugs', 'Bugs', 'bug'], ['features', 'Features', 'lightbulb'], ['area', 'Area', 'tag'], ['reviews', 'Reviews', 'git-pull-request'], ['mine', 'All', 'issues']];
+const FIND_SOURCES = [['bugs', 'Bugs', 'bug'], ['features', 'Features', 'lightbulb'], ['mine', 'All', 'issues'], ['reviews', 'Reviews', 'git-pull-request']];
 // The filter narrows the selected source and applies on Enter. GitHub search syntax (author:x, label:"y") is used
 // as is; anything else goes to the chat, which turns it into qualifiers using the user's memory.
 const looksLikeQuery = text => /(^|\s)-?[a-z][a-z-]*:\S/i.test(text);
+// "area" was a source of its own in earlier versions; it is now All with an area picked.
+function findSource() {
+	if (ui.findSource === 'area') ui.findSource = 'mine';
+	return ui.findSource || 'bugs';
+}
 function findSourceParams() {
-	const src = ui.findSource || 'bugs';
-	const area = ui.findArea || ui.state.areas?.find(a => a.labels?.length)?.id || '';
-	return `source=${src}${src === 'area' ? `&area=${encodeURIComponent(area)}` : ''}`;
+	const src = findSource();
+	const area = src === 'reviews' ? '' : ui.findArea || '';
+	return `source=${src}${area ? `&area=${encodeURIComponent(area)}` : ''}`;
 }
 function findQueryString() {
 	return `${findSourceParams()}${ui.findRefine ? `&refine=${encodeURIComponent(ui.findRefine.query)}` : ''}`;
@@ -1963,9 +1968,9 @@ async function applyFindFilter(text) {
 }
 function renderFindWorkInto(el) {
 	restoreBrowse();
-	const src = ui.findSource || 'bugs';
+	const src = findSource();
 	const areas = (ui.state.areas || []).filter(a => a.labels?.length);
-	const area = ui.findArea || areas[0]?.id || '';
+	const area = ui.findArea || '';
 	const q = findQueryString();
 	if (ui.find?.q !== q && !ui.find?.loading) setTimeout(loadFindWork);
 	const filter = ui.findRefine;
@@ -1974,7 +1979,8 @@ function renderFindWorkInto(el) {
 	const nxt = ui.work?.data?.milestones?.find(m => m.role === 'next');
 	const tips = { bugs: 'My open bugs', features: 'My open feature requests', area: 'My open issues in a feature area', reviews: 'Open PRs that request my review', mine: 'All my open issues' };
 	const pills = FIND_SOURCES.map(([id, label, icon]) => `<button type="button" class="seg-btn${src === id ? ' on' : ''}" data-find-src="${id}" aria-pressed="${src === id}" title="${esc(tips[id])}"><i class="codicon codicon-${icon}" aria-hidden="true"></i>${esc(label)}</button>`).join('');
-	const areaSel = src === 'area' ? `<label class="sr-only" for="find-area">Feature area</label><select id="find-area" class="find-area">${areas.map(a => `<option value="${esc(a.id)}"${a.id === area ? ' selected' : ''}>${esc(a.name)}</option>`).join('')}</select>` : '';
+	// The feature area narrows Bugs, Features or All (PRs awaiting review are not filtered by area).
+	const areaSel = areas.length ? `<label class="sr-only" for="find-area">Feature area</label><select id="find-area" class="find-area" ${src === 'reviews' ? 'disabled title="Reviews are not filtered by feature area"' : 'title="Show only issues in this feature area"'}><option value="">All areas</option>${areas.map(a => `<option value="${esc(a.id)}"${a.id === area ? ' selected' : ''}>${esc(a.name)}</option>`).join('')}</select>` : '';
 	const row = i => {
 		const has = inMyWork(i.key);
 		const isBug = i.labels.includes('bug');
@@ -2377,7 +2383,7 @@ function switchTab(tab) {
 	if (reopen) select(reopen.kind, reopen.id).then(() => renderAreaBar());
 }
 function saveBrowse() {
-	const browse = { source: ui.findSource || 'bugs', area: ui.findArea || '', refine: ui.findRefine || null };
+	const browse = { source: findSource(), area: ui.findArea || '', refine: ui.findRefine || null };
 	const patch = { browse };
 	// Every filter you apply is kept (most recent first, no duplicates) so you can run it again.
 	if (browse.refine) {
@@ -2393,7 +2399,7 @@ function browseHistoryHtml() {
 	const areaName = id => (ui.state.areas || []).find(a => a.id === id)?.name || id;
 	return `<div class="find-history dcard" role="menu" aria-label="Recent filters">
 		${list.length ? list.map((h, i) => `<button type="button" class="find-history-item" role="menuitem" data-find-history-run="${i}" title="${esc(h.refine.query)}">
-			<span>${esc(h.refine.text || h.refine.query)}</span><span class="cd">${esc(h.source === 'area' ? `Area: ${areaName(h.area)}` : label(h.source))} · ${esc(agoText(h.at))}</span></button>`).join('')
+			<span>${esc(h.refine.text || h.refine.query)}</span><span class="cd">${esc([label(h.source === 'area' ? 'mine' : h.source), h.area ? areaName(h.area) : ''].filter(Boolean).join(' · '))} · ${esc(agoText(h.at))}</span></button>`).join('')
 		+ '<button type="button" class="link-btn find-history-clear" data-find-history-clear>Clear history</button>'
 		: '<p class="cd" style="padding:8px 10px;margin:0">Filters you apply show up here.</p>'}
 	</div>`;

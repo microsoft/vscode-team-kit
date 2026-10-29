@@ -212,7 +212,9 @@ export class TriageServer {
 	async browseSource(source, areaId) {
 		source = String(source || '');
 		if (!['bugs', 'features', 'area', 'reviews', 'mine'].includes(source)) throw Object.assign(new Error('unknown source'), { status: 400 });
-		if (source !== 'area') return { source, labels: [] };
+		// "area" was a source of its own in earlier versions: it is All issues narrowed to an area.
+		if (source === 'area') source = 'mine';
+		if (!areaId || source === 'reviews') return { source, labels: [] };
 		const area = (await data.getAreas()).find(a => a.id === areaId);
 		if (!area?.labels?.length) throw Object.assign(new Error('unknown area'), { status: 400 });
 		return { source, labels: area.labels };

@@ -148,12 +148,13 @@ export async function sourceQuery(source, { labels = [], refine = '' } = {}) {
 	// A filter that asks for closed (or explicitly open) items replaces the default is:open.
 	const state = /(^|\s)is:(open|closed)\b/i.test(extra) ? '' : ' is:open';
 	const base = `org:${config().org}${state} archived:false`;
-	const q = source === 'bugs' ? `${base} is:issue assignee:${me} label:bug`
-		: source === 'features' ? `${base} is:issue assignee:${me} label:feature-request`
-			: source === 'mine' ? `${base} is:issue assignee:${me}`
+	// A feature area narrows any issue source: its labels are OR-ed (label:"a","b") on top of the source's own.
+	const area = labels.length && source !== 'reviews' ? ` label:${labels.map(l => JSON.stringify(l)).join(',')}` : '';
+	const q = source === 'bugs' ? `${base} is:issue assignee:${me} label:bug${area}`
+		: source === 'features' ? `${base} is:issue assignee:${me} label:feature-request${area}`
+			: source === 'mine' || source === 'area' ? `${base} is:issue assignee:${me}${area}`
 				: source === 'reviews' ? `${base} is:pr user-review-requested:${me}`
-					: source === 'area' && labels.length ? `${base} is:issue assignee:${me} label:${labels.map(l => JSON.stringify(l)).join(',')}`
-						: null;
+					: null;
 	return q && extra ? `${q} ${extra}` : q;
 }
 export async function workSource(source, { labels = [], refine = '', fresh = false } = {}) {
