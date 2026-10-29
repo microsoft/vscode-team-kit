@@ -105,6 +105,7 @@ Code: `com.github.copilot/extensions/my-work/assets/` (`app.js`, `style.css`, `i
 
 ## 6. Behaviour
 
+- **Hovers:** native `title` tooltips don't show in the canvas webview. A shared VS Code-style hover widget (`.vs-hover`, `editorHoverWidget.*` colours, 500ms delay) shows any element's `title`. Icon-only buttons fall back to their `aria-label`, and the activity bar uses `data-label`. Every action and every meaningful icon needs a `title`. Purely decorative icons beside visible text don't.
 - **Accessibility:**
   - Every icon-only control has an `aria-label` and a tooltip.
   - Headers and toggles are buttons with `aria-expanded`, and Enter or Space toggles them.

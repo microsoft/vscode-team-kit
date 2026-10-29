@@ -410,7 +410,7 @@ function renderAreaBar() {
 	const auto = shown.filter(a => a.auto).sort((a, b) => (counts[b.id] || 0) - (counts[a.id] || 0) || a.name.localeCompare(b.name));
 	const rest = shown.filter(a => a.id === 'others' || a.id === NO_AREA);
 	const opts = [...mine, ...auto, ...rest].map(opt).join('');
-	$('areabar').innerHTML = `<label class="area-pick${f ? ' active' : ''}"><i class="codicon codicon-filter" aria-hidden="true"></i><span class="sr-only">Feature area</span>
+	$('areabar').innerHTML = `<label class="area-pick${f ? ' active' : ''}" title="Filter by feature area"><i class="codicon codicon-filter" aria-hidden="true"></i><span class="sr-only">Feature area</span>
 		<select id="area-filter" aria-label="Filter by feature area"><option value="">All areas (${total})</option>${opts}</select></label>
 		${f ? `<button type="button" class="link-btn" id="area-clear" title="Show all areas">Clear</button><span class="cd area-note">all batches</span>` : ''}
 		<span class="subtabs-spacer"></span>
@@ -2211,8 +2211,8 @@ function renderFindWorkInto(el) {
 		const chips = i.labels.filter(l => !['bug', 'feature-request'].includes(l)).slice(0, 2).map(l => `<span class="chip">${esc(l)}</span>`).join('');
 		const add = (b, label, title) => `<button type="button" class="find-btn" data-act="issue-move" data-key="${esc(i.key)}" data-milestone="${b}" title="${esc(title)}">${esc(label)}</button>`;
 		return `<li class="find-row${has ? ' has' : ''}"${has ? '' : ` draggable="true" data-new-issue="${esc(i.key)}"`}>
-			<span class="find-grip" aria-hidden="true">${has ? '' : '<i class="codicon codicon-gripper"></i>'}</span>
-			<i class="codicon codicon-${icon} find-icon${isBug ? ' bug' : i.isPr ? ' pr' : ''}" aria-hidden="true"></i>
+			<span class="find-grip" aria-hidden="true"${has ? '' : ' title="Drag into a group on the left to plan it"'}>${has ? '' : '<i class="codicon codicon-gripper"></i>'}</span>
+			<i class="codicon codicon-${icon} find-icon${isBug ? ' bug' : i.isPr ? ' pr' : ''}" aria-hidden="true" title="${i.isPr ? 'Pull request' : isBug ? 'Bug' : i.labels.includes('feature-request') ? 'Feature request' : 'Issue'}"></i>
 			<div class="find-main">
 				<button type="button" class="find-title" data-browse-open="${esc(i.key)}" title="Open ${esc(shortKey(i.key))} here">${esc(i.title)}</button>
 				<div class="find-meta"><span class="find-num">${esc(shortKey(i.key))}</span>${i.isPr ? `<span>@${esc(i.author)}</span>` : ''}${i.milestone ? `<span>${esc(i.milestone)}</span>` : ''}${chips}<span class="find-age">${esc(ago(i.updatedAt))}</span></div>
@@ -3637,4 +3637,67 @@ document.addEventListener('error', e => {
 			} catch (error) { toast(`Paste failed: ${error.message}`, true); }
 		}, 120);
 	}, true);
+}
+
+// VS Code-style hover: native title tooltips don't show inside the canvas webview, so every element
+// with a title (and the activity bar's labels) gets a hover widget instead, after a short delay like VS Code.
+{
+	const hover = document.createElement('div');
+	hover.className = 'vs-hover';
+	hover.setAttribute('role', 'tooltip');
+	hover.hidden = true;
+	document.body.appendChild(hover);
+	let target = null, timer = 0, px = -1, py = -1;
+	// Icon-only controls without a title fall back to their aria-label.
+	const iconOnly = el => el.matches('button, a, [role="button"]') && !el.textContent.trim();
+	const textOf = el => el.dataset.hover || el.dataset.label || (iconOnly(el) ? el.getAttribute('aria-label') || '' : '');
+	const adopt = el => {
+		// Move the native title aside so the browser tooltip never doubles up with ours.
+		if (el.hasAttribute('title')) {
+			const t = el.getAttribute('title');
+			if (t) el.dataset.hover = t;
+			el.removeAttribute('title');
+		}
+		return textOf(el);
+	};
+	const hostOf = node => { const el = node?.closest?.('[title], [data-hover], .rail-btn[data-label], button[aria-label], a[aria-label]'); return el && (el.matches('[title], [data-hover], [data-label]') || iconOnly(el)) ? el : null; };
+	const hide = () => { clearTimeout(timer); timer = 0; target = null; hover.hidden = true; };
+	const show = el => {
+		// Re-rendered lists replace elements: use whatever now sits under the pointer.
+		if (!el.isConnected && px >= 0) { el = hostOf(document.elementFromPoint(px, py)); if (el) { adopt(el); target = el; } }
+		const text = el && textOf(el);
+		if (!text || !el.isConnected) return hide();
+		hover.textContent = text;
+		hover.hidden = false;
+		const r = el.getBoundingClientRect();
+		const h = hover.getBoundingClientRect();
+		const rail = el.closest('.rail');
+		let x, y;
+		if (rail) { x = r.right + 6; y = r.top + (r.height - h.height) / 2; hover.dataset.side = 'right'; }
+		else {
+			x = r.left + (r.width - h.width) / 2;
+			y = r.bottom + 6; hover.dataset.side = 'below';
+			if (y + h.height > innerHeight - 4) { y = r.top - h.height - 6; hover.dataset.side = 'above'; }
+		}
+		hover.style.left = `${Math.round(Math.max(4, Math.min(x, innerWidth - h.width - 4)))}px`;
+		hover.style.top = `${Math.round(Math.max(4, y))}px`;
+	};
+	const schedule = (el, delay) => {
+		if (el === target) return;
+		hide();
+		if (!adopt(el)) return;
+		target = el;
+		timer = setTimeout(() => show(el), hover.hidden ? delay : 0);
+	};
+	document.addEventListener('pointermove', e => { px = e.clientX; py = e.clientY; }, { passive: true });
+	document.addEventListener('pointerover', e => { const el = hostOf(e.target); if (el) schedule(el, 500); else if (target) hide(); });
+	document.addEventListener('pointerout', e => { if (target && e.relatedTarget && !target.contains(e.relatedTarget) && hostOf(e.relatedTarget) !== target) hide(); });
+	document.documentElement.addEventListener('pointerleave', hide);
+	document.addEventListener('focusin', e => { const el = hostOf(e.target); if (el === e.target && e.target.matches(':focus-visible')) schedule(el, 0); });
+	document.addEventListener('focusout', () => hide());
+	for (const ev of ['pointerdown', 'keydown', 'wheel']) document.addEventListener(ev, hide, { capture: true, passive: true });
+	addEventListener('blur', hide);
+	// Titles set after render (e.g. Collapse All toggling) keep working: adopt them on the fly.
+	new MutationObserver(list => { for (const m of list) if (m.target === target && m.attributeName === 'title') { adopt(target); if (!hover.hidden) show(target); } })
+		.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['title'] });
 }
