@@ -71,7 +71,7 @@ Code: `com.github.copilot/extensions/my-work/assets/` (`app.js`, `style.css`, `i
 
 ## 4. Toolbars and actions
 
-- **One toolbar row per view:** the area picker, then an icon action bar, then Refresh.
+- **One toolbar row per view:** the area picker with its filter actions right next to it, then (on the right) Collapse All and Refresh.
   - Counts sit next to their icons, for example Route 2, Auto-dismiss 7, Safe to dismiss 12.
   - Labels and status ("Updated 1m ago") go in tooltips.
   - Actions keep fixed places: show them disabled at 0 rather than hiding them, and let a busy state replace an action in its own slot, so the bar never jumps.

@@ -415,8 +415,8 @@ function renderAreaBar() {
 	$('areabar').innerHTML = `<label class="area-pick${f ? ' active' : ''}" title="Filter by feature area"><i class="codicon codicon-filter" aria-hidden="true"></i><span class="sr-only">Feature area</span>
 		<select id="area-filter" aria-label="Filter by feature area"><option value="">All areas (${total})</option>${opts}</select></label>
 		${f ? `<button type="button" class="link-btn" id="area-clear" title="Show all areas">Clear</button><span class="cd area-note">all batches</span>` : ''}
-		<span class="subtabs-spacer"></span>
 		<span class="actionbar" id="area-acts" role="toolbar" aria-label="Actions"></span>
+		<span class="subtabs-spacer"></span>
 		${COLLAPSE_ACT}${refreshActHtml(ui.refreshing, ui.tab === 'notifications' && ui.state.notificationsFetchedAt ? `Updated ${agoText(ui.state.notificationsFetchedAt)}` : '', ui.tab === 'notifications' ? 'Fetch notifications from GitHub now' : 'Reload the index, notifications and live data')}`;
 	if (keptActs && $('area-acts')) $('area-acts').innerHTML = keptActs;
 }

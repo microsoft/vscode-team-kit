@@ -2,6 +2,7 @@
 
 ## 1.0.8 (2026-10-29)
 
+- The filter actions (Route, Auto-dismiss, Safe to dismiss, Re-check) sit right next to the area dropdown; Collapse All and Refresh stay on the right.
 - Fixed: the toolbar actions (Route, Auto-dismiss, Safe to dismiss, Re-check) vanished every 30 seconds and during Refresh, when the bar redrew its "Updated …" time.
 
 ## 1.0.7 (2026-10-28)
