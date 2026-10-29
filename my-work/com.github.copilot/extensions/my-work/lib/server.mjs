@@ -11,7 +11,7 @@ import { getVsCodeTheme, watchVsCodeTheme } from './vscodeTheme.mjs';
 import { getMyWork, moveToMilestone, issueDetails, closingIssues, workSource, sourceQuery, myLogin, doneState } from './work.mjs';
 import { config } from './config.mjs';
 import { saveImage, imagePaths, MAX_IMAGE_BYTES } from './attachments.mjs';
-import { listSections, saveSection, moveSection, removeSection, listNotes, getNote, saveNote, removeNote, getSection, isGroup } from './sections.mjs';
+import { listSections, saveSection, setSectionOrder, moveSection, removeSection, listNotes, getNote, saveNote, removeNote, getSection, isGroup } from './sections.mjs';
 import { sessionsFor, sessionsMentioning, sessionsById, recentSessions, issueCandidates, sessionTranscript } from './sessions.mjs';
 import { listPinned, pinSession, unpinSessions, parseSessionRef, getMyWorkChat, getHiddenSessions, setSessionHidden, setSessionBucket, BUCKETS, moveBucket, listPinnedIssues, pinIssue, setIssueBucket, unpinIssues, markSummaryRequested, markSessionSummaryRequested, getSessionSummaries, getIssueChat, setIssueChat, setMyWorkChat } from './workSessions.mjs';
 
@@ -569,6 +569,7 @@ export class TriageServer {
 			case '/api/section': {
 				if (body.op === 'save') result = await saveSection({ id: body.id || undefined, name: body.name, instructions: body.instructions, linkPattern: body.linkPattern });
 				else if (body.op === 'move') result = await moveSection(String(body.id || ''), body.dir === 'up' ? 'up' : 'down');
+				else if (body.op === 'order') result = await setSectionOrder(String(body.id || ''), body.order);
 				else if (body.op === 'remove') {
 					const id = String(body.id || '');
 					result = await removeSection(id);

@@ -287,12 +287,17 @@ function listGroups() {
 		const collapsed = !!ui.state?.settings?.recentCollapsed;
 		const recentGroup = recent.length ? [{ header: 'Active sessions', role: 'recent', collapsible: true, collapsed, keepEmpty: true, count: recent.length, items: collapsed ? [] : recent.map(z => ({ kind: 'recentsess', id: z.id, z })) }] : [];
 		const folded = new Set(ui.state?.settings?.collapsedGroups || []);
-		// Your own sections first: their notes (by due date), then issues and sessions placed in them.
+		// Your own sections first, in the order you arranged them (new items: notes by due date, then issues, then sessions).
 		const sectionGroups = sections.map(x => {
 			const notes = (ui.work.data.notes || []).filter(n => n.section === x.id).sort((a, b) => due(a) - due(b));
 			const draft = ui.noteDraft?.section === x.id ? [{ ...ui.noteDraft, draft: true }] : [];
+			const rank = new Map((x.order || []).map((r, i) => [r, i]));
+			const items = notes.map(n => ({ kind: 'note', id: n.id, n, group: x.id })).concat(issuesIn(x.id), sessIn(x.id))
+				.map(i => ({ ...i, secRef: secRefOf(i) }))
+				.map((i, at) => ({ i, at, r: rank.get(i.secRef) ?? Infinity }))
+				.sort((a, b) => (a.r - b.r) || (a.at - b.at)).map(v => v.i);
 			return { header: x.name, role: x.id, section: x, keepEmpty: true, drop: true, toggle: true, collapsed: folded.has(x.id),
-				items: [...draft, ...notes].map(n => ({ kind: 'note', id: n.id, n, group: x.id })).concat(issuesIn(x.id), sessIn(x.id)) };
+				items: [...draft.map(n => ({ kind: 'note', id: n.id, n, group: x.id })), ...items] };
 		});
 		return [...sectionGroups, ...ui.work.data.milestones.map(m => ({ header: label(m), role: m.role, keepEmpty: true, drop: true, toggle: true, collapsed: folded.has(m.role),
 			items: m.role === 'priorities' ? prioItems(m) : [...m.items.filter(w => !w.state && !inSection.has(w.key)).map(w => ({ kind: 'work', id: w.key, w, milestone: m, group: m.role })), ...issuesIn(m.role), ...sessIn(m.role)],
@@ -695,6 +700,26 @@ function closedFoldHtml(g) {
 	const open = !!ui.closedOpen?.[g.role];
 	return `<button type="button" class="closed-fold" data-closed-fold="${esc(g.role)}" aria-expanded="${open}"><i class="codicon codicon-chevron-right" aria-hidden="true"></i><i class="codicon codicon-pass-filled" aria-hidden="true"></i>Closed this week<span class="group-n">${g.closed.length}</span></button>${open ? g.closed.map(rowHtml).join('') : ''}`;
 }
+// How an item is named in a section's saved order.
+function secRefOf(i) {
+	return i.kind === 'note' ? `note:${i.n.id}` : i.kind === 'pinsess' ? `session:${i.p.id}` : `issue:${i.w.key}`;
+}
+// Save a section's order from its items as listed now, with `ref` moved to `to` (index), or by `dir` (up/down).
+async function reorderSection(sectionId, ref, { to, dir } = {}) {
+	const g = listGroups().find(x => x.role === sectionId);
+	const refs = (g?.items || []).filter(i => i.secRef).map(i => i.secRef);
+	const from = refs.indexOf(ref);
+	if (from < 0 && to === undefined) return;
+	if (from >= 0) refs.splice(from, 1);
+	let at = to ?? (dir === 'up' ? from - 1 : from + 1);
+	at = Math.max(0, Math.min(refs.length, at));
+	refs.splice(at, 0, ref);
+	const x = sectionOf(sectionId);
+	if (x) x.order = refs;
+	renderList();
+	await api('/api/section', { op: 'order', id: sectionId, order: refs });
+	await loadWork();
+}
 // Finished items the user can clear from My Work (milestone issues leave on their own a week after closing).
 function clearableDone(i) {
 	return (i.kind === 'pinsess' && !!i.p.status) || (i.kind === 'work' && !!i.w.state && (i.w.local || i.group === 'priorities'));
@@ -720,7 +745,7 @@ function rowHtml(item) {
 		const w = item.w;
 		const prio = item.milestone?.role === 'priorities';
 		const local = !!w.local;
-		return withQuick(`<button type="button" class="${cls}${w.state ? ' is-done' : w.isBug ? ' dot-action' : ''}${prio || local ? ' prio-row' : ''}" data-kind="work" data-id="${esc(w.key)}" data-group="${esc(item.group || '')}" aria-current="${!!current}"${prio ? ` draggable="true" data-prio="${esc(w.key)}" data-pin-issue="${esc(w.key)}" title="Drag to reorder or into current / next; Alt+↑/↓ moves the selected issue"` : local ? ` draggable="true" data-pin-issue="${esc(w.key)}" title="Added locally (GitHub milestone unchanged). Drag to another group."` : ''}>${prio || local ? '<span class="row-grip" aria-hidden="true" title="Drag to move"><i class="codicon codicon-gripper"></i></span>' : ''}
+		return withQuick(`<button type="button" class="${cls}${w.state ? ' is-done' : w.isBug ? ' dot-action' : ''}${prio || local ? ' prio-row' : ''}" data-kind="work" data-id="${esc(w.key)}" data-group="${esc(item.group || '')}"${item.secRef ? ` data-sec-item="${esc(item.secRef)}"` : ''} aria-current="${!!current}"${prio ? ` draggable="true" data-prio="${esc(w.key)}" data-pin-issue="${esc(w.key)}" title="Drag to reorder or into current / next; Alt+↑/↓ moves the selected issue"` : local ? ` draggable="true" data-pin-issue="${esc(w.key)}" title="Added locally (GitHub milestone unchanged). Drag to another group."` : ''}>${prio || local ? '<span class="row-grip" aria-hidden="true" title="Drag to move"><i class="codicon codicon-gripper"></i></span>' : ''}
 			<span class="row-title" title="${esc(w.title)}">${prio ? `<span class="prio-rank">${w.rank}</span>` : ''}${esc(w.title)}</span><span class="row-meta"><span>${esc(shortKey(w.key))}</span>${w.isBug ? '<span>bug</span>' : ''}${prio && w.milestone ? `<span>${esc(w.milestone)}</span>` : ''}${local ? '<span class="tag" title="Added to My Work locally; its GitHub milestone is unchanged">local</span>' : ''}${doneTag(w.state)}${w.state ? '' : sessTag(w.key)}</span>
 		</button>`, issueQuick(w.key, w.url, { removable: local || prio, state: w.state }));
 	}
@@ -741,7 +766,7 @@ function rowHtml(item) {
 	if (item.kind === 'pinsess') {
 		const p = item.p, z = p.session;
 		const inPrio = item.group === 'priorities';
-		return withQuick(`<button type="button" class="${cls}${p.status ? ' is-done' : z && !z.read ? ' dot-action' : ''} prio-row" data-kind="pinsess" data-id="${esc(p.id)}" data-group="${esc(item.group || 'current')}" data-sess="${esc(p.id)}"${inPrio ? ` data-prio="session:${esc(p.id)}"` : ''} draggable="true" title="Drag to another group${inPrio ? ' or reorder' : ''}" aria-current="${!!current}"><span class="row-grip" aria-hidden="true" title="Drag to move"><i class="codicon codicon-gripper"></i></span>
+		return withQuick(`<button type="button" class="${cls}${p.status ? ' is-done' : z && !z.read ? ' dot-action' : ''} prio-row" data-kind="pinsess" data-id="${esc(p.id)}" data-group="${esc(item.group || 'current')}" data-sess="${esc(p.id)}"${item.secRef ? ` data-sec-item="${esc(item.secRef)}"` : ''}${inPrio ? ` data-prio="session:${esc(p.id)}"` : ''} draggable="true" title="Drag to another group${inPrio ? ' or reorder' : ''}" aria-current="${!!current}"><span class="row-grip" aria-hidden="true" title="Drag to move"><i class="codicon codicon-gripper"></i></span>
 			<span class="row-title" title="${esc(z?.title || '')}">${inPrio ? `<span class="prio-rank">${item.rank}</span>` : ''}<i class="codicon codicon-comment-discussion" aria-hidden="true"></i> ${esc(z?.title || p.note || 'Session not found')}</span>
 			<span class="row-meta">${z?.project ? `<span>${esc(z.project)}</span>` : ''}${z?.modified ? `<span>active ${esc(agoText(new Date(z.modified).toISOString()))}</span>` : ''}${z?.changes ? `<span class="add">+${esc(z.changes.additions)}</span><span class="del">−${esc(z.changes.deletions)}</span>` : ''}${p.status ? doneTag(p.status, p.status === 'done' ? '' : 'PR ') : z && !z.read ? '<span class="tag acc">unread</span>' : ''}</span>
 		</button>`, [{ act: 'open-session', link: `agent-host-session://ahp-session/${p.id}`, icon: 'comment-discussion', label: 'Open session' }, p.status ? { act: 'unpin-session', key: p.id, icon: 'check', label: 'Clear from My Work (done)' } : { act: 'unpin-session', key: p.id, icon: 'close', label: 'Remove from My Work' }]);
@@ -750,7 +775,7 @@ function rowHtml(item) {
 		const n = item.n;
 		const due = noteDue(n);
 		const liveZ = n.draft ? null : (ui.work?.data?.noteSessions?.[n.ref || n.title] || []).find(z => !z.archived);
-		return withQuick(`<button type="button" class="${cls} ${due.cls === 'bad' || due.cls === 'sev' ? 'dot-action' : ''}" data-kind="note" data-id="${esc(n.id)}" aria-current="${!!current}">
+		return withQuick(`<button type="button" class="${cls} ${due.cls === 'bad' || due.cls === 'sev' ? 'dot-action' : ''}${item.secRef ? ' prio-row' : ''}" data-kind="note" data-id="${esc(n.id)}" data-group="${esc(item.group || '')}"${item.secRef ? ` data-sec-item="${esc(item.secRef)}" draggable="true" title="Drag to reorder; Alt+↑/↓ moves it"` : ''} aria-current="${!!current}">${item.secRef ? '<span class="row-grip" aria-hidden="true" title="Drag to move"><i class="codicon codicon-gripper"></i></span>' : ''}
 			<span class="row-title" title="${esc(n.title || '')}"><i class="codicon codicon-note" aria-hidden="true"></i> ${esc(n.draft ? 'New note' : n.title)}</span>
 			<span class="row-meta">${n.ref && n.ref !== n.title ? `<span>${esc(n.ref)}</span>` : ''}${n.due ? `<span class="tag ${due.cls}"><i class="codicon codicon-clock" aria-hidden="true"></i>${esc(due.text)}</span>` : ''}${liveZ ? '<span class="tag sess"><i class="codicon codicon-comment-discussion" aria-hidden="true"></i>session</span>' : ''}</span>
 		</button>`, n.draft ? [] : [
@@ -2094,11 +2119,15 @@ function parseIssueRef(text) {
 }
 
 async function loadWork(fresh = false) {
+	// Only the latest load counts: an older, slower one (e.g. a fresh GitHub refresh) must not undo a change made since.
+	const seq = ui.workSeq = (ui.workSeq || 0) + 1;
 	ui.work = { ...(ui.work || {}), loading: true, error: null };
 	if (ui.tab === 'work') { renderAreaBar(); renderBatchBar(); }
 	try {
-		ui.work = { data: await api(`/api/work${fresh ? '?fresh=1' : ''}`), loading: false };
-	} catch (error) { ui.work = { ...ui.work, loading: false, error: error.message }; }
+		const data = await api(`/api/work${fresh ? '?fresh=1' : ''}`);
+		if (seq !== ui.workSeq) return;
+		ui.work = { data, loading: false };
+	} catch (error) { if (seq !== ui.workSeq) return; ui.work = { ...ui.work, loading: false, error: error.message }; }
 	if (ui.state) render();
 }
 
@@ -2549,6 +2578,15 @@ $('list').addEventListener('click', e => {
 });
 $('list').addEventListener('keydown', e => {
 	if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+	const secRow = e.altKey && e.target.closest?.('[data-sec-item]');
+	if (secRow) {
+		e.preventDefault();
+		const ref = secRow.dataset.secItem;
+		reorderSection(secRow.dataset.group, ref, { dir: e.key === 'ArrowUp' ? 'up' : 'down' })
+			.then(() => document.querySelector(`[data-sec-item="${CSS.escape(ref)}"]`)?.focus())
+			.catch(error => toast(error.message, true));
+		return;
+	}
 	const prioRow = e.altKey && e.target.closest?.('[data-prio]');
 	if (prioRow) {
 		e.preventDefault();
@@ -2573,15 +2611,17 @@ function dropTarget(e) {
 	if (!t || !drag) return null;
 	const group = t.dataset.group || t.dataset.dropGroup;
 	if (!['current', 'next', 'priorities'].includes(group) && !sectionOf(group)) return null;
-	if (!drag.sess && !drag.pinIssue && !drag.recent && group !== 'priorities') return null;
-	return { el: t, group, row: t.matches('[data-prio]') ? t : null };
+	if (!drag.sess && !drag.pinIssue && !drag.recent && !drag.secItem && group !== 'priorities') return null;
+	// Notes only move within their own section.
+	if (drag.secItem?.startsWith('note:') && group !== drag.from) return null;
+	return { el: t, group, row: t.matches('[data-prio]') || (t.matches('[data-sec-item]') && sectionOf(group)) ? t : null };
 }
 $('list').addEventListener('dragstart', e => {
-	const row = e.target.closest?.('[data-prio], [data-sess], [data-pin-issue], [data-recent-sess]');
+	const row = e.target.closest?.('[data-prio], [data-sess], [data-pin-issue], [data-recent-sess], [data-sec-item]');
 	if (!row) return;
-	drag = { prio: row.dataset.prio || null, sess: row.dataset.sess || null, pinIssue: row.dataset.pinIssue || null, recent: row.dataset.recentSess || null, from: row.dataset.group || null };
+	drag = { prio: row.dataset.prio || null, sess: row.dataset.sess || null, pinIssue: row.dataset.pinIssue || null, recent: row.dataset.recentSess || null, secItem: row.dataset.secItem || null, from: row.dataset.group || null };
 	e.dataTransfer.effectAllowed = 'move';
-	e.dataTransfer.setData('text/plain', drag.prio || drag.sess || drag.recent || drag.pinIssue);
+	e.dataTransfer.setData('text/plain', drag.prio || drag.sess || drag.recent || drag.pinIssue || drag.secItem);
 	row.classList.add('dragging');
 });
 $('list').addEventListener('dragover', e => {
@@ -2605,7 +2645,22 @@ $('list').addEventListener('drop', e => {
 		if (idx >= 0 && t.row.classList.contains('drop-after')) idx++;
 		if (idx < 0) idx = undefined;
 	}
+	// Position within a section: before or after the row it was dropped on.
+	let secTo;
+	if (sectionOf(t.group) && t.row) {
+		const refs = (listGroups().find(x => x.role === t.group)?.items || []).filter(i => i.secRef && i.secRef !== d.secItem).map(i => i.secRef);
+		secTo = refs.indexOf(t.row.dataset.secItem);
+		if (secTo >= 0 && t.row.classList.contains('drop-after')) secTo++;
+		if (secTo < 0) secTo = undefined;
+	}
 	clearDrop();
+	// Reorder within a section.
+	if (d.secItem && d.from === t.group && sectionOf(t.group)) {
+		if (secTo !== undefined) reorderSection(t.group, d.secItem, { to: secTo }).catch(error => toast(error.message, true));
+		return;
+	}
+	// Moved into a section at a position: place it there once it has moved.
+	const placeIn = (ref) => secTo !== undefined && ref ? loadWork().then(() => reorderSection(t.group, ref, { to: secTo })) : null;
 	// An active (not yet added) session dropped on a group is added to My Work there.
 	if (d.recent) {
 		api('/api/work-pin', { op: 'add', id: d.recent, bucket: t.group, ...(t.group === 'priorities' ? { to: idx ?? 'top' } : {}) })
@@ -2616,9 +2671,9 @@ $('list').addEventListener('drop', e => {
 	const run = d.prio && t.group === 'priorities' && d.from === 'priorities'
 		? updatePriority(d.prio, 'move', idx ?? 'top')
 		: d.pinIssue && t.group !== d.from
-			? api('/api/work-issue', { op: 'move', key: d.pinIssue, bucket: t.group, ...(t.group === 'priorities' ? { to: idx ?? 'top' } : {}) }).then(() => loadWork())
+			? api('/api/work-issue', { op: 'move', key: d.pinIssue, bucket: t.group, ...(t.group === 'priorities' ? { to: idx ?? 'top' } : {}) }).then(() => placeIn(`issue:${d.pinIssue}`) || loadWork())
 		: d.sess && (t.group !== d.from || t.group === 'priorities')
-			? api('/api/work-pin', { op: 'move', id: d.sess, bucket: t.group, ...(t.group === 'priorities' ? { to: idx ?? 'top' } : {}) }).then(() => loadWork())
+			? api('/api/work-pin', { op: 'move', id: d.sess, bucket: t.group, ...(t.group === 'priorities' ? { to: idx ?? 'top' } : {}) }).then(() => placeIn(`session:${d.sess}`) || loadWork())
 			: null;
 	run?.then(() => { if ((d.sess || d.pinIssue) && t.group !== d.from) toast(`Moved to ${groupLabel(t.group)}`); }).catch(error => toast(error.message, true));
 });

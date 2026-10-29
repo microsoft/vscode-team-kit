@@ -101,6 +101,18 @@ export async function saveSection({ id, name, instructions = '', linkPattern = '
 	return section;
 }
 
+// The order of items in a section, as refs: note:<id>, issue:<owner/repo#N>, session:<id>. Items not listed go last.
+const ORDER_REF_RE = /^(note:[\w-]{1,80}|issue:[\w.-]+\/[\w.-]+#\d+|session:[\w-]{8,80})$/;
+export async function setSectionOrder(id, order) {
+	if (!Array.isArray(order) || order.length > 500 || !order.every(r => typeof r === 'string' && ORDER_REF_RE.test(r))) throw fail('invalid order');
+	const data = await read();
+	const section = data.sections.find(s => s.id === id);
+	if (!section) throw fail('That section does not exist', 404);
+	section.order = [...new Set(order)];
+	await write(data);
+	return section;
+}
+
 export async function moveSection(id, dir) {
 	const data = await read();
 	const i = data.sections.findIndex(s => s.id === id);

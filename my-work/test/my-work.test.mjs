@@ -94,6 +94,10 @@ test('the old built-in MSRC items become a custom MSRC section, kept private', a
 	assert.equal(await sections.isGroup('nope'), false);
 	await assert.rejects(sections.saveSection({ name: 'Bad', linkPattern: '(' }), /not a valid regular expression/);
 	await sections.saveNote({ section: 'current-2', title: 'Call customer' });
+	const saved = await sections.setSectionOrder('current-2', ['issue:octo/app#9', 'note:abc', 'session:aaaaaaaa-1111', 'issue:octo/app#9']);
+	assert.deepEqual(saved.order, ['issue:octo/app#9', 'note:abc', 'session:aaaaaaaa-1111'], 'order is kept, without duplicates');
+	await assert.rejects(sections.setSectionOrder('current-2', ['../etc']), /invalid order/);
+	assert.deepEqual((await sections.saveSection({ id: 'current-2', name: 'Renamed' })).order, saved.order, 'editing the section keeps its order');
 	await workSessions.pinIssue('octo/app#9', 'current-2');
 	const r = await sections.removeSection('current-2');
 	assert.deepEqual(r, { removed: true, notes: 1 });
