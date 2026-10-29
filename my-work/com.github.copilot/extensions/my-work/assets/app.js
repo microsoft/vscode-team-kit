@@ -963,35 +963,45 @@ function renderSummary(groups, handled) {
 	$('top-progress').setAttribute('aria-label', parts.join(', '));
 }
 
-// Density: compact spacing on small panels (or always/never), and a one-pane layout when narrow,
-// where the list and the details take turns and the details get a Back button.
+// Density: "Auto" follows VS Code's Layout Density (default | compact), falling back to compact on
+// small panels when it can't be read. Narrow panels use a one-pane layout where the list and the
+// details take turns and the details get a Back button.
 const COMPACT_W = 1100, COMPACT_H = 760, NARROW_W = 720;
 function applyDensity() {
 	const pref = ui.state?.settings.density || 'auto';
 	const w = window.innerWidth, h = window.innerHeight;
-	const compact = pref === 'compact' || (pref === 'auto' && (w < COMPACT_W || h < COMPACT_H));
+	const compact = pref === 'compact' || (pref === 'auto' && (ui.vscodeDensity ? ui.vscodeDensity === 'compact' : (w < COMPACT_W || h < COMPACT_H)));
 	const root = document.documentElement;
 	root.dataset.density = compact ? 'compact' : 'comfortable';
 	root.classList.toggle('narrow', w < NARROW_W);
 	root.style.setProperty('--list-h', `${ui.state?.settings.listHeight || 40}%`);
+	root.style.setProperty('--list-w', `${ui.state?.settings.listWidth || 38}%`);
 }
 window.addEventListener('resize', () => applyDensity());
 new ResizeObserver(() => applyDensity()).observe(document.body);
-// Narrow layout: list on top, details below; the handle between them sets the list's share.
+api('/api/vscode-theme').then(r => { ui.vscodeDensity = r.density || null; applyDensity(); }, () => { });
+// The sash between the list and the details: sets the list's width side by side, or its height
+// when narrow (list on top). Double-click resets.
 {
 	const handle = $('split-handle');
 	const layout = $('panel');
-	const pct = y => { const r = layout.getBoundingClientRect(); return Math.round(Math.max(15, Math.min(85, ((y - r.top) / r.height) * 100))); };
+	const narrow = () => document.documentElement.classList.contains('narrow');
+	const pct = e => {
+		const r = layout.getBoundingClientRect();
+		const p = narrow() ? (e.clientY - r.top) / r.height : (e.clientX - r.left) / r.width;
+		return Math.round(Math.max(15, Math.min(85, p * 100)));
+	};
 	const set = (p, save) => {
-		document.documentElement.style.setProperty('--list-h', `${p}%`);
-		if (save && ui.state) { ui.state.settings.listHeight = p; saveSettings({ listHeight: p }); }
+		const key = narrow() ? 'listHeight' : 'listWidth';
+		document.documentElement.style.setProperty(narrow() ? '--list-h' : '--list-w', `${p}%`);
+		if (save && ui.state) { ui.state.settings[key] = p; saveSettings({ [key]: p }); }
 	};
 	handle.addEventListener('pointerdown', e => {
 		e.preventDefault();
 		handle.setPointerCapture(e.pointerId);
 		document.body.classList.add('resizing');
 		let last = null;
-		const move = ev => { last = pct(ev.clientY); set(last, false); };
+		const move = ev => { last = pct(ev); set(last, false); };
 		const up = () => {
 			handle.removeEventListener('pointermove', move);
 			document.body.classList.remove('resizing');
@@ -1002,12 +1012,16 @@ new ResizeObserver(() => applyDensity()).observe(document.body);
 		handle.addEventListener('pointercancel', up, { once: true });
 	});
 	handle.addEventListener('keydown', e => {
-		if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+		const n = narrow();
+		const dir = { ArrowUp: n ? -1 : 0, ArrowDown: n ? 1 : 0, ArrowLeft: n ? 0 : -1, ArrowRight: n ? 0 : 1 }[e.key];
+		if (!dir) return;
 		e.preventDefault();
-		const cur = ui.state?.settings.listHeight || 40;
-		set(Math.max(15, Math.min(85, cur + (e.key === 'ArrowDown' ? 5 : -5))), true);
+		const cur = ui.state?.settings[n ? 'listHeight' : 'listWidth'] || (n ? 40 : 38);
+		set(Math.max(15, Math.min(85, cur + dir * 3)), true);
 	});
-	handle.addEventListener('dblclick', () => set(40, true));
+	handle.addEventListener('dblclick', () => set(narrow() ? 40 : 38, true));
+	const orient = () => handle.setAttribute('aria-orientation', narrow() ? 'horizontal' : 'vertical');
+	new ResizeObserver(orient).observe(document.body);
 }
 
 async function select(kind, id, focusDetail = false) {
@@ -3378,6 +3392,7 @@ events.addEventListener('reload', () => {
 	location.reload();
 });
 events.addEventListener('theme', e => applyVsCodeTheme(JSON.parse(e.data).theme ?? null));
+events.addEventListener('density', e => { ui.vscodeDensity = JSON.parse(e.data).density ?? null; applyDensity(); });
 // The chat turned a Browse search into a GitHub query.
 events.addEventListener('browse-query', e => {
 	const f = JSON.parse(e.data);

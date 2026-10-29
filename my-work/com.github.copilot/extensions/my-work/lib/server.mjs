@@ -7,7 +7,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import * as data from './data.mjs';
 import { spawnJudgeRequest, implementPrompt, createIssueChatPrompt, forwardToIssueChatPrompt, forwardToMyWorkSessionPrompt, startIssueSessionMessage, notificationIssueActionPrompt, notificationTriagePrompt, issueRulesPrompt, browseQueryPrompt, workSessionPrompt, noteSessionPrompt, createMyWorkChatPrompt, forwardToMyWorkChatPrompt, describeSessionMessage } from './prompts.mjs';
-import { getVsCodeTheme, watchVsCodeTheme } from './vscodeTheme.mjs';
+import { getVsCodeDensity, getVsCodeTheme, watchVsCodeDensity, watchVsCodeTheme } from './vscodeTheme.mjs';
 import { getMyWork, moveToMilestone, issueDetails, closingIssues, workSource, sourceQuery, myLogin, doneState } from './work.mjs';
 import { config } from './config.mjs';
 import { saveImage, imagePaths, MAX_IMAGE_BYTES } from './attachments.mjs';
@@ -187,6 +187,7 @@ export class TriageServer {
 		});
 		this.port = this.server.address().port;
 		this.unwatchTheme = watchVsCodeTheme(theme => this.push('theme', { theme }));
+		this.unwatchDensity = watchVsCodeDensity(density => this.push('density', { density }));
 		// Reload open pages when the panel's assets change, so script/style fixes apply without reopening.
 		try {
 			let timer;
@@ -198,6 +199,7 @@ export class TriageServer {
 
 	async stop() {
 		this.unwatchTheme?.();
+		this.unwatchDensity?.();
 		this.unwatchAssets?.();
 		for (const res of this.clients) res.end();
 		this.clients.clear();
@@ -301,7 +303,7 @@ export class TriageServer {
 			return;
 		}
 		if (route === 'GET /api/vscode-theme') {
-			this.json(res, 200, { theme: await getVsCodeTheme() });
+			this.json(res, 200, { theme: await getVsCodeTheme(), density: await getVsCodeDensity() });
 			return;
 		}
 		if (route === 'GET /api/work-source') {
@@ -443,6 +445,10 @@ export class TriageServer {
 				if (body.areaFilter !== undefined) {
 					if (typeof body.areaFilter !== 'string' || !/^[a-z0-9_-]{0,40}$/.test(body.areaFilter)) throw bad('invalid areaFilter');
 					patch.areaFilter = body.areaFilter;
+				}
+				if (body.listWidth !== undefined) {
+					if (!Number.isInteger(body.listWidth) || body.listWidth < 15 || body.listWidth > 85) throw bad('listWidth must be 15-85 (percent)');
+					patch.listWidth = body.listWidth;
 				}
 				if (body.listHeight !== undefined) {
 					if (!Number.isInteger(body.listHeight) || body.listHeight < 15 || body.listHeight > 85) throw bad('listHeight must be 15-85 (percent)');

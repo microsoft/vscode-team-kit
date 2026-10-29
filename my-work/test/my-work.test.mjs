@@ -431,3 +431,11 @@ test('sessions can be linked to issues by hand', async () => {
 	await assert.rejects(workSessions.linkSessionIssue('../x', 'octo/app#1'), /invalid/);
 	await assert.rejects(workSessions.linkSessionIssue(id, 'not an issue'), /invalid/);
 });
+
+test('reads VS Code layout density from user settings', async () => {
+	const { parseLayoutDensity } = await import(new URL('lib/vscodeTheme.mjs', ext));
+	assert.equal(parseLayoutDensity('{\n\t"window.density.layout": "compact",\n}'), 'compact');
+	assert.equal(parseLayoutDensity('{\n  "window.density.layout": "default"\n}'), 'default');
+	assert.equal(parseLayoutDensity('{\n  // "window.density.layout": "compact"\n}'), 'default');
+	assert.equal(parseLayoutDensity('{}'), 'default');
+});

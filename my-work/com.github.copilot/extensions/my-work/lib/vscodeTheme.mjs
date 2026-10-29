@@ -114,3 +114,38 @@ export function watchVsCodeTheme(onChange, intervalMs = 2000) {
 	const timer = setInterval(tick, intervalMs);
 	return () => clearInterval(timer);
 }
+
+// VS Code's Layout Density (`window.density.layout`: default | compact; View > Appearance > Layout Density),
+// from the user settings, which the Agents window profile shares. Null when no settings file is found.
+let densityCache = { key: '', value: null };
+export async function getVsCodeDensity() {
+	for (const u of userDirs()) {
+		const file = path.join(u, 'settings.json');
+		const stat = await fs.stat(file).catch(() => null);
+		if (!stat) continue;
+		const key = `${file}:${stat.mtimeMs}`;
+		if (densityCache.key !== key) {
+			const text = await fs.readFile(file, 'utf8').catch(() => '');
+			densityCache = { key, value: parseLayoutDensity(text) };
+		}
+		return densityCache.value;
+	}
+	return null;
+}
+
+export function parseLayoutDensity(settingsText) {
+	const m = /^[ \t]*"window\.density\.layout"\s*:\s*"(default|compact)"/m.exec(settingsText);
+	return m ? m[1] : 'default';
+}
+
+export function watchVsCodeDensity(onChange, intervalMs = 2000) {
+	let last;
+	const tick = async () => {
+		const d = await getVsCodeDensity().catch(() => null);
+		if (last !== undefined && d !== last) onChange(d);
+		last = d;
+	};
+	tick();
+	const timer = setInterval(tick, intervalMs);
+	return () => clearInterval(timer);
+}

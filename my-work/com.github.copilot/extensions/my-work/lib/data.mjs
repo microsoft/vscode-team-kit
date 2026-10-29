@@ -25,7 +25,7 @@ const ISSUE_RULES_FILE = path.join(DATA_DIR, 'issue-rules.json');
 const PRIORITIES_FILE = path.join(DATA_DIR, 'priorities.json');
 export const THREADS_DIR = path.join(DATA_DIR, 'threads');
 export const OPINIONS_DIR = path.join(BOARD, 'my-issue-opinions');
-export const DEFAULT_SETTINGS = { batchSize: 10, popularThreshold: 5, theme: 'vscode', accent: 'blue', linkTarget: 'vscode', chatHeight: 160, chatCollapsed: false, density: 'auto', listHeight: 40, areaFilter: '' };
+export const DEFAULT_SETTINGS = { batchSize: 10, popularThreshold: 5, theme: 'vscode', accent: 'blue', linkTarget: 'vscode', chatHeight: 160, chatCollapsed: false, density: 'auto', listHeight: 40, listWidth: 38, areaFilter: '' };
 
 const FORMATS = {
 	triage: { format: 'my-issues-triage/notification-triage', version: 1, key: 'items', empty: () => ({}) },
@@ -235,6 +235,7 @@ export async function setSettings(patch) {
 	if (patch.chatCollapsed !== undefined) next.chatCollapsed = patch.chatCollapsed;
 	if (patch.density !== undefined) next.density = patch.density;
 	if (patch.listHeight !== undefined) next.listHeight = patch.listHeight;
+	if (patch.listWidth !== undefined) next.listWidth = patch.listWidth;
 	if (patch.areaFilter !== undefined) next.areaFilter = patch.areaFilter;
 	if (patch.recentCollapsed !== undefined) next.recentCollapsed = patch.recentCollapsed;
 	if (patch.browse !== undefined) next.browse = patch.browse;

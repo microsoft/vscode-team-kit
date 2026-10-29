@@ -958,3 +958,29 @@ html.narrow .title-sub { gap: 8px; }
 [data-density="compact"] .top-progress { margin-top: 6px; height: 3px; }
 /* Quieter toolbar: icon-only secondary actions. */
 .pill.classify.icon { padding: 3px 7px; }
+
+/* ---------- VS Code-like layout density: Default = cards with a small gap, Compact = joined parts ---------- */
+.top { padding: 14px 14px 10px; }
+.layout { gap: 0; padding: 0 8px 8px; }
+.list, .detail { border-radius: var(--r); box-shadow: none; }
+html:not(.narrow) .layout { grid-template-columns: minmax(220px, var(--list-w, 38%)) 4px minmax(0, 1fr); }
+.split-handle { touch-action: none; }
+html:not(.narrow) .split-handle { display: block; position: relative; z-index: 5; cursor: ew-resize; }
+html:not(.narrow) .split-handle::after { content: ""; position: absolute; top: 0; bottom: 0; left: 0; right: 0; background: transparent; transition: background .1s; }
+html:not(.narrow) .split-handle:hover::after, html:not(.narrow) .split-handle:focus-visible::after, body.resizing .split-handle::after { background: var(--accent); transition-delay: .2s; }
+body.resizing .split-handle::after { transition-delay: 0s; }
+html:not(.narrow) .split-handle:focus-visible { outline: none; }
+body.resizing { cursor: ew-resize; user-select: none; }
+html.narrow body.resizing { cursor: ns-resize; }
+html.narrow .layout { grid-template-rows: minmax(90px, var(--list-h, 40%)) 4px minmax(0, 1fr); }
+
+html[data-density="compact"] .layout { gap: 0; padding: 0; border-top: 1px solid var(--line); }
+html[data-density="compact"]:not(.narrow) .layout { grid-template-columns: minmax(200px, var(--list-w, 38%)) 0 minmax(0, 1fr); }
+html[data-density="compact"] .list, html[data-density="compact"] .detail { border: none; border-radius: 0; }
+html[data-density="compact"]:not(.narrow) .list { border-right: 1px solid var(--line); }
+html[data-density="compact"]:not(.narrow) .split-handle::after { left: -2px; right: -2px; }
+html[data-density="compact"].narrow .layout { grid-template-rows: minmax(90px, var(--list-h, 40%)) 0 minmax(0, 1fr); }
+html[data-density="compact"].narrow .list { border-bottom: 1px solid var(--line); }
+html[data-density="compact"].narrow .split-handle { height: 0; }
+html[data-density="compact"].narrow .split-handle::before { content: ""; position: absolute; left: 0; right: 0; top: -3px; height: 6px; cursor: ns-resize; }
+html[data-density="compact"].narrow .split-handle::after { display: none; }
