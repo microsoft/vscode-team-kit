@@ -1083,3 +1083,5 @@ html[data-density] .list-body { padding: 0 0 8px; }
 .areabar { flex-wrap: nowrap; }
 .areabar .area-pick { flex: 0 1 auto; min-width: 60px; }
 .areabar .area-pick select { min-width: 0; width: 100%; text-overflow: ellipsis; }
+.codicon-collapse-all::before { content: "\eac5"; }
+.codicon-expand-all::before { content: "\eb95"; }

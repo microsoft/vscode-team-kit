@@ -11,6 +11,7 @@
 - **Resizable panes:** drag the sash between the list and details to resize them, or use the arrow keys on it. Double-click resets the size, and the panel remembers it.
 - **VS Code toolbars:**
   - Each view has one toolbar row: the area picker, then an icon action bar with counts (Route, Auto-dismiss, Safe to dismiss, Re-check rules), then Refresh. Labels and "Updated …" are in the tooltips. Toggled filters use VS Code's `inputOption.active*` colours.
+  - **Collapse All / Expand All** in every view's action bar folds or opens all its bands at once, like a VS Code view. The choice is remembered.
   - Browse works like the Settings editor: a search box with Group by, Recent filters and Refresh inside it, and Bugs / Features / All / Reviews tabs underneath next to the area picker.
 - Notification rows drop the description line and show just the title, the issue number and the age. The reason is in the tooltip and the details.
 - **VS Code look:** the panel uses VS Code's own theme colours and shapes.

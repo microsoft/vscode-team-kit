@@ -358,6 +358,34 @@ function actHtml(attrs, icon, n, title, pressed) {
 function busyActHtml(text, progress) {
 	return `<span class="act busy" role="status" title="${esc(text)}" aria-label="${esc(text)}"><i class="codicon codicon-loading spin" aria-hidden="true"></i><span class="act-n">${esc(progress)}</span></span>`;
 }
+// Collapse All / Expand All for the list's bands, like a VS Code view's title action.
+const COLLAPSE_ACT = '<button type="button" class="act" data-collapse-all hidden><i class="codicon codicon-collapse-all" aria-hidden="true"></i></button>';
+function bandToggles() {
+	return [...document.querySelectorAll('#list [data-group-toggle]')];
+}
+function syncCollapseAct() {
+	const b = document.querySelector('[data-collapse-all]');
+	if (!b) return;
+	const toggles = bandToggles();
+	const anyOpen = toggles.some(t => t.getAttribute('aria-expanded') === 'true');
+	b.hidden = toggles.length < 2;
+	b.dataset.collapseAll = anyOpen ? 'collapse' : 'expand';
+	b.title = anyOpen ? 'Collapse All' : 'Expand All';
+	b.setAttribute('aria-label', b.title);
+	b.querySelector('.codicon').className = `codicon codicon-${anyOpen ? 'collapse-all' : 'expand-all'}`;
+}
+function setAllBands(collapse) {
+	const set = new Set(ui.state.settings.collapsedGroups || []);
+	for (const t of bandToggles()) {
+		const role = t.dataset.groupToggle;
+		if (role === 'recent') ui.state.settings.recentCollapsed = collapse;
+		else if (collapse) set.add(role); else set.delete(role);
+	}
+	if (collapse) ui.showDone = false;
+	ui.state.settings.collapsedGroups = [...set].slice(-200);
+	renderList();
+	saveSettings({ collapsedGroups: ui.state.settings.collapsedGroups, recentCollapsed: !!ui.state.settings.recentCollapsed });
+}
 function refreshActHtml(busy, updated, title) {
 	const tip = busy ? 'Refreshing…' : `${updated ? `${updated} · ` : ''}${title}`;
 	return `<button type="button" class="act list-refresh" data-list-refresh title="${esc(tip)}" aria-label="${esc(tip)}"><i class="codicon codicon-refresh${busy ? ' spin' : ''}" aria-hidden="true"></i></button>`;
@@ -367,7 +395,7 @@ function renderAreaBar() {
 		const src = ui.work;
 		const at = src?.data?.fetchedAt;
 		$('areabar').innerHTML = `${`<button type="button" class="btn sm${['worksrc', 'browseitem'].includes(ui.selected?.kind) ? ' on' : ''}" data-find-work aria-pressed="${['worksrc', 'browseitem'].includes(ui.selected?.kind)}" aria-controls="detail" title="Browse your bugs, feature requests, feature-area issues and PRs awaiting your review; drag them into a group or use the + buttons"><i class="codicon codicon-search" aria-hidden="true"></i>Browse issues &amp; PRs</button>`}<button type="button" class="btn sm" data-section-new title="Create your own section, e.g. for security cases or escalations"><i class="codicon codicon-add" aria-hidden="true"></i>Section</button><span class="subtabs-spacer"></span>${`
-			${refreshActHtml(ui.refreshing || src?.loading, at ? `Updated ${agoText(at)}` : '', 'Refresh')}`}`;
+			${COLLAPSE_ACT}${refreshActHtml(ui.refreshing || src?.loading, at ? `Updated ${agoText(at)}` : '', 'Refresh')}`}`;
 		return;
 	}
 	const f = areaFilter();
@@ -387,7 +415,7 @@ function renderAreaBar() {
 		${f ? `<button type="button" class="link-btn" id="area-clear" title="Show all areas">Clear</button><span class="cd area-note">all batches</span>` : ''}
 		<span class="subtabs-spacer"></span>
 		<span class="actionbar" id="area-acts" role="toolbar" aria-label="Actions"></span>
-		${refreshActHtml(ui.refreshing, ui.tab === 'notifications' && ui.state.notificationsFetchedAt ? `Updated ${agoText(ui.state.notificationsFetchedAt)}` : '', ui.tab === 'notifications' ? 'Fetch notifications from GitHub now' : 'Reload the index, notifications and live data')}`;
+		${COLLAPSE_ACT}${refreshActHtml(ui.refreshing, ui.tab === 'notifications' && ui.state.notificationsFetchedAt ? `Updated ${agoText(ui.state.notificationsFetchedAt)}` : '', ui.tab === 'notifications' ? 'Fetch notifications from GitHub now' : 'Reload the index, notifications and live data')}`;
 }
 async function setAreaFilter(value) {
 	ui.state.settings.areaFilter = value;
@@ -2830,6 +2858,12 @@ $('list').addEventListener('click', e => {
 	if (e.target.closest('.row-check')) { ui.shiftPick = e.shiftKey; return; }
 	const b = e.target.closest('.row');
 	if (b) select(b.dataset.kind, b.dataset.id);
+});
+new MutationObserver(syncCollapseAct).observe($('list'), { childList: true });
+new MutationObserver(syncCollapseAct).observe($('areabar'), { childList: true });
+document.querySelector('.list').addEventListener('click', e => {
+	const ca = e.target.closest('[data-collapse-all]');
+	if (ca) setAllBands(ca.dataset.collapseAll !== 'expand');
 });
 $('list').addEventListener('keydown', e => {
 	if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
