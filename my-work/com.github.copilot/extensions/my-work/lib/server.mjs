@@ -122,6 +122,16 @@ function cleanBrowse(b) {
 	return { source, area, refine, groupBy };
 }
 
+// Closing issues of a pull request barely change; cache them for the panel's lifetime (refresh after 30 minutes).
+const closingCache = new Map();
+async function closingIssuesCached(url) {
+	const hit = closingCache.get(url);
+	if (hit && Date.now() - hit.at < 30 * 60 * 1000) return hit.keys;
+	const keys = await closingIssues(url).catch(() => []);
+	closingCache.set(url, { at: Date.now(), keys });
+	return keys;
+}
+
 function prKeyOf(url) {
 	const m = /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/pull\/(\d+)/.exec(String(url || ''));
 	return m ? `${m[1]}#${m[2]}` : null;
@@ -316,11 +326,15 @@ export class TriageServer {
 			// Finished sessions stay, marked with their status, until the user clears them: done (archived), or its pull request merged/closed.
 			const prKeys = pinned.flatMap(p => (byId[p.id]?.prs || []).map(pr => prKeyOf(pr.url)).filter(Boolean));
 			const prDet = prKeys.length ? await issueDetails([...new Set(prKeys)], url.searchParams.get('fresh') === '1').catch(() => ({})) : {};
-			const pinnedSessions = pinned.map(p => {
+			const pinnedSessions = await Promise.all(pinned.map(async p => {
 				const z = byId[p.id] || null;
-				const lastPr = (z?.prs || []).map(pr => prKeyOf(pr.url)).filter(Boolean).at(-1);
-				return { ...p, session: z, status: z?.archived ? 'done' : lastPr ? doneState(prDet[lastPr]?.state) : null };
-			});
+				const prs = (z?.prs || []).map(pr => pr.url).filter(u => prKeyOf(u));
+				const lastPr = prKeyOf(prs.at(-1));
+				const status = z?.archived ? 'done' : lastPr ? doneState(prDet[lastPr]?.state) : null;
+				// Issues the session's pull requests close ("Fixes #N"): the panel lists the issue instead of the session.
+				const fixes = status ? [...new Set((await Promise.all(prs.slice(-3).map(closingIssuesCached))).flat())] : [];
+				return { ...p, session: z, status, fixes };
+			}));
 			const hidden = new Set(await getHiddenSessions());
 			const recent = (await recentSessions(40).catch(() => [])).filter(r => !pinned.some(p => p.id === r.id) && !hidden.has(r.id)).slice(0, 20);
 			// Issues added locally (e.g. resolved from a session): details from GitHub; closed ones stay, marked, until cleared.

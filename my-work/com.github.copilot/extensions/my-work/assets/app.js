@@ -709,6 +709,29 @@ function workStage(i) {
 	if (i.kind === 'note') return !i.n.draft && (ui.work?.data?.noteSessions?.[i.n.ref || i.n.title] || []).some(z => !z.archived) ? 'progress' : 'todo';
 	return 'todo';
 }
+function foldedSessTag(key) {
+	const list = ui.foldedSessions?.get(key) || [];
+	return list.length ? `<span class="tag sess" title="${esc(`Fixed in ${list.map(p => p.session?.title || 'a session').join(', ')}`)}"><i class="codicon codicon-comment-discussion" aria-hidden="true"></i>session</span>` : '';
+}
+// A session you added that works on (or fixed) an issue listed in the same group is the same work: list only the issue.
+function sessionIssueKeys(p) {
+	const keys = new Set(p.fixes || []);
+	for (const it of ui.work?.data?.pinnedIssues || []) if ((it.sessions || []).includes(p.id)) keys.add(it.key);
+	for (const [key, list] of Object.entries(ui.work?.data?.sessions || {})) if (list.some(z => z.id === p.id)) keys.add(key);
+	return keys;
+}
+function foldSessions(g) {
+	if (ui.tab !== 'work' || !g.toggle) return g;
+	const shownKeys = new Set([...g.items, ...(g.closed || [])].filter(i => i.kind === 'work').map(i => i.w.key));
+	const items = g.items.filter(i => {
+		if (i.kind !== 'pinsess') return true;
+		const hit = [...sessionIssueKeys(i.p)].find(k => shownKeys.has(k));
+		if (!hit) return true;
+		ui.foldedSessions.set(hit, [...(ui.foldedSessions.get(hit) || []), i.p]);
+		return false;
+	});
+	return items.length === g.items.length ? g : { ...g, items };
+}
 function groupItemsHtml(g) {
 	if (ui.tab !== 'work' || !g.toggle) return g.items.map(rowHtml).join('');
 	const by = { progress: [], todo: [], done: [...(g.closed || [])] };
@@ -769,7 +792,7 @@ function rowHtml(item) {
 		const prio = item.milestone?.role === 'priorities';
 		const local = !!w.local;
 		return withQuick(`<button type="button" class="${cls}${w.state ? ' is-done' : w.isBug ? ' dot-action' : ''}${prio || local ? ' prio-row' : ''}" data-kind="work" data-id="${esc(w.key)}" data-group="${esc(item.group || '')}"${item.secRef ? ` data-sec-item="${esc(item.secRef)}"` : ''} aria-current="${!!current}"${prio ? ` draggable="true" data-prio="${esc(w.key)}" data-pin-issue="${esc(w.key)}" title="Drag to reorder or into current / next; Alt+↑/↓ moves the selected issue"` : local ? ` draggable="true" data-pin-issue="${esc(w.key)}" title="Added locally (GitHub milestone unchanged). Drag to another group."` : ''}>${prio || local ? '<span class="row-grip" aria-hidden="true" title="Drag to move"><i class="codicon codicon-gripper"></i></span>' : ''}
-			<span class="row-title" title="${esc(w.title)}">${prio ? `<span class="prio-rank">${w.rank}</span>` : ''}${esc(w.title)}</span><span class="row-meta"><span>${esc(shortKey(w.key))}</span>${w.isBug ? '<span>bug</span>' : ''}${prio && w.milestone ? `<span>${esc(w.milestone)}</span>` : ''}${local ? '<span class="tag" title="Added to My Work locally; its GitHub milestone is unchanged">local</span>' : ''}${doneTag(w.state, '', w.stateReason)}${w.state ? '' : sessTag(w.key)}</span>
+			<span class="row-title" title="${esc(w.title)}">${prio ? `<span class="prio-rank">${w.rank}</span>` : ''}${esc(w.title)}</span><span class="row-meta"><span>${esc(shortKey(w.key))}</span>${w.isBug ? '<span>bug</span>' : ''}${prio && w.milestone ? `<span>${esc(w.milestone)}</span>` : ''}${local ? '<span class="tag" title="Added to My Work locally; its GitHub milestone is unchanged">local</span>' : ''}${doneTag(w.state, '', w.stateReason)}${w.state ? foldedSessTag(w.key) : sessTag(w.key)}</span>
 		</button>`, issueQuick(w.key, w.url, { removable: local || prio, state: w.state }));
 	}
 	if (item.kind === 'workhome') {
@@ -858,7 +881,8 @@ function rowHtml(item) {
 // (the open item stays in place until you move on, and bulk runs keep their rows for progress).
 const keepInPlace = i => (ui.selected && i.kind === ui.selected.kind && i.id === ui.selected.id) || ui.bulkRun?.ids.includes(i.id);
 function renderList() {
-	const all = listGroups().filter(g => g.items.length || g.keepEmpty);
+	ui.foldedSessions = new Map(); // issue key -> sessions folded into it (same work)
+	const all = listGroups().map(foldSessions).filter(g => g.items.length || g.keepEmpty);
 	const done = all.flatMap(g => g.items.filter(i => isHandled(i) && !keepInPlace(i)));
 	const doneSet = new Set(done);
 	const groups = all.map(g => ({ ...g, items: g.items.filter(i => !doneSet.has(i)) })).filter(g => g.items.length || g.keepEmpty);
