@@ -1147,3 +1147,21 @@ html[data-density] .list-body { padding: 0 0 8px; }
 body { grid-template-columns: 48px minmax(0, 1fr); }
 body > * { min-width: 0; }
 .detail, .list { min-width: 0; }
+
+/* ---------- Chat inputs like VS Code's chat input: a bordered input box, text on top, a toolbar row with Send ---------- */
+.composer, .footer .composer, .list-chat .composer, [data-density="compact"] .composer {
+	display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "img img" "input input" "tools send";
+	gap: 2px 4px; padding: 6px 6px 4px 8px; border-radius: 6px; flex-wrap: nowrap;
+	background: var(--input-bg, var(--surface)); border: 1px solid var(--input-border, var(--line));
+}
+.composer:focus-within { border-color: var(--focus, var(--accent)); background: var(--input-bg, var(--surface)); }
+.composer .composer-images { grid-area: img; padding: 0 0 4px; }
+.composer .ask-input { grid-area: input; min-height: 20px; padding: 0; font-size: 13px; line-height: 20px; color: var(--input-fg, var(--fg)); }
+.composer .ask-input::placeholder { color: var(--faint); }
+.composer .send { grid-area: send; justify-self: end; width: 22px; height: 22px; border-radius: 5px; background: transparent; color: var(--icon-fg, var(--fg)); }
+.composer .send:hover:not(:disabled) { background: var(--toolbar-hover, var(--hover)); }
+.composer .send .codicon { font-size: 16px; }
+.composer:focus-within .send, .composer:has(.ask-input:not(:placeholder-shown)) .send { color: var(--accent); }
+.composer { box-sizing: border-box; width: 100%; min-width: 0; }
+.composer .ask-input { width: 100%; min-width: 0; box-sizing: border-box; }
+.list-chat { grid-template-columns: minmax(0, 1fr); }

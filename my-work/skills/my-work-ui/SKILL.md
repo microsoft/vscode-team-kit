@@ -75,6 +75,12 @@ Code: `com.github.copilot/extensions/my-work/assets/` (`app.js`, `style.css`, `i
   - A primary action with alternatives is a split button: one joined shape with a `--btn-separator` line, not two separate buttons.
 - **Keep it simple.** Before adding a control, look for an existing place for it: a menu, a tooltip, or the details pane. Rare actions go in menus, never in the always-visible toolbar.
 
+- **Chat inputs look like VS Code's chat input.** Every input is one bordered box (`--input-bg`, `--input-border`, `--focus` border while focused, 6px corners) built by the same `.composer` markup.
+  - The auto-growing text area is on top. Under it is a toolbar row with Send as a 22px icon action on the right, coloured `--accent` once there is text or focus. It is never a big filled button.
+  - Pasted screenshots show above the text.
+  - Enter sends; Shift+Enter adds a new line.
+  - Never build a separate input style for a new chat surface: reuse `.composer`.
+
 ## 5. Details pane
 
 - **The header** has the title (15px), one meta line (number, kind, age) and the primary split button on the right.

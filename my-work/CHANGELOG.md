@@ -15,6 +15,7 @@
   - Each view has one toolbar row: the area picker, then an icon action bar with counts (Route, Auto-dismiss, Safe to dismiss, Re-check rules), then Refresh. Labels and "Updated …" are in the tooltips. Toggled filters use VS Code's `inputOption.active*` colours.
   - **Collapse All / Expand All** in every view's action bar folds or opens all its bands at once, like a VS Code view. The choice is remembered.
   - Browse works like the Settings editor: a search box with Group by, Recent filters and Refresh inside it, and Bugs / Features / All / Reviews tabs underneath next to the area picker.
+- **Chat inputs like VS Code's chat input:** every chat box (issue chats, notification chats and the My Work chat) is now one bordered input box. The text is on top, and Send is a small icon action at the bottom right that turns blue when you type.
 - **Details pane like a VS Code editor:**
   - Recommended next, On GitHub, Comments, Your checks, Sweeper's evidence, Works on, Latest reply and the other sections are VS Code view pane sections: a full-width uppercase header with a chevron that folds the section. Folded sections stay folded.
   - Section content sits flat on the pane: no cards, boxes or tinted backgrounds.
