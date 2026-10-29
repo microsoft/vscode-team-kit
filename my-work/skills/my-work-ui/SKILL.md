@@ -79,6 +79,7 @@ Code: `com.github.copilot/extensions/my-work/assets/` (`app.js`, `style.css`, `i
 - **Buttons:**
   - Give each place one primary button. Everything else is a secondary button or an icon action.
   - A primary action with alternatives is a split button: one joined shape with a `--btn-separator` line, not two separate buttons.
+- **Leave breathing space.** The toolbar has about 10px of padding around it (8px in Compact), rows keep at least 6px above and below, and nothing touches the pane edge. When space is short, labels truncate with an ellipsis; actions never get pushed out of view.
 - **Keep it simple.** Before adding a control, look for an existing place for it: a menu, a tooltip, or the details pane. Rare actions go in menus, never in the always-visible toolbar.
 
 - **Chat inputs look like VS Code's chat input.** Every input is one bordered box (`--input-bg`, `--input-border`, `--focus` border while focused, 6px corners) built by the same `.composer` markup.

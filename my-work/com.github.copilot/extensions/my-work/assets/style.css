@@ -1188,3 +1188,12 @@ body > * { min-width: 0; }
 /* counts as quiet numbers under the icon (badges were too heavy) */
 .rail-nav .rail-btn, [data-density="compact"] .rail-nav .rail-btn { height: auto; min-height: 48px; padding: 7px 0 5px; gap: 1px; }
 .rail-btn .badge, [data-density="compact"] .rail-btn .badge, .rail-btn[aria-selected="true"] .badge { position: static; min-width: 0; height: auto; padding: 0; border-radius: 0; background: none; font-size: 10px; font-weight: 600; line-height: 12px; color: inherit; }
+/* breathing space: the toolbar and header get room around them, rows a little more height */
+.areabar, html[data-density] .areabar { padding: 10px 12px 8px; }
+[data-density="compact"] .areabar { padding: 8px 10px 6px; }
+.batchbar { padding-left: 12px; padding-right: 12px; }
+[data-density="compact"] .top { padding: 10px 14px 8px; }
+[data-density="compact"] .row { padding-top: 6px; padding-bottom: 6px; }
+.row-wrap .row .row-meta, .row .row-meta { margin-top: 2px; }
+.areabar > .btn { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 1 auto; }
+.areabar > .btn .codicon { flex: none; }
