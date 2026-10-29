@@ -26,7 +26,7 @@ const scripts = fileURLToPath(new URL('../skills/my-issues/scripts/', import.met
 const config = await import(new URL('lib/config.mjs', ext));
 const prompts = await import(new URL('lib/prompts.mjs', ext));
 const data = await import(new URL('lib/data.mjs', ext));
-const msrc = await import(new URL('lib/msrcItems.mjs', ext));
+const sections = await import(new URL('lib/sections.mjs', ext));
 const workSessions = await import(new URL('lib/workSessions.mjs', ext));
 
 test('config overlays the user file on the defaults', () => {
@@ -35,7 +35,6 @@ test('config overlays the user file on the defaults', () => {
 	assert.equal(c.repoPaths['octo/app'], path.join(home, 'src', 'app'));
 	assert.equal(config.repoPath('octo/app'), path.join(home, 'src', 'app'));
 	assert.equal(config.repoPath('octo/missing'), null, 'clones that do not exist are ignored');
-	assert.equal(c.msrc.enabled, true);
 	assert.equal(config.dataDir(), path.join(home, 'data'));
 	assert.equal(existsSync(config.SCRIPT), true, 'helper script resolves inside the plugin');
 });
@@ -48,13 +47,10 @@ test('Python and JS configs share their defaults', () => {
 	}
 });
 
-test('session and IcM references are parsed strictly', () => {
+test('session references are parsed strictly', () => {
 	assert.equal(workSessions.parseSessionRef('agent-host-session://ahp-session/0add0440-c947-4b28-8a0d-f82937655e11'), '0add0440-c947-4b28-8a0d-f82937655e11');
 	assert.equal(workSessions.parseSessionRef('copilotcli:/0add0440-c947-4b28-8a0d-f82937655e11'), '0add0440-c947-4b28-8a0d-f82937655e11');
 	assert.equal(workSessions.parseSessionRef('https://example.com/x'), null);
-	assert.equal(msrc.parseIncident('https://portal.microsofticm.com/imp/v5/incidents/details/31000000000001/summary'), '31000000000001');
-	assert.equal(msrc.parseIncident('IcM 31000000000001'), '31000000000001');
-	assert.equal(msrc.parseIncident('#123'), null);
 });
 
 test('my priorities keep their order locally', async () => {
@@ -67,14 +63,46 @@ test('my priorities keep their order locally', async () => {
 	assert.deepEqual((await data.getPriorities()).map(p => p.key), ['octo/app#2', 'octo/app#1']);
 });
 
-test('MSRC items stay private to the user', async () => {
-	await msrc.saveMsrcItem({ incidentId: '31000000000001', link: '', title: 'Test', description: 'secret', resolveBy: '2026-11-01' });
-	assert.equal((await msrc.listMsrcItems()).length, 1);
+test('the old built-in MSRC items become a custom MSRC section, kept private', async () => {
+	// A user of an earlier version: MSRC items on disk and a private fix workflow in the config.
+	mkdirSync(path.join(home, 'data'), { recursive: true });
+	writeFileSync(path.join(home, 'data', 'msrc-items.json'), JSON.stringify({ format: 'my-work/msrc-items', version: 1, items: [
+		{ incidentId: '31000000000001', link: 'https://portal.microsofticm.com/imp/v5/incidents/details/31000000000001/summary', title: 'Test', description: 'secret', resolveBy: '2026-11-01' },
+		{ incidentId: '31000000000002', title: 'Old', done: true },
+	] }));
+	const [msrcSection] = await sections.listSections();
+	assert.equal(msrcSection.id, 'msrc');
+	assert.equal(msrcSection.name, 'MSRC');
+	assert.match(msrcSection.instructions, /secure-fix skill in the private fork/);
+	assert.match(msrcSection.instructions, /Never use the public repository/);
+	const notes = await sections.listNotes();
+	assert.deepEqual(notes.map(n => [n.ref, n.title, n.due, n.description]), [['31000000000001', 'Test', '2026-11-01', 'secret']], 'done items are not migrated');
 	if (process.platform !== 'win32') {
-		assert.equal(statSync(path.join(home, 'data', 'msrc-items.json')).mode & 0o077, 0, 'no group/other access');
+		assert.equal(statSync(path.join(home, 'data', 'sections.json')).mode & 0o077, 0, 'no group/other access');
 	}
-	await msrc.removeMsrcItem('31000000000001');
-	assert.deepEqual(await msrc.listMsrcItems(), []);
+	// Pasting a matching link finds the section and the note's reference.
+	assert.deepEqual(await sections.sectionForLink('https://portal.microsofticm.com/imp/v5/incidents/details/31000000000009/summary'), { section: 'msrc', ref: '31000000000009', link: 'https://portal.microsofticm.com/imp/v5/incidents/details/31000000000009/summary' });
+	assert.equal(await sections.sectionForLink('https://example.com/x'), null);
+	// The same reference in the same section updates the note instead of adding another.
+	await sections.saveNote({ section: 'msrc', ref: '31000000000001', title: 'Renamed' });
+	assert.equal((await sections.listNotes()).length, 1);
+
+	// User-defined sections: names become ids that never clash with the built-in groups.
+	const esc = await sections.saveSection({ name: 'Current', instructions: '', linkPattern: '' });
+	assert.equal(esc.id, 'current-2');
+	assert.equal(await sections.isGroup('current-2'), true);
+	assert.equal(await sections.isGroup('nope'), false);
+	await assert.rejects(sections.saveSection({ name: 'Bad', linkPattern: '(' }), /not a valid regular expression/);
+	await sections.saveNote({ section: 'current-2', title: 'Call customer' });
+	const saved = await sections.setSectionOrder('current-2', ['issue:octo/app#9', 'note:abc', 'session:aaaaaaaa-1111', 'issue:octo/app#9']);
+	assert.deepEqual(saved.order, ['issue:octo/app#9', 'note:abc', 'session:aaaaaaaa-1111'], 'order is kept, without duplicates');
+	await assert.rejects(sections.setSectionOrder('current-2', ['../etc']), /invalid order/);
+	assert.deepEqual((await sections.saveSection({ id: 'current-2', name: 'Renamed' })).order, saved.order, 'editing the section keeps its order');
+	await workSessions.pinIssue('octo/app#9', 'current-2');
+	const r = await sections.removeSection('current-2');
+	assert.deepEqual(r, { removed: true, notes: 1 });
+	assert.equal(await workSessions.moveBucket('current-2', 'current'), 1, 'its issues go back to Current');
+	assert.equal((await sections.listNotes()).filter(n => n.section === 'current-2').length, 0);
 });
 
 test('prompts use the config, not one person\'s setup', () => {
@@ -91,9 +119,10 @@ test('prompts use the config, not one person\'s setup', () => {
 	assert.match(texts, /github-inbox-memory\.md/, 'triage prompts read the inbox memory');
 	assert.ok(texts.includes(config.SCRIPT.replaceAll(os.homedir(), '~')), 'refers to the bundled helper script');
 	assert.doesNotMatch(texts, /sandy081|\.agents\/skills|rules? \d/);
-	const security = prompts.msrcItemSessionPrompt({ incidentId: '1', link: 'l', title: 't', description: 'd' });
+	const security = prompts.noteSessionPrompt({ section: { name: 'MSRC', instructions: 'Use the secure-fix skill in the private fork.' }, note: { ref: '1', link: 'l', title: 't', description: 'd' } });
 	assert.match(security, /secure-fix skill in the private fork/);
-	assert.match(security, /Never use the public repository/);
+	assert.match(security, /title that contains "1"/);
+	assert.match(prompts.noteSessionPrompt({ section: { name: 'X', instructions: '' }, note: { title: 'Call', description: '' } }), /no special instructions/);
 });
 
 test('find-clones reads local clones from the session store', { skip: process.platform === 'win32' }, () => {
@@ -257,6 +286,11 @@ test('discussing an issue uses its own chat, and Start session turns that chat i
 		await post('/api/message', { key, title: 'Crash on save', text: 'try the other fix' });
 		assert.match(sent.at(-1), /forward a message to the chat for octo\/app#42/);
 		assert.match(sent.at(-1), /send_message with session "agent-host-session:\/\/ahp-session\/aaaaaaaa-/);
+		assert.match(sent.at(-1), /check it arrived: .*get_session_context/, 'the forwarder checks delivery (send_message can report success for a dropped message)');
+		const n = (await data.getThread(key)).length;
+		await post('/api/message', { key, title: 'Crash on save', text: 'try the other fix', resend: true });
+		assert.match(sent.at(-1), /forward a message to the chat for octo\/app#42/, 'Resend goes to the same chat');
+		assert.equal((await data.getThread(key)).length, n, 'and does not repeat the message in the conversation');
 
 		const r = await post('/api/work-session', { key, title: 'Crash on save', url: 'https://github.com/octo/app/issues/42' });
 		assert.equal(r.body.via, 'issue-chat', 'the discussion chat becomes the session');
@@ -321,10 +355,10 @@ test('Browse keeps its last source and filter across panel reloads', async () =>
 		req.on('error', reject); req.end(JSON.stringify(body));
 	});
 	try {
-		await post({ browse: { source: 'area', area: 'agents-window', refine: { query: 'author:alexdima', text: 'created by alexdima', note: '', extra: 'x' } } });
-		assert.deepEqual((await data.getSettings()).browse, { source: 'area', area: 'agents-window', refine: { query: 'author:alexdima', text: 'created by alexdima', note: '' } });
-		await post({ browse: { source: 'evil', area: '../x', refine: { query: ' ' } } });
-		assert.deepEqual((await data.getSettings()).browse, { source: 'bugs', area: '', refine: null }, 'unknown values fall back to defaults');
+		await post({ browse: { source: 'area', area: 'agents-window', groupBy: 'reporter', refine: { query: 'author:alexdima', text: 'created by alexdima', note: '', extra: 'x' } } });
+		assert.deepEqual((await data.getSettings()).browse, { source: 'area', area: 'agents-window', groupBy: 'reporter', refine: { query: 'author:alexdima', text: 'created by alexdima', note: '' } });
+		await post({ browse: { source: 'evil', area: '../x', groupBy: 'x', refine: { query: ' ' } } });
+		assert.deepEqual((await data.getSettings()).browse, { source: 'bugs', area: '', groupBy: '', refine: null }, 'unknown values fall back to defaults');
 		await post({ browseHistory: [{ source: 'area', area: 'agents-window', refine: { query: 'author:alexdima' }, at: '2026-10-28T10:00:00Z' }, { source: 'bugs', refine: null }] });
 		const history = (await data.getSettings()).browseHistory;
 		assert.equal(history.length, 1, 'entries without a filter are dropped');
@@ -360,4 +394,48 @@ test('screenshots pasted in the panel reach the chat as private file paths', asy
 	} finally {
 		await server.stop();
 	}
+});
+
+test('finished work is marked by its GitHub state', async () => {
+	const work = await import(new URL('lib/work.mjs', ext));
+	assert.equal(work.doneState('OPEN'), null);
+	assert.equal(work.doneState('CLOSED'), 'closed');
+	assert.equal(work.doneState('MERGED'), 'merged');
+	assert.equal(work.doneState(undefined), null, 'unknown state counts as open');
+});
+
+test('a batch tops up to its size when items leave it', () => {
+	const pool = Array.from({ length: 40 }, (_, i) => `n${i}`);
+	const tabs = { notifications: { ids: pool.slice(0, 25), seen: ['n30', 'n31'], number: 3 } };
+	// 19 of the 25 were dismissed elsewhere (no longer unread), one is handled but still shown.
+	const left = [...pool.slice(19, 25), ...pool.slice(25)];
+	const { view } = data.resolveBatch(tabs, 'notifications', left, new Set(['n19']), 25);
+	assert.equal(view.ids.length, 21, 'all remaining items fit in the 25 slots, including ones skipped earlier');
+	assert.deepEqual(view.ids.slice(0, 6), pool.slice(19, 25), 'items already in the batch keep their place');
+	assert.deepEqual(view.ids.slice(-2), ['n30', 'n31'], 'skipped items come after new ones');
+	assert.equal(view.open, 20);
+	assert.equal(view.remaining, 0);
+	// Nothing left to add: the batch keeps what it has.
+	const again = data.resolveBatch(tabs, 'notifications', left, new Set(['n19']), 25);
+	assert.equal(again.changed, false);
+});
+
+test('sessions can be linked to issues by hand', async () => {
+	const id = 'ffffffff-1111-2222-3333-444444444444';
+	assert.deepEqual(await workSessions.linkSessionIssue(id, 'octo/app#5'), ['octo/app#5']);
+	assert.deepEqual(await workSessions.linkSessionIssue(id, 'octo/app#6'), ['octo/app#5', 'octo/app#6']);
+	assert.deepEqual(await workSessions.linkSessionIssue(id, 'octo/app#5', false), ['octo/app#6']);
+	assert.deepEqual((await workSessions.getSessionLinks())[id], ['octo/app#6']);
+	await workSessions.linkSessionIssue(id, 'octo/app#6', false);
+	assert.equal((await workSessions.getSessionLinks())[id], undefined, 'no empty entries are kept');
+	await assert.rejects(workSessions.linkSessionIssue('../x', 'octo/app#1'), /invalid/);
+	await assert.rejects(workSessions.linkSessionIssue(id, 'not an issue'), /invalid/);
+});
+
+test('reads VS Code layout density from user settings', async () => {
+	const { parseLayoutDensity } = await import(new URL('lib/vscodeTheme.mjs', ext));
+	assert.equal(parseLayoutDensity('{\n\t"window.density.layout": "compact",\n}'), 'compact');
+	assert.equal(parseLayoutDensity('{\n  "window.density.layout": "default"\n}'), 'default');
+	assert.equal(parseLayoutDensity('{\n  // "window.density.layout": "compact"\n}'), 'default');
+	assert.equal(parseLayoutDensity('{}'), 'default');
 });

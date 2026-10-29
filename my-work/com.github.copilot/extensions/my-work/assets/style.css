@@ -652,7 +652,7 @@ html.narrow .title-sub { gap: 8px; }
 .list-refresh .codicon { font-size: 13px; margin: 0; }
 .codicon.spin { animation: spin 1s linear infinite; }
 
-/* ---------- My Work, MSRC, sessions ---------- */
+/* ---------- My Work, sections, sessions ---------- */
 .codicon-shield::before { content: "\eb53"; }
 .codicon-lock::before { content: "\ea75"; }
 .tag.sess { background: var(--accent-soft); color: var(--accent); }
@@ -671,7 +671,7 @@ html.narrow .title-sub { gap: 8px; }
 .linked .sess-card { margin-top: 12px; border-style: dashed; }
 .kvs { display: grid; gap: 6px; font-size: 13px; }
 .kv { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 10px; }
-.msrc-note { margin-top: 16px; font-size: 11.5px; display: flex; align-items: center; gap: 6px; }
+.lock-note { margin-top: 16px; font-size: 11.5px; display: flex; align-items: center; gap: 6px; }
 .triage-card p + p { margin-top: 4px; }
 .empty-group { padding: 4px 10px 8px; font-size: 12px; }
 
@@ -691,13 +691,13 @@ html.narrow .title-sub { gap: 8px; }
 .prio-row.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
 .prio-row.drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
 
-/* MSRC items in My Work */
-.msrc-form { display: grid; gap: 6px; padding: 12px; }
-.msrc-form label { font-size: 12px; color: var(--muted); margin-top: 4px; }
-.msrc-form input, .msrc-form textarea { font: inherit; font-size: 13px; padding: 4px 6px; color: var(--fg); background: transparent; border: 1px solid var(--line); border-radius: 4px; }
-.msrc-form textarea { resize: vertical; font-family: var(--mono, ui-monospace, monospace); font-size: 12px; }
-.msrc-form-actions { display: flex; gap: 8px; margin-top: 6px; }
-.msrc-desc { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; padding: 8px 12px; max-height: none; }
+/* Notes and sections in My Work */
+.note-form { display: grid; gap: 6px; padding: 12px; }
+.note-form label { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.note-form input, .note-form textarea { font: inherit; font-size: 13px; padding: 4px 6px; color: var(--fg); background: transparent; border: 1px solid var(--line); border-radius: 4px; }
+.note-form textarea { resize: vertical; font-family: var(--mono, ui-monospace, monospace); font-size: 12px; }
+.note-form-actions { display: flex; gap: 8px; margin-top: 6px; }
+.note-desc { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; padding: 8px 12px; max-height: none; }
 
 /* My Work home + pinned sessions */
 .row.work-home .row-title { font-weight: 600; }
@@ -853,3 +853,363 @@ html.narrow .title-sub { gap: 8px; }
 /* Browse toolbar: sources and actions on the first row, the filter on its own full-width row. */
 .find-tools-end { margin-left: auto; display: inline-flex; gap: 4px; }
 .find-tools .find-search { flex: 1 1 100%; }
+
+/* Finished work (issue closed, PR merged, session done): dimmed with a status tag until cleared. */
+.row.is-done .row-title { color: var(--muted); }
+.row.is-done::before { background: var(--good, #2da44e); }
+.tag.done { color: var(--good, #2da44e); background: color-mix(in srgb, var(--good, #2da44e) 12%, transparent); }
+.tag.done .codicon { font-size: 11px; margin-right: 3px; }
+.group-h .group-clear { margin-left: auto; font-size: 11px; text-transform: none; letter-spacing: 0; font-weight: 400; }
+.closed-fold { display: flex; align-items: center; gap: 5px; width: 100%; border: 0; background: none; color: var(--faint); font: inherit; font-size: 12px; padding: 6px 10px; cursor: pointer; text-align: left; border-radius: var(--r); }
+.closed-fold:hover { background: var(--hover); color: var(--muted); }
+.closed-fold .codicon-chevron-right { transition: transform .12s; font-size: 12px; }
+.closed-fold[aria-expanded="true"] .codicon-chevron-right { transform: rotate(90deg); }
+.closed-fold .codicon-pass-filled { color: var(--good, #2da44e); font-size: 12px; }
+/* Collapsible My Work sections: the header text is a toggle; extra header buttons stay on the right. */
+.group-toggle { display: inline-flex; align-items: center; gap: 4px; border: 0; background: none; padding: 0; font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; cursor: pointer; }
+.group-toggle:hover { color: var(--muted); }
+.group-toggle .codicon { font-size: 12px; transition: transform .12s; }
+.group-toggle[aria-expanded="true"] .codicon { transform: rotate(90deg); }
+
+.note-form-actions .spacer { flex: 1; }
+.group-h .group-tools { margin-left: auto; display: inline-flex; gap: 2px; opacity: 0; transition: opacity .1s; }
+.group-h:hover .group-tools, .group-h:focus-within .group-tools { opacity: 1; }
+.group-h .group-clear + .group-tools { margin-left: 4px; }
+.group-h .group-tools .row-pin { position: static; transform: none; opacity: 1; width: 20px; height: 20px; display: inline-grid; place-items: center; }
+.group-h .group-tools .codicon { font-size: 13px; margin: 0; }
+@media (hover: none) { .group-h .group-tools { opacity: 1; } }
+.codicon-note::before { content: "\eb26"; }
+.codicon-gear::before { content: "\eaf8"; }
+.codicon-beaker::before { content: "\ea79"; }
+/* Browse grouping */
+.find-group-h { display: flex; align-items: center; gap: 5px; width: 100%; border: 0; background: none; color: var(--faint); font: inherit; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; padding: 10px 4px 4px; cursor: pointer; text-align: left; }
+.find-group-h:hover { color: var(--muted); }
+.find-group-h .codicon { font-size: 12px; transition: transform .12s; }
+.find-group-h[aria-expanded="true"] .codicon { transform: rotate(90deg); }
+.stage-h { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--faint); padding: 6px 10px 2px 12px; }
+.stage-h .group-n { margin-left: 2px; }
+.closed-fold .done-sum { margin-left: 6px; font-size: 11px; }
+.tag.closed-other { color: var(--muted); }
+.tag.closed-other .codicon { font-size: 11px; margin-right: 3px; }
+.codicon-circle-slash::before { content: "\eabd"; }
+/* In progress / To do / Done inside a My Work group: one style, aligned with the rows, collapsible. */
+.stage-h { display: flex; align-items: center; gap: 6px; width: 100%; border: 0; background: none; font: inherit; font-size: 12px; color: var(--muted); padding: 8px 10px 4px 4px; cursor: pointer; text-align: left; border-radius: var(--r); }
+.stage-h:hover { color: var(--fg); background: var(--hover); }
+.stage-h .codicon-chevron-right { font-size: 12px; color: var(--faint); transition: transform .12s; }
+.stage-h[aria-expanded="true"] .codicon-chevron-right { transform: rotate(90deg); }
+.stage-h .stage-icon { font-size: 13px; }
+.stage-progress .stage-icon { color: var(--accent); }
+.stage-todo .stage-icon { color: var(--faint); }
+.stage-done .stage-icon { color: var(--good, #2da44e); }
+.stage-h .group-n { margin-left: 2px; color: var(--faint); }
+.codicon-sync::before { content: "\ea77"; }
+.codicon-circle-large-outline::before { content: "\ebb5"; }
+/* Stage headers share the group headers' left edge: chevrons line up in one column with the row dots. */
+.stage-h { padding: 8px 10px 4px 10px; gap: 4px; }
+.stage-h .stage-icon { margin: 0 2px 0 0; }
+/* Tree: a stage's chevron sits under its group's title, and its rows are indented one step. */
+.stage-h { padding-left: 22px; }
+.stage-body { padding-left: 12px; }
+.works-on-body { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 4px 12px 10px; }
+.link-chip { display: inline-flex; align-items: center; gap: 2px; background: var(--surface-2); border-radius: 6px; padding: 2px 6px; font-size: 12.5px; }
+.link-form { display: flex; gap: 6px; flex: 1 1 260px; }
+.link-form input { flex: 1; min-width: 0; font: inherit; font-size: 12.5px; padding: 4px 8px; color: var(--fg); background: var(--surface-2); border: 1px solid transparent; border-radius: 6px; outline: none; }
+.link-form input:focus { border-color: var(--accent); background: var(--surface); }
+/* Tree grid (16px steps): group chevron 16 → stage chevron 32 (under the group title) → row dot 48 (under the stage icon). */
+.stage-h { padding-left: 26px; }
+.stage-body { padding-left: 33px; }
+
+/* ---------- Bands: section headers everywhere (light band, chevron, title, count right, description below) ---------- */
+.band.group-h { display: flex; align-items: center; gap: 6px; margin: 10px 0 0; padding: 0 10px 0 6px; min-height: 30px; background: var(--surface-2); border-radius: 6px; text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 500; color: var(--fg); border-top: 0; }
+.band.group-h:first-child { margin-top: 2px; }
+.band-toggle { display: inline-flex; align-items: center; gap: 6px; flex: 1; min-width: 0; border: 0; background: none; padding: 6px 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.band-toggle .codicon { font-size: 12px; color: var(--muted); transition: transform .12s; }
+.band-toggle[aria-expanded="true"] .codicon { transform: rotate(90deg); }
+.band-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.band-n { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; min-width: 1ch; text-align: right; }
+.band-tools { display: inline-flex; align-items: center; gap: 6px; }
+.band .group-tools { margin-left: 0; }
+.band:hover .group-tools, .band:focus-within .group-tools { opacity: 1; }
+.band .group-clear { margin-left: 0; }
+.band-desc { margin: 4px 10px 6px 24px; font-size: 12px; color: var(--muted); }
+.band + .row-act, .band + .row, .band + .stage-h { margin-top: 4px; }
+
+/* Sub-sections inside a band: quiet row, chevron + icon + label + count pill. */
+.stage-h { font-size: 12px; font-weight: 600; color: var(--fg); padding: 6px 10px 4px 24px; }
+.stage-h .group-n { margin-left: 4px; padding: 0 6px; border-radius: 9px; background: var(--surface-2); color: var(--muted); font-size: 11px; font-weight: 500; line-height: 16px; }
+.stage-body { padding-left: 14px; }
+
+/* ---------- Header: title, meta on the right, summary line, segmented progress bar ---------- */
+.top { align-items: stretch; }
+.brand { flex: 1; min-width: 0; }
+.title-row { display: flex; align-items: baseline; gap: 12px; }
+.top-meta { margin-left: auto; color: var(--faint); font-size: 12px; white-space: nowrap; }
+.top-progress { display: flex; gap: 2px; height: 4px; margin-top: 10px; border-radius: 2px; overflow: hidden; background: var(--surface-2); }
+.top-progress:empty { visibility: hidden; }
+.top-progress span { min-width: 3px; }
+.top-progress .seg-done { background: var(--good, #2da44e); }
+.top-progress .seg-progress { background: var(--accent); }
+.top-progress .seg-attention { background: var(--bad, #cf222e); }
+.top-progress .seg-todo { background: repeating-linear-gradient(-45deg, var(--line) 0 4px, transparent 4px 8px); }
+/* Compact density: title and meta on one line, summary below, then the progress bar. */
+[data-density="compact"] .brand { display: block; }
+[data-density="compact"] .title-row { gap: 8px; }
+[data-density="compact"] .top-meta { font-size: 11px; }
+[data-density="compact"] .top-progress { margin-top: 6px; height: 3px; }
+/* Quieter toolbar: icon-only secondary actions. */
+.pill.classify.icon { padding: 3px 7px; }
+
+/* ---------- VS Code-like layout density: Default = cards with a small gap, Compact = joined parts ---------- */
+.top { padding: 14px 14px 10px; }
+.layout { gap: 0; padding: 0 8px 8px; }
+.list, .detail { border-radius: var(--r); box-shadow: none; }
+html:not(.narrow) .layout { grid-template-columns: minmax(220px, var(--list-w, 38%)) 4px minmax(0, 1fr); }
+.split-handle { touch-action: none; }
+html:not(.narrow) .split-handle { display: block; position: relative; z-index: 5; cursor: ew-resize; }
+html:not(.narrow) .split-handle::after { content: ""; position: absolute; top: 0; bottom: 0; left: 0; right: 0; background: transparent; transition: background .1s; }
+html:not(.narrow) .split-handle:hover::after, html:not(.narrow) .split-handle:focus-visible::after, body.resizing .split-handle::after { background: var(--accent); transition-delay: .2s; }
+body.resizing .split-handle::after { transition-delay: 0s; }
+html:not(.narrow) .split-handle:focus-visible { outline: none; }
+body.resizing { cursor: ew-resize; user-select: none; }
+html.narrow body.resizing { cursor: ns-resize; }
+html.narrow .layout { grid-template-rows: minmax(90px, var(--list-h, 40%)) 4px minmax(0, 1fr); }
+
+html[data-density="compact"] .layout { gap: 0; padding: 0; border-top: 1px solid var(--line); }
+html[data-density="compact"]:not(.narrow) .layout { grid-template-columns: minmax(200px, var(--list-w, 38%)) 0 minmax(0, 1fr); }
+html[data-density="compact"] .list, html[data-density="compact"] .detail { border: none; border-radius: 0; }
+html[data-density="compact"]:not(.narrow) .list { border-right: 1px solid var(--line); }
+html[data-density="compact"]:not(.narrow) .split-handle::after { left: -2px; right: -2px; }
+html[data-density="compact"].narrow .layout { grid-template-rows: minmax(90px, var(--list-h, 40%)) 0 minmax(0, 1fr); }
+html[data-density="compact"].narrow .list { border-bottom: 1px solid var(--line); }
+html[data-density="compact"].narrow .split-handle { height: 0; }
+html[data-density="compact"].narrow .split-handle::before { content: ""; position: absolute; left: 0; right: 0; top: -3px; height: 6px; cursor: ns-resize; }
+html[data-density="compact"].narrow .split-handle::after { display: none; }
+
+/* ---------- VS Code UX: pane headers, list rows, count badges, buttons, dropdowns and action bars ---------- */
+:root { --r-sm: 4px; --r: 4px; --r-lg: 6px; }
+html[data-theme="vscode"] { --font: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", system-ui, "Ubuntu", "Droid Sans", sans-serif; }
+:focus-visible { outline: 1px solid var(--focus, var(--accent)); outline-offset: -1px; border-radius: 0; }
+
+/* Pane headers: 22px, 11px bold uppercase title, full width, section header colours */
+.list-body { padding: 0 0 8px; }
+.band.group-h { margin: 0; padding: 0 8px 0 2px; min-height: 22px; height: 22px; border-radius: 0; background: var(--section-bg, transparent); color: var(--section-fg, var(--fg)); border-top: 1px solid var(--section-border, var(--line)); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0; }
+.band.group-h:first-child { margin-top: 0; }
+.band-toggle { gap: 2px; padding: 0; line-height: 22px; }
+.band-toggle .codicon { font-size: 16px; color: var(--icon-fg, currentColor); }
+.band-tools .link-btn, .band-tools button { text-transform: none; font-weight: normal; }
+.band + .row-act, .band + .row, .band + .stage-h, .band + .row-wrap { margin-top: 0; }
+
+/* Count badges */
+.band-n, .stage-h .group-n { display: inline-block; box-sizing: border-box; min-width: 18px; padding: 3px 5px; border-radius: 11px; font-size: 11px; line-height: 11px; font-weight: normal; text-align: center; text-transform: none; background: var(--badge-bg, var(--surface-2)); color: var(--badge-fg, var(--muted)); }
+.band-n:empty { display: none; }
+
+/* List rows: square, list hover / selection colours */
+.row { border-radius: 0; }
+.row:hover { background: var(--hover); }
+.row[aria-current="true"] { background: var(--sel-bg, var(--accent-soft)); color: var(--sel-fg, var(--fg)); box-shadow: none; }
+.list-body:focus-within .row[aria-current="true"] { background: var(--sel-active-bg, var(--accent-soft)); color: var(--sel-active-fg, var(--fg)); }
+.row:focus-visible { outline: 1px solid var(--focus, var(--accent)); outline-offset: -1px; }
+.stage-h { border-radius: 0; }
+
+/* Row hover actions: an action bar of 22px icon buttons */
+.row-quick { top: 6px; right: 4px; padding: 0; gap: 0; border-radius: 0; box-shadow: none; background: transparent; }
+.row-act:hover .row-quick, .row-act:focus-within .row-quick { background: var(--hover); }
+.row-act:has(.row[aria-current="true"]) .row-quick { background: var(--sel-bg, var(--accent-soft)); }
+.row-quick .row-pin { width: 22px; height: 22px; border-radius: 5px; color: var(--icon-fg, var(--muted)); }
+.row-quick .row-pin:hover { background: var(--toolbar-hover, var(--surface-2)); color: var(--icon-fg, var(--fg)); }
+
+/* Buttons: primary = button.*, others = secondary button */
+.btn { border-radius: 4px; border: 1px solid var(--btn2-border, transparent); background: var(--btn2-bg, var(--surface-2)); color: var(--btn2-fg, var(--fg)); font-weight: normal; box-shadow: none; }
+.btn:hover:not(:disabled) { background: var(--btn2-hover, var(--hover)); }
+.btn.primary { border-color: var(--btn-border, var(--accent)); background: var(--accent); color: var(--accent-fg); font-weight: normal; box-shadow: none; }
+.btn.primary:hover:not(:disabled) { background: var(--btn-hover, var(--accent)); filter: none; }
+.btn.quiet { border-color: transparent; background: transparent; color: var(--fg); }
+.btn.quiet:hover:not(:disabled) { background: var(--toolbar-hover, var(--hover)); }
+.btn.danger { background: transparent; }
+.btn.sm.on { background: var(--sel-active-bg, var(--accent-soft)); color: var(--sel-active-fg, var(--accent)); border-color: transparent; }
+.pill { border-radius: 4px; border: 1px solid var(--btn2-border, transparent); background: var(--btn2-bg, var(--surface-2)); color: var(--btn2-fg, var(--fg)); }
+.pill:hover:not(:disabled) { background: var(--btn2-hover, var(--hover)); color: var(--btn2-fg, var(--fg)); }
+.pill[aria-pressed="true"], .pill.active, .pill.on { background: var(--sel-active-bg, var(--accent-soft)); color: var(--sel-active-fg, var(--accent)); border-color: var(--focus, var(--accent)); }
+.pill.classify { color: var(--btn2-fg, var(--fg)); border-color: var(--btn2-border, transparent); }
+.pill.classify.busy { background: transparent; border: 1px dashed var(--line); color: var(--muted); }
+.list-refresh { padding: 2px 4px; border-radius: 5px; color: var(--fg); }
+.list-refresh:hover { background: var(--toolbar-hover, var(--hover)); color: var(--fg); }
+.list-refresh .codicon { color: var(--icon-fg, currentColor); }
+
+/* Dropdowns and inputs */
+.area-pick { border-radius: 4px; background: var(--dropdown-bg, var(--surface)); border-color: var(--dropdown-border, var(--line)); color: var(--fg); }
+.area-pick:focus-within { outline: 1px solid var(--focus, var(--accent)); outline-offset: -1px; }
+input[type="text"], input[type="search"], input:not([type]), textarea { border-radius: 4px; }
+html[data-density] .list-body { padding: 0 0 8px; }
+.band-toggle { text-transform: inherit; letter-spacing: inherit; }
+.list-body .row, .list-body .row-wrap .row, .list-body .row-act .row { border-radius: 0; }
+/* list colours can be translucent: layer them on the surface so the action bar hides the title under it */
+.row-act:hover .row-quick, .row-act:focus-within .row-quick { background: linear-gradient(var(--hover), var(--hover)), var(--surface); }
+.row-act:has(.row[aria-current="true"]) .row-quick { background: linear-gradient(var(--sel-bg, var(--accent-soft)), var(--sel-bg, var(--accent-soft))), var(--surface); }
+.list-body:focus-within .row-act:has(.row[aria-current="true"]) .row-quick { background: linear-gradient(var(--sel-active-bg, var(--accent-soft)), var(--sel-active-bg, var(--accent-soft))), var(--surface); }
+.list-refresh { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- VS Code action bars: icon buttons with an optional count, label in the tooltip ---------- */
+.codicon-group-by-ref-type::before { content: "\eb97"; }
+.codicon-clear-all::before { content: "\eabf"; }
+.actionbar { display: inline-flex; align-items: center; gap: 2px; flex: none; }
+.actionbar:empty { display: none; }
+.act { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 3px; height: 22px; min-width: 22px; padding: 0 3px; border: 0; border-radius: 5px; background: transparent; color: var(--icon-fg, var(--fg)); font: inherit; font-size: 11px; cursor: pointer; }
+.act:hover { background: var(--toolbar-hover, var(--hover)); }
+.act[aria-pressed="true"], .act.on { background: var(--toggle-bg, var(--accent-soft)); color: var(--toggle-fg, var(--fg)); box-shadow: inset 0 0 0 1px var(--toggle-border, var(--focus, var(--accent))); }
+.act .codicon { font-size: 16px; margin: 0; vertical-align: 0; }
+.act-n { color: var(--fg); font-variant-numeric: tabular-nums; }
+.act.busy { cursor: default; }
+.act.busy .act-n { color: var(--muted); }
+.act:disabled { opacity: .5; cursor: default; }
+.act.list-refresh { padding: 0 3px; min-width: 22px; overflow: visible; }
+.select-act select { position: absolute; inset: 0; width: 100%; opacity: 0; cursor: pointer; }
+.areabar { gap: 4px; }
+
+/* ---------- Browse: VS Code search box with inline actions, tabs underneath (Settings editor style) ---------- */
+.find-view .find-tools { display: flex; flex-direction: column; align-items: stretch; gap: 8px; margin-bottom: 8px; }
+.find-view .find-search { flex: none; height: 28px; padding: 0 2px 0 8px; gap: 6px; background: var(--input-bg, var(--surface)); border: 1px solid var(--input-border, var(--line)); border-radius: 4px; }
+.find-view .find-search:focus-within { border-color: var(--focus, var(--accent)); background: var(--input-bg, var(--surface)); }
+.find-view .find-search > .codicon { color: var(--icon-fg, var(--faint)); font-size: 16px; }
+.find-view .find-search input { color: var(--input-fg, var(--fg)); font-size: 13px; padding: 0; height: 100%; }
+.find-view .find-search input::-webkit-search-cancel-button { display: none; }
+.find-tabs { display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--line); }
+.find-tabs .tabs { display: flex; }
+.find-tabs .seg-btn { display: inline-flex; align-items: center; gap: 5px; border: 0; border-bottom: 1px solid transparent; border-radius: 0; background: none; box-shadow: none; padding: 4px 10px 5px; margin-bottom: -1px; font: inherit; font-size: 11px; text-transform: uppercase; color: var(--tab-fg, var(--muted)); cursor: pointer; }
+.find-tabs .seg-btn .codicon { font-size: 14px; }
+.find-tabs .seg-btn:hover { color: var(--tab-active-fg, var(--fg)); }
+.find-tabs .seg-btn.on { color: var(--tab-active-fg, var(--fg)); border-bottom-color: var(--tab-active-border, var(--accent)); }
+.find-tabs .find-area { margin-left: auto; margin-bottom: 3px; padding: 2px 6px; font-size: 12px; background: var(--dropdown-bg, var(--surface)); color: var(--fg); border: 1px solid var(--dropdown-border, var(--line)); border-radius: 4px; }
+.areabar { flex-wrap: nowrap; }
+.areabar .area-pick { flex: 0 1 auto; min-width: 60px; }
+.areabar .area-pick select { min-width: 0; width: 100%; text-overflow: ellipsis; }
+.codicon-collapse-all::before { content: "\eac5"; }
+.codicon-expand-all::before { content: "\eb95"; }
+
+/* ---------- Detail pane like a VS Code editor: flat sections with pane headers, no boxes ---------- */
+.detail-body { --dpad: 20px; padding: 0 var(--dpad) 18px; }
+[data-density="compact"] .detail-body { --dpad: 14px; padding: 0 var(--dpad) 12px; }
+.detail-head { padding: 12px var(--dpad, 20px) 10px; }
+[data-density="compact"] .detail-head { --dpad: 14px; padding: 10px 14px 8px; }
+.detail-head h2 { font-size: 15px; }
+
+/* Section headers */
+.dsec-h { display: flex; align-items: center; gap: 4px; height: 22px; min-height: 22px; margin: 14px calc(-1 * var(--dpad)) 8px; padding: 0 var(--dpad) 0 calc(var(--dpad) - 18px); background: var(--section-bg, transparent); color: var(--section-fg, var(--fg)); border-top: 1px solid var(--section-border, var(--line)); cursor: pointer; user-select: none; }
+.dsec-h .section-label, .dsec-h.section-label { font-size: 11px; font-weight: 700; letter-spacing: 0; text-transform: uppercase; color: var(--section-fg, var(--fg)); }
+.dsec-h.gh-title { font-size: 11px; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+.dsec-h > :not(.dsec-chev):not(.section-label):first-of-type { margin-left: 0; }
+.dsec-h .section-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dsec-h > .link-btn, .dsec-h > .cd, .dsec-h > .seg, .dsec-h > a { margin-left: auto; text-transform: none; font-weight: normal; font-size: 12px; }
+.dsec-h .section-label + .link-btn, .dsec-h .section-label + .cd, .dsec-h .section-label + a, .dsec-h .section-label + .seg { margin-left: 0; }
+.dsec-h .dsec-chev { flex: none; width: 16px; font-size: 16px; color: var(--icon-fg, currentColor); transition: transform .12s; }
+.dsec-h[aria-expanded="true"] .dsec-chev { transform: rotate(90deg); }
+.dsec-h:focus-visible { outline: 1px solid var(--focus, var(--accent)); outline-offset: -1px; }
+.dsec-collapsed > :not(.dsec-h) { display: none !important; }
+.comments-collapsed > .gh-comment, .comments-collapsed > .gh-c-more { display: none !important; }
+.gh-comments-h.dsec-h { font-size: 11px; }
+
+/* Sections without boxes */
+.linked, .dcard { margin-top: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
+.dcard .linked-head.dsec-h, .linked > .linked-head.dsec-h { margin-bottom: 8px; }
+.reco { margin-top: 0; }
+.gh-title { margin-bottom: 8px; }
+.gh-body { padding: 0; border: 0; border-radius: 0; background: none; margin-top: 10px; }
+.gh-body.clamped::after { background: linear-gradient(transparent, var(--surface)); border-radius: 0; }
+
+/* Status messages (Needs you, Your rules, Sweeper proposes): an icon line, like VS Code's editor status, not a coloured card */
+.triage-card { padding: 6px 0 6px 10px; margin-top: 10px; border: 0; border-left: 2px solid var(--tone); border-radius: 0; background: none; }
+.triage-card::before { display: none; }
+.triage-card + .triage-card { margin-top: 6px; }
+.triage-card p { font-size: 12.5px; color: var(--fg); }
+
+/* Recommendations: list rows, not tinted cards */
+.reco-item { border: 0; border-radius: 0; background: none; padding: 6px 4px; }
+.reco-item:hover { background: var(--hover); }
+.reco-list { margin: 0; padding: 0; }
+
+/* Comments: author line, quiet association, clamp long bodies */
+.gh-comment { padding: 8px 0 10px; }
+.gh-c-head .tag { background: none; padding: 0; color: var(--muted); font-size: 11px; }
+.gh-comment > .md.clamped { max-height: 240px; overflow: hidden; position: relative; -webkit-mask-image: linear-gradient(#000 70%, transparent); mask-image: linear-gradient(#000 70%, transparent); }
+.gh-c-more { margin-top: 2px; font-size: 12px; }
+.reco-list { border: 0; border-radius: 0; }
+.reco-item + .reco-item { border-top: 0; }
+.reco-item.top { background: none; }
+.dsec-h { padding-left: 6px; }
+#detail .detail-body .linked { padding: 0; margin-top: 0; border: 0; background: none; }
+#detail .detail-body .linked > div:not(.dsec-h), #detail .detail-body .linked > details { padding-left: 0; padding-right: 0; }
+#detail .detail-body .linked > ul { padding-left: 18px; }
+/* Split buttons (VS Code button bar with a dropdown): one joined shape with a separator */
+.split > .btn.split-main:not(:only-child) { border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: 0; margin-right: 0; }
+.split > .btn.split-toggle { border-top-left-radius: 0; border-bottom-left-radius: 0; border-left: 1px solid var(--btn-separator, color-mix(in srgb, var(--accent-fg) 40%, transparent)); margin-left: 0; }
+.split > .btn:not(.primary).split-toggle { border-left-color: color-mix(in srgb, var(--fg) 20%, transparent); }
+/* never let wide content (long code lines) push the panes past the window */
+body { grid-template-columns: 48px minmax(0, 1fr); }
+body > * { min-width: 0; }
+.detail, .list { min-width: 0; }
+
+/* ---------- Chat inputs like VS Code's chat input: a bordered input box, text on top, a toolbar row with Send ---------- */
+.composer, .footer .composer, .list-chat .composer, [data-density="compact"] .composer {
+	display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "img img" "input input" "tools send";
+	gap: 2px 4px; padding: 6px 6px 4px 8px; border-radius: 6px; flex-wrap: nowrap;
+	background: var(--input-bg, var(--surface)); border: 1px solid var(--input-border, var(--line));
+}
+.composer:focus-within { border-color: var(--focus, var(--accent)); background: var(--input-bg, var(--surface)); }
+.composer .composer-images { grid-area: img; padding: 0 0 4px; }
+.composer .ask-input { grid-area: input; min-height: 20px; padding: 0; font-size: 13px; line-height: 20px; color: var(--input-fg, var(--fg)); }
+.composer .ask-input::placeholder { color: var(--faint); }
+.composer .send { grid-area: send; justify-self: end; width: 22px; height: 22px; border-radius: 5px; background: transparent; color: var(--icon-fg, var(--fg)); }
+.composer .send:hover:not(:disabled) { background: var(--toolbar-hover, var(--hover)); }
+.composer .send .codicon { font-size: 16px; }
+.composer:focus-within .send, .composer:has(.ask-input:not(:placeholder-shown)) .send { color: var(--accent); }
+.composer { box-sizing: border-box; width: 100%; min-width: 0; }
+.composer .ask-input { width: 100%; min-width: 0; box-sizing: border-box; }
+.list-chat { grid-template-columns: minmax(0, 1fr); }
+/* single-line chat input: text and Send on one row (a toolbar row can come back when there are more actions) */
+.composer, .footer .composer, .list-chat .composer, [data-density="compact"] .composer { grid-template-areas: "img img" "input send"; align-items: end; padding: 4px 4px 4px 8px; }
+.composer .ask-input { align-self: center; padding: 1px 0; }
+
+/* ---------- Activity bar like VS Code: 48px items, 24px icons, active left border, count badges on the icon ---------- */
+.rail, [data-density="compact"] .rail { padding: 0; gap: 0; background: var(--ab-bg, var(--bg)); border-left: 0; border-right: 1px solid var(--ab-border, var(--line)); }
+.rail .logo { display: none; }
+.rail-nav, .rail-foot, [data-density="compact"] .rail-nav, [data-density="compact"] .rail-foot { gap: 0; }
+.rail > :first-child { transform: none; }
+.rail-btn, [data-density="compact"] .rail-btn { width: 48px; height: 48px; min-height: 48px; padding: 0; border-radius: 0; background: none; color: var(--ab-inactive, var(--faint)); }
+.rail-btn .codicon, [data-density="compact"] .rail-btn .codicon { font-size: 24px; }
+.rail-btn:hover, .rail-btn[aria-expanded="true"], .rail-btn:focus-visible { background: none; color: var(--ab-fg, var(--fg)); }
+.rail-btn[aria-selected="true"] { background: none; color: var(--ab-fg, var(--fg)); }
+.rail-btn[aria-selected="true"]::before, [data-density="compact"] .rail-btn[aria-selected="true"]::before { left: 0; top: 0; bottom: 0; width: 2px; border-radius: 0; background: var(--ab-active-border, var(--accent)); }
+.rail-btn:focus-visible { outline: 1px solid var(--focus, var(--accent)); outline-offset: -1px; }
+.rail-btn .badge, [data-density="compact"] .rail-btn .badge, .rail-btn[aria-selected="true"] .badge { position: absolute; top: 24px; right: 6px; min-width: 8px; height: 16px; padding: 0 4px; border-radius: 16px; font-size: 9px; font-weight: 600; line-height: 16px; text-align: center; background: var(--ab-badge-bg, var(--accent)); color: var(--ab-badge-fg, var(--accent-fg)); }
+.rail-btn::after, [data-density="compact"] .rail-btn::after { left: 50px; padding: 3px 8px; border-radius: 4px; font-size: 12px; background: var(--hover-widget-bg, var(--surface)); color: var(--hover-widget-fg, var(--fg)); border: 1px solid var(--hover-widget-border, var(--line)); box-shadow: 0 2px 8px rgba(0, 0, 0, .16); }
+
+/* details header: Collapse All sits with the title actions */
+.title-actions { display: flex; align-items: center; gap: 4px; }
+/* counts as quiet numbers under the icon (badges were too heavy) */
+.rail-nav .rail-btn, [data-density="compact"] .rail-nav .rail-btn { height: auto; min-height: 48px; padding: 7px 0 5px; gap: 1px; }
+.rail-btn .badge, [data-density="compact"] .rail-btn .badge, .rail-btn[aria-selected="true"] .badge { position: static; min-width: 0; height: auto; padding: 0; border-radius: 0; background: none; font-size: 10px; font-weight: 600; line-height: 12px; color: inherit; }
+/* breathing space: the toolbar and header get room around them, rows a little more height */
+.areabar, html[data-density] .areabar { padding: 10px 12px 8px; }
+[data-density="compact"] .areabar { padding: 8px 10px 6px; }
+.batchbar { padding-left: 12px; padding-right: 12px; }
+[data-density="compact"] .top { padding: 10px 14px 8px; }
+[data-density="compact"] .row { padding-top: 6px; padding-bottom: 6px; }
+.row-wrap .row .row-meta, .row .row-meta { margin-top: 2px; }
+.areabar > .btn { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 1 auto; }
+.areabar > .btn .codicon { flex: none; }
+.list-chat .dock-head .codicon-chevron-right { transform: none; transition: transform .12s; }
+.list-chat .dock-head[aria-expanded="true"] .codicon-chevron-right { transform: rotate(90deg); }
+/* tree: stage headers one indent (16px) in from the band, their rows one indent further; counts right-aligned */
+.list-body .stage-h { width: 100%; box-sizing: border-box; padding: 4px 8px 2px 16px; }
+.list-body .stage-h .group-n { margin-left: auto; display: inline-block; box-sizing: border-box; min-width: 18px; padding: 3px 5px; border-radius: 11px; font-size: 11px; line-height: 11px; font-weight: normal; text-align: center; background: var(--badge-bg, var(--surface-2)); color: var(--badge-fg, var(--muted)); }
+.list-body .stage-body { padding-left: 30px; }
+.band-tools .act.group-clear { height: 20px; min-width: 20px; }
+.band-tools .act.group-clear .codicon { font-size: 14px; }
+
+/* VS Code hover widget (replaces native title tooltips, which don't show in the canvas) */
+.vs-hover { position: fixed; z-index: 1000; max-width: 360px; padding: 4px 8px; border-radius: 4px; font-size: 12px; line-height: 1.4; white-space: pre-line; overflow-wrap: anywhere; pointer-events: none;
+	background: var(--hover-widget-bg, var(--surface)); color: var(--hover-widget-fg, var(--fg)); border: 1px solid var(--hover-widget-border, var(--line)); box-shadow: 0 2px 8px rgba(0, 0, 0, .16); }
+.rail-btn::after, [data-density="compact"] .rail-btn::after { display: none; }
+/* the classify slot keeps its width whether it shows an icon, a count or the spinner */
+.act-slot { display: inline-flex; min-width: 44px; justify-content: flex-start; }
+.act:disabled .act-n { color: var(--faint); }

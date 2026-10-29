@@ -25,7 +25,7 @@ const ISSUE_RULES_FILE = path.join(DATA_DIR, 'issue-rules.json');
 const PRIORITIES_FILE = path.join(DATA_DIR, 'priorities.json');
 export const THREADS_DIR = path.join(DATA_DIR, 'threads');
 export const OPINIONS_DIR = path.join(BOARD, 'my-issue-opinions');
-export const DEFAULT_SETTINGS = { batchSize: 10, popularThreshold: 5, theme: 'vscode', accent: 'blue', linkTarget: 'vscode', chatHeight: 160, chatCollapsed: false, density: 'auto', listHeight: 40, areaFilter: '' };
+export const DEFAULT_SETTINGS = { batchSize: 10, popularThreshold: 5, theme: 'vscode', accent: 'blue', linkTarget: 'vscode', chatHeight: 160, chatCollapsed: false, density: 'auto', listHeight: 40, listWidth: 38, areaFilter: '' };
 
 const FORMATS = {
 	triage: { format: 'my-issues-triage/notification-triage', version: 1, key: 'items', empty: () => ({}) },
@@ -235,9 +235,11 @@ export async function setSettings(patch) {
 	if (patch.chatCollapsed !== undefined) next.chatCollapsed = patch.chatCollapsed;
 	if (patch.density !== undefined) next.density = patch.density;
 	if (patch.listHeight !== undefined) next.listHeight = patch.listHeight;
+	if (patch.listWidth !== undefined) next.listWidth = patch.listWidth;
 	if (patch.areaFilter !== undefined) next.areaFilter = patch.areaFilter;
 	if (patch.recentCollapsed !== undefined) next.recentCollapsed = patch.recentCollapsed;
 	if (patch.browse !== undefined) next.browse = patch.browse;
+	if (patch.collapsedGroups !== undefined) next.collapsedGroups = patch.collapsedGroups;
 	if (patch.browseHistory !== undefined) next.browseHistory = patch.browseHistory;
 	await writeStore('settings', SETTINGS_FILE, next);
 	if (patch.popularThreshold !== undefined) checksCache.clear();
@@ -345,7 +347,7 @@ function nextBatch(tab, pool, handled, size) {
 	return { ids: candidates.slice(0, size), seen: [...seen].filter(id => pool.includes(id)), number: (tab.number || 0) + 1 };
 }
 
-function resolveBatch(tabs, key, pool, handled, size) {
+export function resolveBatch(tabs, key, pool, handled, size) {
 	let tab = tabs[key] || { ids: [], seen: [], number: 0 };
 	const present = tab.ids.filter(id => pool.includes(id));
 	const open = present.filter(id => !handled.has(id));
@@ -353,9 +355,14 @@ function resolveBatch(tabs, key, pool, handled, size) {
 	if (!open.length) {
 		tab = nextBatch({ ...tab, ids: present }, pool, handled, size);
 		changed = true;
-	} else if (present.length !== tab.ids.length) {
-		tab = { ...tab, ids: present };
-		changed = true;
+	} else if (present.length !== tab.ids.length || present.length < size) {
+		// Items left the batch (e.g. dismissed elsewhere): top it up to the batch size, new items first, then ones skipped earlier.
+		const seen = new Set(tab.seen);
+		const rest = pool.filter(id => !handled.has(id) && !present.includes(id));
+		const fill = [...rest.filter(id => !seen.has(id)), ...rest.filter(id => seen.has(id))].slice(0, Math.max(0, size - present.length));
+		const ids = [...present, ...fill];
+		changed = ids.length !== tab.ids.length || ids.some((id, i) => id !== tab.ids[i]);
+		tab = { ...tab, ids };
 	}
 	tabs[key] = tab;
 	const remaining = pool.filter(id => !handled.has(id) && !tab.ids.includes(id)).length;
@@ -694,7 +701,8 @@ export async function dismissNotification({ id, unsubscribe }) {
 	if (unsubscribe) {
 		await run('gh', ['api', '--method', 'DELETE', `/notifications/threads/${id}/subscription`]);
 	}
-	await run('gh', ['api', '--method', 'PATCH', `/notifications/threads/${id}`]);
+	// DELETE marks the thread "done" (removed from the GitHub inbox); PATCH would only mark it read.
+	await run('gh', ['api', '--method', 'DELETE', `/notifications/threads/${id}`]);
 	if (notifCache.data) {
 		notifCache.data = notifCache.data.filter(n => n.id !== id);
 	}

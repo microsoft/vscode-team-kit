@@ -57,7 +57,7 @@ session = await joinSession({
 		createCanvas({
 			id: CANVAS_ID,
 			displayName: devMode ? 'My Work (dev)' : 'My Work',
-			description: 'My Work board: planned work and priorities, MSRC items, GitHub notifications, the issue queue and Sweeper-backed cleanup, with work sessions per item.',
+			description: 'My Work board: planned work and priorities, your own sections, GitHub notifications, the issue queue and Sweeper-backed cleanup, with work sessions per item.',
 			actions: actionDefinitions.map(action => ({
 				...action,
 				handler: context => guarded(() => runtime.invoke(context.instanceId, action.name, context.input ?? {})),

@@ -12,6 +12,7 @@ This is an Agent Plugins 1.0 package. The runtime discovers the canvas extension
 |---|---|
 | [my-work-setup](skills/my-work-setup/) | Onboarding: checks prerequisites, writes your config, builds the issue index and creates the daily indexer automation |
 | [my-issues](skills/my-issues/) | Queries and acts on the local index of your issues, runs the Sweeper cleanup workflow and drives the canvas |
+| [my-work-ui](skills/my-work-ui/) | UX principles for the panel (VS Code look, density, toolbars, lists, details pane), used before anyone changes, rebuilds or customises its UI |
 
 ## Getting started
 
@@ -30,7 +31,7 @@ Make sure canvases are enabled (setting `chat.canvases.enabled`, off in a fresh 
 
 The canvas (`my-issues-triage`, titled **My Work**) has five views:
 
-- **My Work** — your issues in the current and next milestone (live from GitHub), then **My priorities**, your own ordered list kept locally. **Browse issues & PRs** finds your bugs, feature requests, feature-area issues and PRs awaiting your review; filter the selected list by typing and pressing Enter, in GitHub syntax or plain words ("created by alexdima this month"): the chat turns plain words into search qualifiers using your memory for names, and the panel shows them for editing. Open a result to read and discuss it, start a session, or drag it into a group. Discussing an issue from the panel gives it its own chat, nested under your My Work session; **Start session** turns that chat into the work session (a worktree of the repository), so the conversation carries on there. Planned issues can be sent back to untriaged. Add the session you're working in and it resolves the issue it works on; opening a session shows its status, latest reply, requests and edited files. A docked **My Work chat** takes pasted links or plain requests ("add the session I'm in").
+- **My Work** — your own **sections** (for example MSRC: notes with a link, description and due date, plus issues and sessions you put there; each section can have its own instructions for sessions), your issues in the current and next milestone (live from GitHub), then **My priorities**, your own ordered list kept locally. **Browse issues & PRs** finds your bugs, feature requests, all your issues or PRs awaiting your review, optionally in one feature area; filter the selected list by typing and pressing Enter, in GitHub syntax or plain words ("created by alexdima this month"): the chat turns plain words into search qualifiers using your memory for names, and the panel shows them for editing. Open a result to read and discuss it, start a session, or drag it into a group. Discussing an issue from the panel gives it its own chat, nested under your My Work session; **Start session** turns that chat into the work session (a worktree of the repository), so the conversation carries on there. Planned issues can be sent back to untriaged. Add the session you're working in and it resolves the issue it works on; opening a session shows its status, latest reply, requests and edited files. A docked **My Work chat** takes pasted links or plain requests ("add the session I'm in").
 - **Today** — the daily queue: newly assigned issues, Sweeper verdict changes, new activity, severe bugs and top close proposals.
 - **Notifications** — your unread GitHub notifications, classified by the triage chat with your inbox rules into Needs action, Route, Auto-dismiss, Safe to dismiss and FYI, with bulk dismiss and route.
 - **Cleanup** — Sweeper close and needs-info proposals with live fact checks and independent judge chats; each action needs your approval.
@@ -57,9 +58,9 @@ Everything stays on your machine:
 |---|---|
 | Issue index, queue, decisions, judge opinions, config | `~/.copilot/project-boards/` |
 | Panel state (batches, activity, threads, priorities, settings) | `~/.copilot/extension-data/my-issues-triage/` |
-| Pinned sessions, MSRC items, My Work chat link | `~/.agents/data/my-work/` (configurable, owner-only permissions) |
+| Pinned sessions, your sections and notes, My Work chat link | `~/.agents/data/my-work/` (configurable, owner-only permissions) |
 
-Nothing changes on GitHub without an explicit per-item click or approval in chat. MSRC items (a pasted IcM link and description) are stored only locally and their fix sessions are told to stay private. Session details are read best-effort from the Agents window's internal session store, which can change between builds.
+Nothing changes on GitHub without an explicit per-item click or approval in chat. Your sections and their notes are stored only locally; sessions started from a note follow that section's instructions (for a security section, to stay private). Session details are read best-effort from the Agents window's internal session store, which can change between builds.
 
 ## Develop locally
 
@@ -99,9 +100,11 @@ my-work/
 │   │       ├── my_issues.py
 │   │       ├── my_work_config.py
 │   │       └── refresh_my_issues.py
-│   └── my-work-setup/
-│       ├── SKILL.md
-│       └── references/indexer-automation.md
+│   ├── my-work-setup/
+│   │   ├── SKILL.md
+│   │   └── references/indexer-automation.md
+│   └── my-work-ui/
+│       └── SKILL.md
 ├── com.github.copilot/extensions/my-work/
 │   ├── extension.mjs
 │   ├── lib/          (server, data, prompts, config, sessions, work, …)

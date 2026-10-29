@@ -2,17 +2,17 @@ const TOKEN = document.querySelector('meta[name="triage-token"]').content;
 const $ = id => document.getElementById(id);
 
 const BUILTIN_NOTIF_GROUPS = [
-	{ id: 'action', label: 'Needs you', dot: 'dot-action' },
-	{ id: 'route', label: 'Route', dot: 'dot-warn' },
-	{ id: 'auto', label: 'Auto-dismiss', dot: 'dot-dismiss' },
-	{ id: 'cleanup', label: 'Cleanup offers', dot: 'dot-cleanup' },
-	{ id: 'dismiss', label: 'Safe to dismiss', dot: 'dot-dismiss' },
-	{ id: 'fyi', label: 'FYI', dot: '' },
-	{ id: 'untriaged', label: 'Not triaged yet', dot: '' },
+	{ id: 'action', label: 'Needs you', dot: 'dot-action', desc: 'A reply, review or decision is waiting on you' },
+	{ id: 'route', label: 'Route', dot: 'dot-warn', desc: 'Belongs to another owner: route it with one click' },
+	{ id: 'auto', label: 'Auto-dismiss', dot: 'dot-dismiss', desc: 'Matches one of your auto-dismiss rules' },
+	{ id: 'cleanup', label: 'Cleanup offers', dot: 'dot-cleanup', desc: 'Sweeper proposes closing or asking for info' },
+	{ id: 'dismiss', label: 'Safe to dismiss', dot: 'dot-dismiss', desc: 'Nothing for you to do' },
+	{ id: 'fyi', label: 'FYI', dot: '', desc: 'For your information' },
+	{ id: 'untriaged', label: 'Not triaged yet', dot: '', desc: 'New or changed since the chat last classified them' },
 ];
 // Built-in groups plus the user's persistent custom groups (shown before FYI).
 function notifGroups() {
-	const custom = (ui.state?.customGroups || []).map(g => ({ id: g.id, label: g.label, dot: 'dot-custom', custom: true, bulk: g.bulk, criteria: g.criteria }));
+	const custom = (ui.state?.customGroups || []).map(g => ({ id: g.id, label: g.label, dot: 'dot-custom', custom: true, bulk: g.bulk, criteria: g.criteria, desc: g.criteria }));
 	const i = BUILTIN_NOTIF_GROUPS.findIndex(g => g.id === 'fyi');
 	return [...BUILTIN_NOTIF_GROUPS.slice(0, i), ...custom, ...BUILTIN_NOTIF_GROUPS.slice(i)];
 }
@@ -26,7 +26,7 @@ const CHECK_ICON = { pass: '<i class="codicon codicon-pass" aria-hidden="true"><
 const SEV_DOT = { 'data-loss': 'dot-action', crash: 'dot-action', freeze: 'dot-action', perf: 'dot-warn', correctness: 'dot-warn' };
 
 const VIEW_TITLES = { queue: 'Today', notifications: 'Notifications', cleanup: 'Cleanup', implement: 'Implement', work: 'My Work' };
-const VIEW_HINTS = { queue: 'What changed since yesterday', notifications: 'Unread GitHub notifications', cleanup: 'Sweeper close proposals to judge', implement: 'Agent-ready issues, bugs first', work: 'MSRC items, current and next milestone, then your own priority list' };
+const VIEW_HINTS = { queue: 'What changed since yesterday', notifications: 'Unread GitHub notifications', cleanup: 'Sweeper close proposals to judge', implement: 'Agent-ready issues, bugs first', work: 'Your sections, current and next milestone, then your own priority list' };
 
 const ui = { tab: 'queue', sub: { queue: 'all', cleanup: 'fixed' }, work: null, selected: null, state: null, busy: false, checks: {}, asked: {}, picked: new Set() };
 
@@ -260,17 +260,18 @@ function listGroups() {
 	const f = areaFilter();
 	if (ui.tab === 'work') {
 		if (!ui.work?.data) return [];
-		const label = m => `${m.title}${m.role === 'current' ? ' · current' : m.role === 'next' ? ' · next' : ''}${m.due ? ` · due ${new Date(m.due).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : ''}`;
-		const due = x => { const t = Date.parse(x.resolveBy || ''); return isNaN(t) ? Infinity : t; };
-		const msrc = [...(ui.work.data.msrcItems || [])].sort((a, b) => due(a) - due(b));
-		const draft = ui.msrcDraft && !msrc.some(x => x.incidentId === ui.msrcDraft.incidentId) ? [{ ...ui.msrcDraft, draft: true }] : [];
-		const msrcGroup = msrc.length || draft.length ? [{ header: 'MSRC', role: 'msrc', items: [...draft, ...msrc].map(x => ({ kind: 'msrcitem', id: x.incidentId, x })) }] : [];
+		const label = m => `${m.title}${m.role === 'current' ? ' · Current' : m.role === 'next' ? ' · Next' : ''}${m.due ? ` · due ${new Date(m.due).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : ''}`;
+		const due = x => { const t = Date.parse(x.due || ''); return isNaN(t) ? Infinity : t; };
+		const sections = ui.work.data.sections || [];
+		const sectionIds = new Set(sections.map(x => x.id));
 		const pinned = ui.work.data.pinnedSessions || [];
 		const bucketOf = p => p.bucket || 'current';
 		const sessIn = role => pinned.filter(p => bucketOf(p) === role && role !== 'priorities').map(p => ({ kind: 'pinsess', id: p.id, p, group: role }));
 		// Issues added locally (e.g. from a session) sit in current/next without a GitHub milestone change.
 		const shown = new Set([...ui.work.data.milestones.filter(m => m.role !== 'priorities').flatMap(m => m.items.map(w => w.key)), ...(ui.work.data.priorityKeys || [])]);
-		const issuesIn = role => (ui.work.data.pinnedIssues || []).filter(p => (p.bucket || 'current') === role && !shown.has(p.key))
+		// Issues placed in one of your sections show there (and not in their milestone group).
+		const inSection = new Set((ui.work.data.pinnedIssues || []).filter(p => sectionIds.has(p.bucket)).map(p => p.key));
+		const issuesIn = role => (ui.work.data.pinnedIssues || []).filter(p => (p.bucket || 'current') === role && (sectionIds.has(role) || !shown.has(p.key)))
 			.map(p => ({ kind: 'work', id: p.key, w: { ...p, local: true }, milestone: { title: p.milestone, role }, group: role }));
 		// My priorities: issues and sessions in the user's own order.
 		const prioItems = m => {
@@ -284,9 +285,25 @@ function listGroups() {
 		};
 		const recent = (ui.work.data.recentSessions || []).filter(z => z.id !== ui.work.data.myWorkChat?.split('/').pop()).slice(0, 10);
 		const collapsed = !!ui.state?.settings?.recentCollapsed;
-		const recentGroup = recent.length ? [{ header: 'Active sessions', role: 'recent', collapsible: true, collapsed, keepEmpty: true, count: recent.length, items: collapsed ? [] : recent.map(z => ({ kind: 'recentsess', id: z.id, z })) }] : [];
-		return [...msrcGroup, ...ui.work.data.milestones.map(m => ({ header: label(m), role: m.role, keepEmpty: true, drop: true,
-			items: m.role === 'priorities' ? prioItems(m) : [...m.items.map(w => ({ kind: 'work', id: w.key, w, milestone: m, group: m.role })), ...issuesIn(m.role), ...sessIn(m.role)] })), ...recentGroup];
+		const recentGroup = recent.length ? [{ header: 'Active sessions', role: 'recent', desc: 'Recently active sessions that are not in My Work', collapsible: true, collapsed, keepEmpty: true, count: recent.length, items: collapsed ? [] : recent.map(z => ({ kind: 'recentsess', id: z.id, z })) }] : [];
+		const folded = new Set(ui.state?.settings?.collapsedGroups || []);
+		// Your own sections first, in the order you arranged them (new items: notes by due date, then issues, then sessions).
+		const sectionGroups = sections.map(x => {
+			const notes = (ui.work.data.notes || []).filter(n => n.section === x.id).sort((a, b) => due(a) - due(b));
+			const draft = ui.noteDraft?.section === x.id ? [{ ...ui.noteDraft, draft: true }] : [];
+			const rank = new Map((x.order || []).map((r, i) => [r, i]));
+			const items = notes.map(n => ({ kind: 'note', id: n.id, n, group: x.id })).concat(issuesIn(x.id), sessIn(x.id))
+				.map(i => ({ ...i, secRef: secRefOf(i) }))
+				.map((i, at) => ({ i, at, r: rank.get(i.secRef) ?? Infinity }))
+				.sort((a, b) => (a.r - b.r) || (a.at - b.at)).map(v => v.i);
+			return { header: x.name, role: x.id, section: x, desc: x.instructions ? 'Your section · sessions follow its instructions' : 'Your section', keepEmpty: true, drop: true, toggle: true, collapsed: folded.has(x.id),
+				items: [...draft.map(n => ({ kind: 'note', id: n.id, n, group: x.id })), ...items] };
+		});
+		const MS_DESC = { current: 'Your issues in the current milestone, live from GitHub', next: 'Planned for the next milestone', priorities: 'Your own ordered list, kept locally' };
+		return [...sectionGroups, ...ui.work.data.milestones.map(m => ({ header: label(m), role: m.role, desc: MS_DESC[m.role], keepEmpty: true, drop: true, toggle: true, collapsed: folded.has(m.role),
+			items: m.role === 'priorities' ? prioItems(m) : [...m.items.filter(w => !w.state && !inSection.has(w.key)).map(w => ({ kind: 'work', id: w.key, w, milestone: m, group: m.role })), ...issuesIn(m.role), ...sessIn(m.role)],
+			// Issues closed this week in the milestone: folded into one line at the bottom of the group.
+			closed: m.role === 'priorities' ? [] : m.items.filter(w => w.state).map(w => ({ kind: 'work', id: w.key, w, milestone: m, group: m.role })) })), ...recentGroup];
 	}
 	if (ui.tab === 'notifications' && ui.notifFilter) {
 		const g = notifGroups().find(x => x.id === ui.notifFilter);
@@ -298,7 +315,7 @@ function listGroups() {
 		const items = f ? st.notifications.filter(n => !n.handled && inArea(areaOfNotif(n), f)) : st.notifications.filter(n => ids.has(n.id));
 		const groups = Object.fromEntries(notifGroups().map(g => [g.id, []]));
 		for (const n of items) groups[groupOf(n)].push(n);
-		return notifGroups().map(g => ({ header: g.label, items: groups[g.id].map(n => ({ kind: 'notification', id: n.id, n })) }));
+		return notifGroups().map(g => ({ header: g.label, role: `n-${g.id}`, desc: g.desc, items: groups[g.id].map(n => ({ kind: 'notification', id: n.id, n })) }));
 	}
 	if (ui.routeFilter && ['queue', 'cleanup', 'implement'].includes(ui.tab)) {
 		return [{ header: null, items: routeItems() }];
@@ -306,7 +323,7 @@ function listGroups() {
 	if (ui.tab === 'queue') {
 		const sub = ui.sub.queue;
 		return st.sections.filter(s => s.items.length && (sub === 'all' || sub === s.id)).map(s => ({
-			header: s.title, items: s.items.filter(i => inArea(areaOfIssue(i), f)).map(i => ({ kind: 'issue', id: i.key, i })),
+			header: s.title.replace(/:.*$/, ''), role: `q-${s.id}`, desc: s.why || s.title.replace(/^[^:]*:\s*/, ''), items: s.items.filter(i => inArea(areaOfIssue(i), f)).map(i => ({ kind: 'issue', id: i.key, i })),
 		}));
 	}
 	if (ui.tab === 'cleanup') {
@@ -318,8 +335,8 @@ function listGroups() {
 	const byKey = new Map(st.implement.items.map(m => [m.key, m]));
 	const items = f ? st.implement.items.filter(m => !m.handled && inArea(areaOfIssue(m), f)) : batchIds('implement').map(k => byKey.get(k)).filter(Boolean);
 	return [
-		{ header: 'Bugs', items: items.filter(m => m.isBug).map(m => ({ kind: 'issue', id: m.key, m })) },
-		{ header: 'Other', items: items.filter(m => !m.isBug).map(m => ({ kind: 'issue', id: m.key, m })) },
+		{ header: 'Bugs', role: 'i-bugs', desc: 'Agent-ready bugs a fix session could take', items: items.filter(m => m.isBug).map(m => ({ kind: 'issue', id: m.key, m })) },
+		{ header: 'Other', role: 'i-other', desc: 'Agent-ready features and tasks', items: items.filter(m => !m.isBug).map(m => ({ kind: 'issue', id: m.key, m })) },
 	];
 }
 
@@ -334,12 +351,51 @@ function areaCounts() {
 	else st.implement.items.filter(m => !m.handled).forEach(m => add(areaOfIssue(m)));
 	return counts;
 }
+// VS Code-style action bar buttons: an icon, an optional count, the label in the tooltip.
+function actHtml(attrs, icon, n, title, pressed) {
+	return `<button type="button" class="act" ${attrs}${pressed === undefined ? '' : ` aria-pressed="${!!pressed}"`} title="${esc(title)}" aria-label="${esc(title)}"><i class="codicon codicon-${icon}" aria-hidden="true"></i>${n === undefined || n === '' ? '' : `<span class="act-n">${esc(String(n))}</span>`}</button>`;
+}
+function busyActHtml(text, progress) {
+	return `<span class="act busy" role="status" title="${esc(text)}" aria-label="${esc(text)}"><i class="codicon codicon-loading spin" aria-hidden="true"></i><span class="act-n">${esc(progress)}</span></span>`;
+}
+// Collapse All / Expand All for the list's bands, like a VS Code view's title action.
+const COLLAPSE_ACT = '<button type="button" class="act" data-collapse-all hidden><i class="codicon codicon-collapse-all" aria-hidden="true"></i></button>';
+function bandToggles() {
+	return [...document.querySelectorAll('#list [data-group-toggle]')];
+}
+function syncCollapseAct() {
+	const b = document.querySelector('[data-collapse-all]');
+	if (!b) return;
+	const toggles = bandToggles();
+	const anyOpen = toggles.some(t => t.getAttribute('aria-expanded') === 'true');
+	b.hidden = toggles.length < 2;
+	b.dataset.collapseAll = anyOpen ? 'collapse' : 'expand';
+	b.title = anyOpen ? 'Collapse All' : 'Expand All';
+	b.setAttribute('aria-label', b.title);
+	b.querySelector('.codicon').className = `codicon codicon-${anyOpen ? 'collapse-all' : 'expand-all'}`;
+}
+function setAllBands(collapse) {
+	const set = new Set(ui.state.settings.collapsedGroups || []);
+	for (const t of bandToggles()) {
+		const role = t.dataset.groupToggle;
+		if (role === 'recent') ui.state.settings.recentCollapsed = collapse;
+		else if (collapse) set.add(role); else set.delete(role);
+	}
+	if (collapse) ui.showDone = false;
+	ui.state.settings.collapsedGroups = [...set].slice(-200);
+	renderList();
+	saveSettings({ collapsedGroups: ui.state.settings.collapsedGroups, recentCollapsed: !!ui.state.settings.recentCollapsed });
+}
+function refreshActHtml(busy, updated, title) {
+	const tip = busy ? 'Refreshing…' : `${updated ? `${updated} · ` : ''}${title}`;
+	return `<button type="button" class="act list-refresh" data-list-refresh title="${esc(tip)}" aria-label="${esc(tip)}"><i class="codicon codicon-refresh${busy ? ' spin' : ''}" aria-hidden="true"></i></button>`;
+}
 function renderAreaBar() {
 	if (ui.tab === 'work') {
 		const src = ui.work;
 		const at = src?.data?.fetchedAt;
-		$('areabar').innerHTML = `${`<button type="button" class="btn sm${['worksrc', 'browseitem'].includes(ui.selected?.kind) ? ' on' : ''}" data-find-work aria-pressed="${['worksrc', 'browseitem'].includes(ui.selected?.kind)}" aria-controls="detail" title="Browse your bugs, feature requests, feature-area issues and PRs awaiting your review; drag them into a group or use the + buttons"><i class="codicon codicon-search" aria-hidden="true"></i>Browse issues &amp; PRs</button>`}<span class="subtabs-spacer"></span>${`
-			<button type="button" class="link-btn list-refresh" data-list-refresh><i class="codicon codicon-refresh${ui.refreshing || src?.loading ? ' spin' : ''}" aria-hidden="true"></i>${ui.refreshing || src?.loading ? 'Refreshing…' : at ? `Updated ${esc(agoText(at))}` : 'Refresh'}</button>`}`;
+		$('areabar').innerHTML = `${`<button type="button" class="btn sm${['worksrc', 'browseitem'].includes(ui.selected?.kind) ? ' on' : ''}" data-find-work aria-pressed="${['worksrc', 'browseitem'].includes(ui.selected?.kind)}" aria-controls="detail" title="Browse your bugs, feature requests, feature-area issues and PRs awaiting your review; drag them into a group or use the + buttons"><i class="codicon codicon-search" aria-hidden="true"></i>Browse issues &amp; PRs</button>`}<button type="button" class="btn sm" data-section-new title="Create your own section, e.g. for security cases or escalations"><i class="codicon codicon-add" aria-hidden="true"></i>Section</button><span class="subtabs-spacer"></span>${`
+			${COLLAPSE_ACT}${refreshActHtml(ui.refreshing || src?.loading, at ? `Updated ${agoText(at)}` : '', 'Refresh')}`}`;
 		return;
 	}
 	const f = areaFilter();
@@ -354,11 +410,12 @@ function renderAreaBar() {
 	const auto = shown.filter(a => a.auto).sort((a, b) => (counts[b.id] || 0) - (counts[a.id] || 0) || a.name.localeCompare(b.name));
 	const rest = shown.filter(a => a.id === 'others' || a.id === NO_AREA);
 	const opts = [...mine, ...auto, ...rest].map(opt).join('');
-	$('areabar').innerHTML = `<label class="area-pick${f ? ' active' : ''}"><i class="codicon codicon-filter" aria-hidden="true"></i><span class="sr-only">Feature area</span>
+	$('areabar').innerHTML = `<label class="area-pick${f ? ' active' : ''}" title="Filter by feature area"><i class="codicon codicon-filter" aria-hidden="true"></i><span class="sr-only">Feature area</span>
 		<select id="area-filter" aria-label="Filter by feature area"><option value="">All areas (${total})</option>${opts}</select></label>
 		${f ? `<button type="button" class="link-btn" id="area-clear" title="Show all areas">Clear</button><span class="cd area-note">all batches</span>` : ''}
 		<span class="subtabs-spacer"></span>
-		<button type="button" class="link-btn list-refresh" data-list-refresh title="${ui.tab === 'notifications' ? 'Fetch notifications from GitHub now' : 'Reload the index, notifications and live data'}"><i class="codicon codicon-refresh${ui.refreshing ? ' spin' : ''}" aria-hidden="true"></i>${ui.refreshing ? 'Refreshing…' : ui.tab === 'notifications' && ui.state.notificationsFetchedAt ? `Updated ${esc(agoText(ui.state.notificationsFetchedAt))}` : 'Refresh'}</button>`;
+		<span class="actionbar" id="area-acts" role="toolbar" aria-label="Actions"></span>
+		${COLLAPSE_ACT}${refreshActHtml(ui.refreshing, ui.tab === 'notifications' && ui.state.notificationsFetchedAt ? `Updated ${agoText(ui.state.notificationsFetchedAt)}` : '', ui.tab === 'notifications' ? 'Fetch notifications from GitHub now' : 'Reload the index, notifications and live data')}`;
 }
 async function setAreaFilter(value) {
 	ui.state.settings.areaFilter = value;
@@ -382,11 +439,9 @@ function render() {
 	if (!st) return;
 	const date = st.queueDate ? new Date(`${st.queueDate}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' }) : '';
 	$('heading').textContent = VIEW_TITLES[ui.tab];
-	$('subtitle').textContent = `${date ? `${date} · ` : ''}${VIEW_HINTS[ui.tab]} · ${st.hasIndex === false ? 'no issue index yet' : `index ${ago(st.refreshedAt)} old`}${st.notificationsError ? ` · notifications error: ${st.notificationsError}` : ''}`;
-	$('chip-unread').textContent = st.notifications.filter(n => !n.handled).length;
-	$('chip-notif-done').textContent = st.today.notificationsHandled;
-	$('chip-issues-done').textContent = st.today.issuesHandled;
-	$('chip-sessions').textContent = st.today.sessionsStarted;
+	$('heading').title = VIEW_HINTS[ui.tab];
+	$('top-meta').textContent = `${date}${date ? ' · ' : ''}${st.hasIndex === false ? 'no issue index yet' : `index updated ${ago(st.refreshedAt)} ago`}`;
+	$('subtitle').textContent = `${VIEW_HINTS[ui.tab]}${st.notificationsError ? ` · notifications error: ${st.notificationsError}` : ''}`;
 	$('count-notifications').textContent = st.notifications.filter(n => !n.handled).length;
 	$('count-queue').textContent = st.sections.reduce((a, s) => a + s.items.filter(i => !i.handled).length, 0);
 	$('count-cleanup').textContent = Object.values(st.cleanup).reduce((a, g) => a + g.items.filter(i => !i.handled).length, 0);
@@ -414,28 +469,35 @@ function renderSubtabs() {
 	if (ui.tab === 'work') { $('subtabs').innerHTML = ''; return; }
 	if (ui.tab === 'queue') {
 		const n = sec => areaFilter() ? sec.items.filter(i => inArea(areaOfIssue(i))).length : sec.total;
-		opts = [['all', 'All'], ...st.sections.filter(s => s.items.length && n(s)).map(s => [s.id, `${s.title.replace(/:.*$/, '')} ${n(s)}`])];
+		// The bands below are the sections (each collapsible), so no section pills here.
+		ui.sub.queue = 'all';
+		opts = [];
 	} else if (ui.tab === 'cleanup') {
 		opts = Object.entries(st.cleanup).map(([g, v]) => [g, `${CLEANUP_LABELS[g]} ${v.items.filter(i => !i.handled && inArea(areaOfIssue(i))).length}`]);
 	} else if (ui.tab === 'notifications') {
 		const route = bulkItems('route').length;
 		const auto = bulkItems('auto').length;
 		const safe = bulkItems('dismiss').length;
-		const show = (id, count) => count || ui.notifFilter === id;
+		// Fixed slots so the bar never jumps: the bulk actions always show (disabled at 0), and the
+		// classify action keeps its place, turning into a spinner while the chat works.
 		const p = st.notifTriagePending;
 		const busy = p && !p.stalled;
+		const bulk = (id, icon, count, label) => actHtml(`data-bulk="${esc(id)}"${count || ui.notifFilter === id ? '' : ' disabled'}`, icon, count, count ? `${label}: ${count}` : `${label}: none right now`, ui.notifFilter === id);
 		const classify = busy
-			? `<span class="pill classify busy" role="status"><i class="codicon codicon-loading" aria-hidden="true"></i>${p.recompute ? 'Re-checking' : 'Classifying'} ${p.total - p.left}/${p.total}</span>`
-			: `${st.untriaged ? `<button type="button" class="pill classify" data-classify="new" title="Ask the chat to classify the ${st.untriaged} notifications that are new or changed since they were classified">Classify ${st.untriaged} new</button>` : ''}<button type="button" class="pill classify icon" data-classify="recompute" title="Ask the chat to re-check what is not yet in Auto-dismiss / Safe to dismiss / Route, and move everything that doesn't need you into them${p?.stalled ? ' (last request stalled)' : ''}"><i class="codicon codicon-refresh" aria-hidden="true"></i>Re-check</button>`;
-		$('subtabs').innerHTML = [
-			show('route', route) ? `<button type="button" class="pill bulk" data-bulk="route" aria-pressed="${ui.notifFilter === 'route'}"><i class="codicon codicon-person" aria-hidden="true"></i>Route ${route}</button>` : '',
-			`<button type="button" class="pill bulk" data-bulk="auto" aria-pressed="${ui.notifFilter === 'auto'}"><i class="codicon codicon-check-all" aria-hidden="true"></i>Auto-dismiss ${auto}</button>`,
-			`<button type="button" class="pill bulk" data-bulk="dismiss" aria-pressed="${ui.notifFilter === 'dismiss'}">Safe to dismiss ${safe}</button>`,
+			? busyActHtml(`${p.recompute ? 'Re-checking' : 'Classifying'} ${p.total - p.left} of ${p.total}`, `${p.total - p.left}/${p.total}`)
+			: st.untriaged
+				? actHtml('data-classify="new"', 'sparkle', st.untriaged, `Classify ${st.untriaged} new: ask the chat to classify the notifications that are new or changed since they were classified`)
+				: actHtml('data-classify="recompute"', 'law', '', `Re-check: ask the chat to re-check what is not yet in Auto-dismiss / Safe to dismiss / Route, and move everything that doesn't need you into them${p?.stalled ? ' (last request stalled)' : ''}`);
+		$('subtabs').innerHTML = '';
+		($('area-acts') || $('subtabs')).innerHTML = [
+			bulk('route', 'person', route, 'Route (belong to other owners)'),
+			bulk('auto', 'check-all', auto, 'Auto-dismiss (your rules dismiss these)'),
+			bulk('dismiss', 'clear-all', safe, 'Safe to dismiss'),
 			...notifGroups().filter(g => g.custom && g.bulk !== 'none').map(g => {
 				const count = bulkItems(g.id).length;
-				return show(g.id, count) ? `<button type="button" class="pill bulk custom" data-bulk="${esc(g.id)}" aria-pressed="${ui.notifFilter === g.id}" title="${esc(g.criteria)}"><i class="codicon codicon-tag" aria-hidden="true"></i>${esc(g.label)} ${count}</button>` : '';
+				return count || ui.notifFilter === g.id ? actHtml(`data-bulk="${esc(g.id)}"`, 'tag', count, `${g.label}: ${count}${g.criteria ? ` (${g.criteria})` : ''}`, ui.notifFilter === g.id) : '';
 			}),
-			`<span class="subtabs-spacer"></span>${classify}`,
+			`<span class="act-slot">${classify}</span>`,
 		].join('');
 		autoClassify();
 		return;
@@ -444,11 +506,10 @@ function renderSubtabs() {
 	const p = st.issueRulesPending;
 	const busy = p && !p.stalled;
 	const rules = busy
-		? `<span class="pill classify busy" role="status"><i class="codicon codicon-loading" aria-hidden="true"></i>Checking your rules ${p.total - p.left}/${p.total}</span>`
-		: `<button type="button" class="pill classify icon" data-rules="recompute" title="Ask the chat to re-apply your inbox rules (routing, close, needs-info) to the issues shown${p?.stalled ? ' (last request stalled)' : ''}"><i class="codicon codicon-law" aria-hidden="true"></i>Re-check rules</button>`;
-	$('subtabs').innerHTML = opts.map(([id, label]) => `<button type="button" class="pill" data-sub="${esc(id)}" aria-pressed="${!ui.routeFilter && ui.sub[ui.tab] === id}">${esc(label)}</button>`).join('')
-		+ (nRoute || ui.routeFilter ? `<button type="button" class="pill bulk" data-route-filter aria-pressed="${!!ui.routeFilter}" title="Issues your routing rules say belong to someone else"><i class="codicon codicon-person" aria-hidden="true"></i>Route ${nRoute}</button>` : '')
-		+ `<span class="subtabs-spacer"></span>${rules}`;
+		? busyActHtml(`Checking your rules: ${p.total - p.left} of ${p.total}`, `${p.total - p.left}/${p.total}`)
+		: actHtml('data-rules="recompute"', 'law', '', `Re-check your inbox rules: ask the chat to re-apply routing, close and needs-info rules to the issues shown${p?.stalled ? ' (last request stalled)' : ''}`);
+	$('subtabs').innerHTML = opts.map(([id, label]) => `<button type="button" class="pill" data-sub="${esc(id)}" aria-pressed="${!ui.routeFilter && ui.sub[ui.tab] === id}">${esc(label)}</button>`).join('');
+	($('area-acts') || $('subtabs')).innerHTML = (nRoute || ui.routeFilter ? actHtml('data-route-filter', 'person', nRoute, `Route: ${nRoute} issues your routing rules say belong to someone else`, !!ui.routeFilter) : '') + rules;
 	autoRules();
 }
 
@@ -561,8 +622,8 @@ function renderBatchBar() {
 	const done = size - b.open;
 	const pct = size ? Math.round((done / size) * 100) : 100;
 	$('batchbar').innerHTML = size
-		? `<span class="bt">Batch ${esc(b.number)}</span>
-			<span class="bm">${esc(done)}/${esc(size)} done · ${esc(b.remaining)} more</span>
+		? `<span class="bt">${b.open ? `${esc(b.open)} to go` : 'Batch done'}</span>
+			<span class="bm">${esc(done)} of ${esc(size)} done${b.remaining ? ` · ${esc(b.remaining)} more after these` : ' · last batch'}</span>
 			${key.startsWith('cleanup:') ? `<button type="button" class="next" id="judge-batch" title="Start one separate chat that judges every unjudged issue in this batch without seeing Sweeper"><i class="codicon codicon-law" aria-hidden="true"></i>Judge all</button>` : ''}
 			<button type="button" class="next" id="next-batch" ${b.remaining ? '' : 'disabled'}>Next<i class="codicon codicon-arrow-right" aria-hidden="true"></i></button>
 			<span class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="${size}" aria-valuenow="${done}" aria-label="Batch progress"><span style="width:${pct}%"></span></span>`
@@ -571,7 +632,10 @@ function renderBatchBar() {
 
 // ---- Agents window sessions working on an issue (matched by "#N" in their titles) ----
 function sessionsOf(key) {
-	return ui.state?.sessions?.[key] || ui.work?.data?.sessions?.[key] || [];
+	const a = ui.state?.sessions?.[key] || [], b = ui.work?.data?.sessions?.[key] || [];
+	if (!b.length) return a;
+	const seen = new Set();
+	return [...b, ...a].filter(z => !seen.has(z.id) && seen.add(z.id));
 }
 function sessTag(key) {
 	const list = sessionsOf(key).filter(s => !s.archived);
@@ -661,13 +725,116 @@ function quickActionsHtml(actions) {
 function withQuick(rowHtml, actions) {
 	return `<div class="row-act">${rowHtml}${quickActionsHtml(actions)}</div>`;
 }
-function issueQuick(key, url, { removable = false } = {}) {
+// Finished work stays in My Work, marked, until you clear it.
+const DONE_LABEL = { closed: 'Closed', merged: 'Merged', done: 'Done' };
+// Closed issues say how: fixed (completed), not planned or duplicate (GitHub's close reason).
+const CLOSE_REASON = { completed: ['Fixed', 'Closed as completed on GitHub'], not_planned: ['Not planned', 'Closed as not planned on GitHub'], duplicate: ['Duplicate', 'Closed as a duplicate on GitHub'] };
+function doneTag(state, prefix = '', reason = null) {
+	if (!state) return '';
+	const [text, title] = state === 'closed' && !prefix && CLOSE_REASON[reason] ? CLOSE_REASON[reason]
+		: state === 'done' ? ['Done', 'The session is marked done'] : [prefix ? `${prefix}${state}` : DONE_LABEL[state], `${prefix}${DONE_LABEL[state].toLowerCase()} on GitHub`];
+	const fixed = text === 'Fixed' || text === 'Merged' || text === 'Done' || /merged$/.test(text);
+	return `<span class="tag ${fixed ? 'done' : 'closed-other'}" title="${esc(title)}"><i class="codicon codicon-${fixed ? 'pass-filled' : 'circle-slash'}" aria-hidden="true"></i>${esc(text)}</span>`;
+}
+function issueQuick(key, url, { removable = false, state = null } = {}) {
 	const live = liveSession(key);
+	if (state) return [
+		{ href: url || `https://github.com/${key.split('#')[0]}/issues/${key.split('#')[1]}`, icon: 'link-external', label: 'Open on GitHub' },
+		...(removable ? [{ act: 'issue-unpin', key, icon: 'check', label: 'Clear from My Work (done)' }] : []),
+	];
 	return [
 		live ? { act: 'open-session', link: live.link, icon: 'comment-discussion', label: 'Open session' } : { act: 'work-session', key, icon: 'rocket', label: 'Start session' },
 		{ href: url || `https://github.com/${key.split('#')[0]}/issues/${key.split('#')[1]}`, icon: 'link-external', label: 'Open on GitHub' },
 		...(removable ? [{ act: 'issue-unpin', key, icon: 'close', label: 'Remove from My Work' }] : []),
 	];
+}
+
+// My Work groups split into In progress, To do and a collapsed Done (closed or merged issues, finished sessions,
+// plus milestone issues closed this week). Sub-headers only show when a group has more than one kind.
+function workStage(i) {
+	if (i.kind === 'work') return i.w.state ? 'done' : liveSession(i.w.key) || i.w.outcome?.decision === 'fixing' ? 'progress' : 'todo';
+	if (i.kind === 'pinsess') return i.p.status || ui.foldedDone?.has(i.p.id) ? 'done' : 'progress';
+	if (i.kind === 'note') return !i.n.draft && (ui.work?.data?.noteSessions?.[i.n.ref || i.n.title] || []).some(z => !z.archived) ? 'progress' : 'todo';
+	return 'todo';
+}
+// A session you added that works on (or fixed) an issue listed in the same group is the same work: list only the issue.
+function sessionIssueKeys(p) {
+	const keys = new Set([...(p.fixes || []), ...(ui.work?.data?.sessionLinks?.[p.id] || [])]);
+	for (const it of ui.work?.data?.pinnedIssues || []) if ((it.sessions || []).includes(p.id)) keys.add(it.key);
+	for (const [key, list] of Object.entries(ui.work?.data?.sessions || {})) if (list.some(z => z.id === p.id)) keys.add(key);
+	return keys;
+}
+// The same work listed twice (a session and the issue it works on or fixed) shows as the session, tagged with
+// the issue. Such a session counts as done once all its issues are closed.
+function foldIssues(g) {
+	if (ui.tab !== 'work' || !g.toggle) return g;
+	const works = new Map([...g.items, ...(g.closed || [])].filter(i => i.kind === 'work').map(i => [i.w.key, i.w]));
+	const hide = new Set();
+	for (const i of g.items) {
+		if (i.kind !== 'pinsess') continue;
+		const keys = [...sessionIssueKeys(i.p)].filter(k => works.has(k));
+		if (!keys.length) continue;
+		ui.foldedIssues.set(i.p.id, keys);
+		keys.forEach(k => hide.add(k));
+		if (keys.every(k => works.get(k).state)) ui.foldedDone.add(i.p.id);
+	}
+	if (!hide.size) return g;
+	return { ...g, items: g.items.filter(i => !(i.kind === 'work' && hide.has(i.w.key))), closed: (g.closed || []).filter(i => !hide.has(i.w.key)) };
+}
+// In progress, To do and Done inside a My Work group: same header for each, collapsible (Done starts collapsed).
+const STAGES = [['progress', 'In progress', 'sync'], ['todo', 'To do', 'circle-large-outline'], ['done', 'Done', 'pass-filled']];
+function stageOpen(role, stage) {
+	const set = new Set(ui.state?.settings?.collapsedGroups || []);
+	return stage === 'done' ? set.has(`${role}:done-open`) : !set.has(`${role}:${stage}`);
+}
+function groupItemsHtml(g) {
+	if (ui.tab !== 'work' || !g.toggle) return g.items.map(rowHtml).join('');
+	const by = { progress: [], todo: [], done: [...(g.closed || [])] };
+	for (const i of g.items) by[workStage(i)].push(i);
+	// Done: issues and sessions together, most recently finished first.
+	const when = i => Date.parse(i.kind === 'pinsess' ? new Date(i.p.session?.modified || 0).toISOString() : i.w?.closedAt || i.w?.updatedAt || 0) || 0;
+	by.done.sort((a, b) => when(b) - when(a));
+	const doneTip = g.closed?.length ? `Closed in ${g.header.split(' · ')[0]} in the last 7 days (assigned to you), and finished items you added` : 'Finished items: clear them when you no longer need them';
+	return STAGES.filter(([id]) => by[id].length).map(([id, name, icon]) => {
+		const open = stageOpen(g.role, id);
+		return `<button type="button" class="stage-h stage-${id}" data-stage-toggle="${esc(`${g.role}:${id}`)}" aria-expanded="${open}"${id === 'done' ? ` title="${esc(doneTip)}"` : ''}><i class="codicon codicon-chevron-right" aria-hidden="true"></i><i class="codicon codicon-${icon} stage-icon" aria-hidden="true"></i>${name}<span class="group-n">${by[id].length}</span></button>${open ? `<div class="stage-body">${by[id].map(rowHtml).join('')}</div>` : ''}`;
+	}).join('');
+}
+// How an item is named in a section's saved order.
+function secRefOf(i) {
+	return i.kind === 'note' ? `note:${i.n.id}` : i.kind === 'pinsess' ? `session:${i.p.id}` : `issue:${i.w.key}`;
+}
+// Save a section's order from its items as listed now, with `ref` moved to `to` (index), or by `dir` (up/down).
+async function reorderSection(sectionId, ref, { to, dir } = {}) {
+	const g = listGroups().find(x => x.role === sectionId);
+	const refs = (g?.items || []).filter(i => i.secRef).map(i => i.secRef);
+	const from = refs.indexOf(ref);
+	if (from < 0 && to === undefined) return;
+	if (from >= 0) refs.splice(from, 1);
+	let at = to ?? (dir === 'up' ? from - 1 : from + 1);
+	at = Math.max(0, Math.min(refs.length, at));
+	refs.splice(at, 0, ref);
+	const x = sectionOf(sectionId);
+	if (x) x.order = refs;
+	renderList();
+	await api('/api/section', { op: 'order', id: sectionId, order: refs });
+	await loadWork();
+}
+// Finished items the user can clear from My Work (milestone issues leave on their own a week after closing).
+function clearableDone(i) {
+	return (i.kind === 'pinsess' && (!!i.p.status || !!ui.foldedDone?.has(i.p.id))) || (i.kind === 'work' && !!i.w.state && (i.w.local || i.group === 'priorities'));
+}
+async function clearDone(role) {
+	const g = listGroups().find(x => x.role === role);
+	const items = (g?.items || []).filter(clearableDone);
+	try {
+		for (const i of items) {
+			if (i.kind === 'pinsess') await api('/api/work-pin', { op: 'remove', id: i.p.id });
+			else await api('/api/work-issue', { op: 'remove', key: i.w.key });
+		}
+		toast(`Cleared ${items.length} done item${items.length === 1 ? '' : 's'}`);
+	} catch (error) { toast(error.message, true); }
+	await loadWork();
 }
 
 function rowHtml(item) {
@@ -678,9 +845,9 @@ function rowHtml(item) {
 		const w = item.w;
 		const prio = item.milestone?.role === 'priorities';
 		const local = !!w.local;
-		return withQuick(`<button type="button" class="${cls} ${w.isBug ? 'dot-action' : ''}${prio || local ? ' prio-row' : ''}" data-kind="work" data-id="${esc(w.key)}" data-group="${esc(item.group || '')}" aria-current="${!!current}"${prio ? ` draggable="true" data-prio="${esc(w.key)}" data-pin-issue="${esc(w.key)}" title="Drag to reorder or into current / next; Alt+↑/↓ moves the selected issue"` : local ? ` draggable="true" data-pin-issue="${esc(w.key)}" title="Added locally (GitHub milestone unchanged). Drag to another group."` : ''}>${prio || local ? '<span class="row-grip" aria-hidden="true" title="Drag to move"><i class="codicon codicon-gripper"></i></span>' : ''}
-			<span class="row-title" title="${esc(w.title)}">${prio ? `<span class="prio-rank">${w.rank}</span>` : ''}${esc(w.title)}</span><span class="row-meta"><span>${esc(shortKey(w.key))}</span>${w.isBug ? '<span>bug</span>' : ''}${prio && w.milestone ? `<span>${esc(w.milestone)}</span>` : ''}${local ? '<span class="tag" title="Added to My Work locally; its GitHub milestone is unchanged">local</span>' : ''}${sessTag(w.key)}</span>
-		</button>`, issueQuick(w.key, w.url, { removable: local }));
+		return withQuick(`<button type="button" class="${cls}${w.state ? ' is-done' : w.isBug ? ' dot-action' : ''}${prio || local ? ' prio-row' : ''}" data-kind="work" data-id="${esc(w.key)}" data-group="${esc(item.group || '')}"${item.secRef ? ` data-sec-item="${esc(item.secRef)}"` : ''} aria-current="${!!current}"${prio ? ` draggable="true" data-prio="${esc(w.key)}" data-pin-issue="${esc(w.key)}" title="Drag to reorder or into current / next; Alt+↑/↓ moves the selected issue"` : local ? ` draggable="true" data-pin-issue="${esc(w.key)}" title="Added locally (GitHub milestone unchanged). Drag to another group."` : ''}>${prio || local ? '<span class="row-grip" aria-hidden="true" title="Drag to move"><i class="codicon codicon-gripper"></i></span>' : ''}
+			<span class="row-title" title="${esc(w.title)}">${prio ? `<span class="prio-rank">${w.rank}</span>` : ''}${esc(w.title)}</span><span class="row-meta"><span>${esc(shortKey(w.key))}</span>${w.isBug ? '<span>bug</span>' : ''}${prio && w.milestone ? `<span>${esc(w.milestone)}</span>` : ''}${local ? '<span class="tag" title="Added to My Work locally; its GitHub milestone is unchanged">local</span>' : ''}${doneTag(w.state, '', w.stateReason)}${w.state ? '' : sessTag(w.key)}</span>
+		</button>`, issueQuick(w.key, w.url, { removable: local || prio, state: w.state }));
 	}
 	if (item.kind === 'workhome') {
 		const waiting = (ui.state.threads?.['my-work'] || []).at(-1)?.role === 'user';
@@ -699,22 +866,21 @@ function rowHtml(item) {
 	if (item.kind === 'pinsess') {
 		const p = item.p, z = p.session;
 		const inPrio = item.group === 'priorities';
-		return withQuick(`<button type="button" class="${cls}${z && !z.read ? ' dot-action' : ''} prio-row" data-kind="pinsess" data-id="${esc(p.id)}" data-group="${esc(item.group || 'current')}" data-sess="${esc(p.id)}"${inPrio ? ` data-prio="session:${esc(p.id)}"` : ''} draggable="true" title="Drag to another group${inPrio ? ' or reorder' : ''}" aria-current="${!!current}"><span class="row-grip" aria-hidden="true" title="Drag to move"><i class="codicon codicon-gripper"></i></span>
+		return withQuick(`<button type="button" class="${cls}${p.status ? ' is-done' : z && !z.read ? ' dot-action' : ''} prio-row" data-kind="pinsess" data-id="${esc(p.id)}" data-group="${esc(item.group || 'current')}" data-sess="${esc(p.id)}"${item.secRef ? ` data-sec-item="${esc(item.secRef)}"` : ''}${inPrio ? ` data-prio="session:${esc(p.id)}"` : ''} draggable="true" title="Drag to another group${inPrio ? ' or reorder' : ''}" aria-current="${!!current}"><span class="row-grip" aria-hidden="true" title="Drag to move"><i class="codicon codicon-gripper"></i></span>
 			<span class="row-title" title="${esc(z?.title || '')}">${inPrio ? `<span class="prio-rank">${item.rank}</span>` : ''}<i class="codicon codicon-comment-discussion" aria-hidden="true"></i> ${esc(z?.title || p.note || 'Session not found')}</span>
-			<span class="row-meta">${z?.project ? `<span>${esc(z.project)}</span>` : ''}${z?.modified ? `<span>active ${esc(agoText(new Date(z.modified).toISOString()))}</span>` : ''}${z?.changes ? `<span class="add">+${esc(z.changes.additions)}</span><span class="del">−${esc(z.changes.deletions)}</span>` : ''}${z && !z.read ? '<span class="tag acc">unread</span>' : ''}</span>
-		</button>`, [{ act: 'open-session', link: `agent-host-session://ahp-session/${p.id}`, icon: 'comment-discussion', label: 'Open session' }, { act: 'unpin-session', key: p.id, icon: 'close', label: 'Remove from My Work' }]);
+			<span class="row-meta">${z?.project ? `<span>${esc(z.project)}</span>` : ''}${z?.modified ? `<span>active ${esc(agoText(new Date(z.modified).toISOString()))}</span>` : ''}${z?.changes ? `<span class="add">+${esc(z.changes.additions)}</span><span class="del">−${esc(z.changes.deletions)}</span>` : ''}${(ui.foldedIssues?.get(p.id) || []).map(k => `<span title="This session works on ${esc(shortKey(k))}">${esc(shortKey(k))}</span>`).join('')}${p.status ? doneTag(p.status, p.status === 'done' ? '' : 'PR ') : ui.foldedDone?.has(p.id) ? doneTag('closed', '', 'completed') : z && !z.read ? '<span class="tag acc">unread</span>' : ''}</span>
+		</button>`, [{ act: 'open-session', link: `agent-host-session://ahp-session/${p.id}`, icon: 'comment-discussion', label: 'Open session' }, p.status ? { act: 'unpin-session', key: p.id, icon: 'check', label: 'Clear from My Work (done)' } : { act: 'unpin-session', key: p.id, icon: 'close', label: 'Remove from My Work' }]);
 	}
-	if (item.kind === 'msrcitem') {
-		const x = item.x;
-		const due = msrcDue(x);
-		const liveZ = (ui.work?.data?.msrcSessions?.[x.incidentId] || []).find(z => !z.archived);
-		const live = !!liveZ;
-		return withQuick(`<button type="button" class="${cls} ${due.cls === 'bad' || due.cls === 'sev' ? 'dot-action' : ''}" data-kind="msrcitem" data-id="${esc(x.incidentId)}" aria-current="${!!current}">
-			<span class="row-title" title="${esc(x.title || '')}"><i class="codicon codicon-shield" aria-hidden="true"></i> ${esc(x.draft ? 'New MSRC item' : x.title || `IcM ${x.incidentId}`)}</span>
-			<span class="row-meta"><span>IcM ${esc(x.incidentId)}</span><span class="tag ${due.cls}"><i class="codicon codicon-clock" aria-hidden="true"></i>${esc(due.text)}</span>${live ? '<span class="tag sess"><i class="codicon codicon-comment-discussion" aria-hidden="true"></i>session</span>' : ''}</span>
-		</button>`, x.draft ? [] : [
-			liveZ ? { act: 'open-session', link: liveZ.link, icon: 'comment-discussion', label: 'Open session' } : { act: 'msrc-item-session', key: x.incidentId, icon: 'rocket', label: 'Start session' },
-			...(x.link ? [{ href: x.link, icon: 'link-external', label: 'Open in IcM' }] : []),
+	if (item.kind === 'note') {
+		const n = item.n;
+		const due = noteDue(n);
+		const liveZ = n.draft ? null : (ui.work?.data?.noteSessions?.[n.ref || n.title] || []).find(z => !z.archived);
+		return withQuick(`<button type="button" class="${cls} ${due.cls === 'bad' || due.cls === 'sev' ? 'dot-action' : ''}${item.secRef ? ' prio-row' : ''}" data-kind="note" data-id="${esc(n.id)}" data-group="${esc(item.group || '')}"${item.secRef ? ` data-sec-item="${esc(item.secRef)}" draggable="true" title="Drag to reorder; Alt+↑/↓ moves it"` : ''} aria-current="${!!current}">${item.secRef ? '<span class="row-grip" aria-hidden="true" title="Drag to move"><i class="codicon codicon-gripper"></i></span>' : ''}
+			<span class="row-title" title="${esc(n.title || '')}"><i class="codicon codicon-note" aria-hidden="true"></i> ${esc(n.draft ? 'New note' : n.title)}</span>
+			<span class="row-meta">${n.ref && n.ref !== n.title ? `<span>${esc(n.ref)}</span>` : ''}${n.due ? `<span class="tag ${due.cls}"><i class="codicon codicon-clock" aria-hidden="true"></i>${esc(due.text)}</span>` : ''}${liveZ ? '<span class="tag sess"><i class="codicon codicon-comment-discussion" aria-hidden="true"></i>session</span>' : ''}</span>
+		</button>`, n.draft ? [] : [
+			liveZ ? { act: 'open-session', link: liveZ.link, icon: 'comment-discussion', label: 'Open session' } : { act: 'note-session', key: n.id, icon: 'rocket', label: 'Start session' },
+			...(n.link ? [{ href: n.link, icon: 'link-external', label: 'Open link' }] : []),
 		]);
 	}
 	if (item.kind === 'notification') {
@@ -723,11 +889,10 @@ function rowHtml(item) {
 		const checked = item.bulk ? !ui.unchecked?.has(n.id) : ui.picked.has(n.id);
 		const check = handled ? '<span></span>' : `<input type="checkbox" class="row-check" data-id="${esc(n.id)}" aria-label="Select ${esc(n.title)}" ${checked ? 'checked' : ''}>`;
 		const tag = n.triage?.group === 'route' ? `<span class="tag sev">${esc(routeLabel(n.triage))}</span> ` : item.bulk && n.triage?.rule ? `<span class="tag ok">${esc(n.triage.rule)}</span> ` : '';
-		const reason = n.triage?.reason
-			? `<span class="row-reason">${n.issueKey ? sessTag(n.issueKey) : ''}${tag}${esc(n.triage.reason)}</span>`
-			: `<span class="row-meta"><span>${esc(n.repo.replace('microsoft/', ''))}</span><span>${esc(n.reason)}</span><span>${esc(ago(n.updated_at))}</span></span>`;
+		const ref = n.issueKey ? shortKey(n.issueKey) : n.repo.replace('microsoft/', '');
+		const reason = `<span class="row-meta">${n.issueKey ? sessTag(n.issueKey) : ''}${tag}<span>${esc(ref)}</span>${n.triage ? '' : `<span>${esc(n.reason)}</span>`}<span>${esc(ago(n.updated_at))}</span></span>`;
 		const btn = `<button type="button" class="${cls} ${g?.dot || ''}" data-kind="notification" data-id="${esc(n.id)}" aria-current="${!!current}">
-			<span class="row-title" title="${esc(n.title)}">${esc(n.title)}</span>
+			<span class="row-title" title="${esc(n.title)}${n.triage?.reason ? `\n${esc(n.triage.reason)}` : ''}">${esc(n.title)}</span>
 			${reason}
 		</button>`;
 		return `<div class="row-wrap${item.bulk ? '' : ' pick'}">${check}${btn}</div>`;
@@ -768,17 +933,34 @@ function rowHtml(item) {
 // Finished items leave their group and collect in one collapsed "Done" section at the bottom
 // (the open item stays in place until you move on, and bulk runs keep their rows for progress).
 const keepInPlace = i => (ui.selected && i.kind === ui.selected.kind && i.id === ui.selected.id) || ui.bulkRun?.ids.includes(i.id);
+// Section bands (all tabs): chevron, title, count on the right, a one-line description; every band collapses.
+function groupHeadHtml(g) {
+	const count = g.collapsible ? g.count : g.items.filter(i => !isHandled(i) && !clearableDone(i) && !i.w?.state).length;
+	const tools = `${g.items.some(clearableDone) ? `<button type="button" class="act group-clear" data-clear-done="${esc(g.role)}" title="Clear Done: remove the finished items in this group from My Work" aria-label="Clear done"><i class="codicon codicon-clear-all" aria-hidden="true"></i></button>` : ''}${g.section ? `<span class="group-tools"><button type="button" class="row-pin" data-note-new="${esc(g.role)}" title="Add a note to ${esc(g.header)}" aria-label="Add a note to ${esc(g.header)}"><i class="codicon codicon-add" aria-hidden="true"></i></button><button type="button" class="row-pin" data-section-edit="${esc(g.role)}" title="Edit section" aria-label="Edit section ${esc(g.header)}"><i class="codicon codicon-gear" aria-hidden="true"></i></button></span>` : ''}`;
+	const toggle = g.role === 'handled' ? 'data-done-toggle' : `data-group-toggle="${esc(g.role)}"`;
+	return `<div class="band group-h"${g.drop ? ` data-drop-group="${esc(g.role)}"` : ''}>
+		<button type="button" class="band-toggle" ${toggle} aria-expanded="${!g.collapsed}"${g.desc ? ` title="${esc(g.desc.charAt(0).toUpperCase() + g.desc.slice(1))}"` : ''}><i class="codicon codicon-chevron-right" aria-hidden="true"></i><span class="band-title">${esc(g.header)}</span></button>
+		${tools ? `<span class="band-tools">${tools}</span>` : ''}<span class="band-n">${count || ''}</span>
+	</div>`;
+}
+function emptyGroupHtml(g) {
+	return g.role === 'priorities' ? '<div class="cd empty-group" data-drop-group="priorities">Your own ordered list, kept locally (milestones on GitHub are untouched). Paste <b>#123</b> or an issue link into the chat below, or use <b>Add to my priorities</b> on any issue.</div>'
+		: g.section ? `<div class="cd empty-group" data-drop-group="${esc(g.role)}">Empty. Add a note with <b>+</b>${g.section.linkPattern ? ', paste a matching link into the chat box below' : ''}, or drag issues and sessions here.</div>`
+			: `<div class="cd empty-group"${g.drop ? ` data-drop-group="${esc(g.role)}"` : ''}>Nothing planned yet. Use <b>Plan for…</b> on an issue or drop a session here.</div>`;
+}
 function renderList() {
-	const all = listGroups().filter(g => g.items.length || g.keepEmpty);
+	ui.foldedIssues = new Map(); // session id -> issue keys it stands for (same work)
+	ui.foldedDone = new Set(); // sessions whose issues are all closed
+	const folded = new Set(ui.state?.settings?.collapsedGroups || []);
+	const all = listGroups().map(foldIssues).map(g => (g.header && g.role && g.collapsed === undefined ? { ...g, collapsed: folded.has(g.role) } : g)).filter(g => g.items.length || g.keepEmpty);
 	const done = all.flatMap(g => g.items.filter(i => isHandled(i) && !keepInPlace(i)));
 	const doneSet = new Set(done);
 	const groups = all.map(g => ({ ...g, items: g.items.filter(i => !doneSet.has(i)) })).filter(g => g.items.length || g.keepEmpty);
 	$('list').classList.toggle('picking', ui.picked.size > 0 || !!ui.notifFilter);
-	const doneHtml = done.length
-		? `<button type="button" class="group-h done-toggle" data-done-toggle aria-expanded="${!!ui.showDone}"><i class="codicon codicon-chevron-right" aria-hidden="true"></i>Done<span class="group-n">${done.length}</span></button>${ui.showDone ? done.map(rowHtml).join('') : ''}`
-		: '';
+	const doneHtml = done.length ? `${groupHeadHtml({ header: 'Done', role: 'handled', desc: 'Handled in this batch', collapsible: true, count: done.length, collapsed: !ui.showDone, items: [] })}${ui.showDone ? done.map(rowHtml).join('') : ''}` : '';
+	renderSummary(all, done);
 	$('list').innerHTML = groups.length || done.length
-		? groups.map(g => `${g.collapsible ? `<button type="button" class="group-h done-toggle" data-group-toggle="${esc(g.role)}" aria-expanded="${!g.collapsed}"><i class="codicon codicon-chevron-right" aria-hidden="true"></i>${esc(g.header)}<span class="group-n">${g.count}</span></button>` : g.header ? `<div class="group-h"${g.drop ? ` data-drop-group="${esc(g.role)}"` : ''}>${esc(g.header)}<span class="group-n">${g.items.filter(i => !isHandled(i)).length || ''}</span></div>` : ''}${g.collapsed ? '' : g.items.length ? g.items.map(rowHtml).join('') : g.role === 'priorities' ? '<div class="cd empty-group" data-drop-group="priorities">Your own ordered list, kept locally (milestones on GitHub are untouched). Paste <b>#123</b> or an issue link into the chat below, or use <b>Add to my priorities</b> on any issue.</div>' : `<div class="cd empty-group"${g.drop ? ` data-drop-group="${esc(g.role)}"` : ''}>Nothing planned yet. Use <b>Plan for…</b> on an issue or drop a session here.</div>`}`).join('')
+		? groups.map(g => `${g.header ? groupHeadHtml(g) : ''}${g.collapsed ? '' : g.items.length ? groupItemsHtml(g) : g.keepEmpty ? emptyGroupHtml(g) : ''}`).join('')
 			+ (groups.length ? '' : '<div class="empty"><i class="codicon codicon-check-all" aria-hidden="true"></i>All done in this batch</div>') + doneHtml
 		: ui.state?.indexing?.state === 'running' && ['queue', 'cleanup', 'implement'].includes(ui.tab) && (ui.state.indexing.firstRun || !ui.state.hasIndex)
 			? '<div class="empty cd">My Work and Notifications already work while the index is built.</div>'
@@ -786,36 +968,83 @@ function renderList() {
 			? '<div class="empty"><i class="codicon codicon-info" aria-hidden="true"></i><b>No issue index yet</b><br>This view is built from your local issue index. Ask the chat to <i>set up My Work</i> (my-work-setup skill) to build it; My Work and Notifications work without it.</div>'
 			: '<div class="empty"><i class="codicon codicon-check-all" aria-hidden="true"></i>Nothing here</div>';
 }
+// The header's summary line and segmented progress bar, for the view in front of you.
+function renderSummary(groups, handled) {
+	const st = ui.state;
+	if (!st) return;
+	const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
+	let parts = [], segs = [];
+	if (ui.tab === 'work') {
+		const cur = ui.work?.data?.milestones?.find(m => m.role === 'current');
+		const g = groups.find(x => x.role === 'current');
+		if (cur && g) {
+			const by = { progress: 0, todo: 0, done: (g.closed || []).length };
+			for (const i of g.items) by[workStage(i)]++;
+			const total = by.progress + by.todo + by.done;
+			const days = cur.due ? Math.ceil((Date.parse(cur.due) - Date.now()) / 864e5) : null;
+			parts = [cur.title, `${by.done} of ${total} done`, `${pct(by.done, total)}%`, `${by.progress} in progress`, `${by.todo} to do`, ...(days !== null ? [days >= 0 ? `due in ${days} day${days === 1 ? '' : 's'}` : `${-days} days overdue`] : [])];
+			segs = [['done', by.done], ['progress', by.progress], ['todo', by.todo]];
+		}
+	} else if (ui.tab === 'notifications') {
+		const unread = st.notifications.filter(n => !n.handled);
+		const needs = unread.filter(n => groupOf(n) === 'action').length;
+		const doneToday = st.today.notificationsHandled;
+		parts = [`${unread.length} unread`, `${needs} need you`, `${doneToday} done today`];
+		segs = [['done', doneToday], ['attention', needs], ['todo', unread.length - needs]];
+	} else {
+		const items = ui.tab === 'queue' ? st.sections.flatMap(x => x.items) : ui.tab === 'cleanup' ? Object.values(st.cleanup).flatMap(x => x.items) : st.implement.items;
+		const keys = new Map(items.map(i => [i.key, i]));
+		const handledN = [...keys.values()].filter(i => i.handled).length;
+		const total = keys.size;
+		const noun = { queue: 'issues', cleanup: 'proposals', implement: 'agent-ready issues' }[ui.tab];
+		parts = [`${handledN} of ${total} ${noun} handled`, `${pct(handledN, total)}%`, ...(ui.tab === 'implement' ? [`${st.implement.bugs} bugs`] : []), `${st.today.sessionsStarted} session${st.today.sessionsStarted === 1 ? '' : 's'} started today`];
+		segs = [['done', handledN], ['todo', total - handledN]];
+	}
+	$('subtitle').textContent = `${parts.join(' · ') || VIEW_HINTS[ui.tab]}${st.notificationsError ? ` · notifications error: ${st.notificationsError}` : ''}`;
+	const total = segs.reduce((a, [, n]) => a + n, 0);
+	$('top-progress').innerHTML = total ? segs.filter(([, n]) => n > 0).map(([k, n]) => `<span class="seg-${k}" style="flex-grow:${n}"></span>`).join('') : '';
+	$('top-progress').setAttribute('aria-label', parts.join(', '));
+}
 
-// Density: compact spacing on small panels (or always/never), and a one-pane layout when narrow,
-// where the list and the details take turns and the details get a Back button.
+// Density: "Auto" follows VS Code's Layout Density (default | compact), falling back to compact on
+// small panels when it can't be read. Narrow panels use a one-pane layout where the list and the
+// details take turns and the details get a Back button.
 const COMPACT_W = 1100, COMPACT_H = 760, NARROW_W = 720;
 function applyDensity() {
 	const pref = ui.state?.settings.density || 'auto';
 	const w = window.innerWidth, h = window.innerHeight;
-	const compact = pref === 'compact' || (pref === 'auto' && (w < COMPACT_W || h < COMPACT_H));
+	const compact = pref === 'compact' || (pref === 'auto' && (ui.vscodeDensity ? ui.vscodeDensity === 'compact' : (w < COMPACT_W || h < COMPACT_H)));
 	const root = document.documentElement;
 	root.dataset.density = compact ? 'compact' : 'comfortable';
 	root.classList.toggle('narrow', w < NARROW_W);
 	root.style.setProperty('--list-h', `${ui.state?.settings.listHeight || 40}%`);
+	root.style.setProperty('--list-w', `${ui.state?.settings.listWidth || 38}%`);
 }
 window.addEventListener('resize', () => applyDensity());
 new ResizeObserver(() => applyDensity()).observe(document.body);
-// Narrow layout: list on top, details below; the handle between them sets the list's share.
+api('/api/vscode-theme').then(r => { ui.vscodeDensity = r.density || null; applyDensity(); }, () => { });
+// The sash between the list and the details: sets the list's width side by side, or its height
+// when narrow (list on top). Double-click resets.
 {
 	const handle = $('split-handle');
 	const layout = $('panel');
-	const pct = y => { const r = layout.getBoundingClientRect(); return Math.round(Math.max(15, Math.min(85, ((y - r.top) / r.height) * 100))); };
+	const narrow = () => document.documentElement.classList.contains('narrow');
+	const pct = e => {
+		const r = layout.getBoundingClientRect();
+		const p = narrow() ? (e.clientY - r.top) / r.height : (e.clientX - r.left) / r.width;
+		return Math.round(Math.max(15, Math.min(85, p * 100)));
+	};
 	const set = (p, save) => {
-		document.documentElement.style.setProperty('--list-h', `${p}%`);
-		if (save && ui.state) { ui.state.settings.listHeight = p; saveSettings({ listHeight: p }); }
+		const key = narrow() ? 'listHeight' : 'listWidth';
+		document.documentElement.style.setProperty(narrow() ? '--list-h' : '--list-w', `${p}%`);
+		if (save && ui.state) { ui.state.settings[key] = p; saveSettings({ [key]: p }); }
 	};
 	handle.addEventListener('pointerdown', e => {
 		e.preventDefault();
 		handle.setPointerCapture(e.pointerId);
 		document.body.classList.add('resizing');
 		let last = null;
-		const move = ev => { last = pct(ev.clientY); set(last, false); };
+		const move = ev => { last = pct(ev); set(last, false); };
 		const up = () => {
 			handle.removeEventListener('pointermove', move);
 			document.body.classList.remove('resizing');
@@ -826,12 +1055,16 @@ new ResizeObserver(() => applyDensity()).observe(document.body);
 		handle.addEventListener('pointercancel', up, { once: true });
 	});
 	handle.addEventListener('keydown', e => {
-		if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+		const n = narrow();
+		const dir = { ArrowUp: n ? -1 : 0, ArrowDown: n ? 1 : 0, ArrowLeft: n ? 0 : -1, ArrowRight: n ? 0 : 1 }[e.key];
+		if (!dir) return;
 		e.preventDefault();
-		const cur = ui.state?.settings.listHeight || 40;
-		set(Math.max(15, Math.min(85, cur + (e.key === 'ArrowDown' ? 5 : -5))), true);
+		const cur = ui.state?.settings[n ? 'listHeight' : 'listWidth'] || (n ? 40 : 38);
+		set(Math.max(15, Math.min(85, cur + dir * 3)), true);
 	});
-	handle.addEventListener('dblclick', () => set(40, true));
+	handle.addEventListener('dblclick', () => set(narrow() ? 40 : 38, true));
+	const orient = () => handle.setAttribute('aria-orientation', narrow() ? 'horizontal' : 'vertical');
+	new ResizeObserver(orient).observe(document.body);
 }
 
 async function select(kind, id, focusDetail = false) {
@@ -926,7 +1159,8 @@ function outcomeHtml(outcome) {
 async function renderDetailInner(fetchDetail, silent = false) {
 	const sel = ui.selected;
 	const el = $('detail');
-	if (sel.kind === 'msrcitem') { renderMsrcItemInto(el, sel.id); return; }
+	if (sel.kind === 'note') { renderNoteInto(el, sel.id); return; }
+	if (sel.kind === 'section') { renderSectionInto(el, sel.id); return; }
 	if (sel.kind === 'workhome') { renderWorkHomeInto(el); return; }
 	if (sel.kind === 'worksrc') { renderFindWorkInto(el); return; }
 	if (sel.kind === 'browseitem') { await renderBrowseItemInto(el, sel.id, fetchDetail, silent); return; }
@@ -1187,7 +1421,10 @@ async function loadGitHub(key, fresh = false) {
 	paintGitHub(key);
 	try {
 		const data = await api(`/api/github?key=${encodeURIComponent(key)}${fresh ? '&fresh=1' : ''}`);
+		const wasClosed = prev?.data?.state === 'closed';
 		ui.gh[key] = { data, at: Date.now() };
+		// Live GitHub says it is closed (the index can lag): redraw the title actions, which offer no new session for a closed issue.
+		if (data.state === 'closed' && !wasClosed && ui.selected?.id === key) { renderDetail(false, true); return; }
 	} catch (error) {
 		ui.gh[key] = { ...prev, loading: false, error: prev?.data ? null : error.message };
 		if (prev?.data) toast(`GitHub refresh failed: ${error.message}`, true);
@@ -1213,6 +1450,12 @@ function ghSlot(key) {
 }
 
 // ---------- Recommended next actions ----------
+const REPRO_PROMPT = [
+	'Try to reproduce this bug with the reporter\'s steps, and tell me whether it reproduces.',
+	'Read the issue and its latest comments for the steps, version and OS. Use the local clone of the repository and run it the way the repository supports (for example a dev build); follow the steps exactly, on the latest code.',
+	'Do not change code, and do not comment, label or otherwise change GitHub.',
+	'Report back with: Reproduced (yes / no / partly), what you did and saw (with screenshots or logs if you have them), any difference from the report (version, OS, settings), and the next step you recommend (fix session, ask the reporter for info, or close).',
+].join(' ');
 // Rule-based suggestions from the live GitHub state, the chat's triage, Sweeper and recorded outcomes.
 // Actions either reuse a panel action (data-act) or ask the chat (which still needs approval for GitHub changes).
 function recommendations(key) {
@@ -1236,7 +1479,7 @@ function recommendations(key) {
 	const act = (label, a, primary) => ({ kind: 'act', label, act: a, key: n ? undefined : key, primary });
 	const link = (label, url) => ({ kind: 'link', label, url });
 
-	if (outcome?.decision === 'fixing') {
+	if (outcome?.decision === 'fixing' && g.state !== 'closed') {
 		recs.push({ icon: 'rocket', text: 'A fix session is already running for this issue.', actions: [ask('Get status', 'What is the status of the fix session for this issue? Summarize progress and what is left.')] });
 	}
 	if (g.state === 'closed') {
@@ -1300,11 +1543,16 @@ function recommendations(key) {
 	if (p.group && p.proposedComment && n) {
 		recs.push({ icon: 'law', text: `Sweeper proposes: ${APPROVE_LABEL[p.group]}`, why: `confidence ${Number(p.confidence ?? 0).toFixed(2)}`, actions: [ask('Review proposal', `Review Sweeper's "${APPROVE_LABEL[p.group]}" proposal for this issue against the live issue, show me the comment, and ask me to approve with choices.`)] });
 	}
+	const text = g.body.replace(/<!--[\s\S]*?-->/g, '');
+	const isBug = labels.includes('bug') || det?.readiness?.itemType === 'bug' || /bug_report_template|Type:\s*\**\s*Bug\b/i.test(g.body);
+	const isFeature = !isBug && (labels.includes('feature-request') || det?.readiness?.itemType === 'feature' || /feature_request_template|Type:\s*\**\s*Feature Request/i.test(g.body));
+	const hasSteps = /steps to reproduce|repro steps|^\s*1[.)]\s/im.test(text);
+	const hasRepro = hasSteps || /repro|user-attachments|\.(png|gif|mp4)/i.test(text);
+	// A bug with steps: the issue's own chat can try them and report whether it reproduces.
+	if (!g.isPr && isBug && hasSteps && !labels.includes('info-needed') && outcome?.decision !== 'fixing') {
+		recs.push({ icon: 'beaker', text: 'Has steps to reproduce — check whether it reproduces.', actions: [ask('Reproduce', REPRO_PROMPT, !recs.length)] });
+	}
 	if (!g.isPr && !human.length && !labels.includes('info-needed') && !p.group) {
-		const text = g.body.replace(/<!--[\s\S]*?-->/g, '');
-		const isBug = labels.includes('bug') || det?.readiness?.itemType === 'bug' || /bug_report_template|Type:\s*\**\s*Bug\b/i.test(g.body);
-		const isFeature = !isBug && (labels.includes('feature-request') || det?.readiness?.itemType === 'feature' || /feature_request_template|Type:\s*\**\s*Feature Request/i.test(g.body));
-		const hasRepro = /steps to reproduce|repro|^\s*1[.)]\s/im.test(text) || /user-attachments|\.(png|gif|mp4)/i.test(text);
 		if (isFeature || (!isBug && /^(?:feature|add|support|allow|option)\b|would like/i.test(g.title + ' ' + text.slice(0, 400)))) {
 			recs.push({ icon: 'lightbulb', text: 'Feature request with no discussion yet.', actions: [ask('Backlog or close?', 'This is a feature request with no discussion. Check for duplicates and demand, then recommend keeping it (e.g. Backlog Candidates milestone) or closing it, with choices.', !recs.length)] });
 		} else if (!hasRepro) {
@@ -1312,7 +1560,7 @@ function recommendations(key) {
 		}
 	}
 	const ready = det?.readiness?.agentReadiness;
-	if (!g.isPr && (ready === 'implement' || ready === 'plan') && outcome?.decision !== 'fixing') {
+	if (!g.isPr && (ready === 'implement' || ready === 'plan') && outcome?.decision !== 'fixing' && !liveSession(key)) {
 		recs.push({ icon: 'rocket', text: 'Agent-ready: a fix session could take this.', actions: [n ? act('Start fix session', 'notification-start') : act('Start fix session', 'implement')] });
 	}
 	return recs.slice(0, 3);
@@ -1444,7 +1692,7 @@ const STALL_MS = 3 * 60 * 1000;
 function waitingHtml(key, since) {
 	const stalled = Date.now() - new Date(since).getTime() > STALL_MS;
 	return stalled
-		? `<div class="cd waiting stalled" role="status"><i class="codicon codicon-warning" aria-hidden="true"></i> No reply yet: the chat may be gone. <button type="button" class="link-btn" data-act="resend-new-chat" data-key="${esc(key)}" title="Forget the old chat and send your last message to a new one">Resend in a new chat</button></div>`
+		? `<div class="cd waiting stalled" role="status"><i class="codicon codicon-warning" aria-hidden="true"></i> No reply yet: the message may not have reached the chat. <button type="button" class="link-btn" data-act="resend-same-chat" data-key="${esc(key)}" title="Send your last message to the same chat again (use Open chat first if the Agents window lost track of it)">Resend</button> · <button type="button" class="link-btn" data-act="resend-new-chat" data-key="${esc(key)}" title="Forget the old chat and send your last message to a new one">Resend in a new chat</button></div>`
 		: `<div class="cd waiting" data-since="${esc(since)}" data-key="${esc(key)}"><i class="codicon codicon-loading" aria-hidden="true"></i> Waiting for the chat…</div>`;
 }
 setInterval(() => {
@@ -1476,7 +1724,7 @@ function threadHtml(key, title) {
 		${entries.length ? `<button type="button" class="dock-head" data-act="toggle-chat" aria-expanded="${!collapsed}">
 			<i class="codicon codicon-chevron-right" aria-hidden="true"></i><span>Conversation</span><span class="cd">· ${count}${waiting ? ' · waiting for reply' : ''}</span>
 		</button>` : ''}${openChat}
-		${entries.length ? `<div class="bubbles" tabindex="0" aria-label="Conversation with the chat" style="height:${height}px">${bubbles}${waiting ? waitingHtml(key, last.at) : ''}</div>` : ''}
+		${entries.length ? `<div class="bubbles" tabindex="0" aria-label="Conversation with the chat" style="height:${height}px">${bubbles}${waiting ? waitingHtml(key, ui.resentAt?.[key] > last.at ? ui.resentAt[key] : last.at) : ''}</div>` : ''}
 		<form class="composer" data-key="${esc(key)}" data-title="${esc(title || '')}">${pastedHtml(key)}
 			<textarea class="ask-input" rows="1" aria-label="Message to the chat about this issue" placeholder="${chat ? `Message the ${esc(shortKey(key))} chat…` : `Discuss ${esc(shortKey(key))} (starts its own chat)…`}" title="Enter to send · Shift+Enter for a new line"></textarea>
 			<button type="submit" class="send" aria-label="Send" title="Send (Enter)"><i class="codicon codicon-send" aria-hidden="true"></i></button>
@@ -1589,10 +1837,12 @@ function workMenu(key, opts) {
 	const here = opts.work.group || (localPin ? localPin.bucket || 'current' : opts.work.milestone?.role);
 	const browseAdds = opts.browse && !inMyWork(key) ? ['current', 'next'].map(b => ({ act: 'issue-move', key, milestone: b, label: `Add to ${groupLabel(b)} (local)` })) : [];
 	const localMoves = localPin || here === 'priorities' ? ['current', 'next'].filter(b => b !== here).map(b => ({ act: 'issue-move', key, milestone: b, label: `Move to ${groupLabel(b)} (local)` })) : [];
+	// Any issue can be placed in one of your sections (locally; GitHub stays unchanged).
+	const toSections = (ui.work?.data?.sections || []).filter(x => x.id !== here).map(x => ({ act: 'issue-move', key, milestone: x.id, label: `Move to ${x.name}` }));
 	// Issues planned on GitHub for current/next can go back to untriaged (milestone cleared on GitHub).
 	const planned = !localPin && (here === 'current' || here === 'next') && opts.work.milestone?.title;
 	const unplan = planned ? [{ act: 'move-milestone', key, milestone: 'none', label: `Remove from ${opts.work.milestone.title} (untriaged)` }] : [];
-	return [...browseAdds, ...localMoves, ...planMenu(key, opts.work.milestone?.title), ...unplan, ...(localPin ? [{ act: 'issue-unpin', key, label: 'Remove from My Work' }] : [])];
+	return [...browseAdds, ...localMoves, ...toSections, ...planMenu(key, opts.work.milestone?.title), ...unplan, { act: 'link-pick', key, label: 'Link a session…' }, ...(localPin ? [{ act: 'issue-unpin', key, label: 'Remove from My Work' }] : [])];
 }
 
 async function renderUnindexedInto(el, key, opts = {}) {
@@ -1606,7 +1856,7 @@ async function renderUnindexedInto(el, key, opts = {}) {
 	const primary = opts.work ? (live ? { act: 'open-session', link: live.link, label: 'Open session', icon: 'comment-discussion' } : { act: 'work-session', key, label: 'Start session', icon: 'rocket' }) : null;
 	const menu = opts.work ? [...(live ? [{ act: 'work-session-new', key, label: 'Start another session' }] : []), ...workMenu(key, opts)] : [];
 	el.innerHTML = `<div class="detail-head">${titleBarHtml({ title: g?.title || key, url, meta, primary, menu })}</div>
-		<div class="detail-body">${recoSlot(key)}${sessionsHtml(sessionsOf(key))}${ghSlot(key)}</div>
+		<div class="detail-body">${linkPickerHtml(key)}${recoSlot(key)}${sessionsHtml(sessionsOf(key))}${ghSlot(key)}</div>
 		<div class="footer">${threadHtml(key, g?.title || '')}</div>`;
 	hydrateGitHub();
 }
@@ -1697,7 +1947,20 @@ async function renderIssueInto(el, key, fetchDetail, nested, silent = false, opt
 		primary = live ? { act: 'open-session', link: live.link, label: 'Open session', icon: 'comment-discussion' } : { act: 'work-session', key, label: 'Start session', icon: 'rocket' };
 		menu = [...(live ? [{ act: 'work-session-new', key, label: 'Start another session' }] : []), ...workMenu(key, opts)];
 	} else if (!nested && ui.work?.data) {
-		menu = [...menu, ...planMenu(key, sel.detail?.milestone)];
+		menu = [...menu, ...planMenu(key, sel.detail?.milestone), { act: 'link-pick', key, label: 'Link a session…' }];
+	}
+	// A session already working on it (or that fixed it) comes first; a closed issue never offers to start one.
+	if (!nested) {
+		const live = liveSession(key);
+		const closed = ui.gh?.[key]?.data?.state === 'closed' || issue.state === 'closed' || issue.state === 'CLOSED';
+		const starts = new Set(['implement', 'work-session']);
+		if (live) {
+			primary = { act: 'open-session', link: live.link, label: 'Open session', icon: 'comment-discussion' };
+			if (!closed && !menu.some(m => m.act === 'work-session-new')) menu = [{ act: opts.work ? 'work-session-new' : 'implement', key, label: 'Start another session' }, ...menu];
+		} else if (closed && primary && starts.has(primary.act)) {
+			primary = null;
+		}
+		if (closed) menu = menu.filter(m => !starts.has(m.act) && m.act !== 'work-session-new');
 	}
 	// In My Work the plan is what matters: an earlier triage decision doesn't hide the actions.
 	const decided = !opts.work && issue.outcome && issue.outcome.decision !== 'fixing' ? issue.outcome : null;
@@ -1739,48 +2002,92 @@ async function renderIssueInto(el, key, fetchDetail, nested, silent = false, opt
 		!isImplement && !fixing ? `<button type="button" class="btn" data-act="implement" data-key="${safeKey}"><i class="codicon codicon-rocket" aria-hidden="true"></i>Start fix session</button>` : '',
 	].join('');
 	const attention = isCleanup ? `<div id="attention-${safeKey}" class="attention-slot">${attentionHtml(key)}</div>` : '';
-	el.innerHTML = `<div class="detail-head">${head}</div><div class="detail-body${decided ? ' is-decided' : ''}">${outcome}${ctxHtml}${attention}${recoSlot(key)}${tools ? `<div class="toolbar issue-tools">${tools}</div>` : ''}${sessionsHtml(sessionsOf(key))}${cards}${ghSlot(key)}</div><div class="footer">${threadHtml(key, issue.title)}</div>`;
+	el.innerHTML = `<div class="detail-head">${head}</div><div class="detail-body${decided ? ' is-decided' : ''}">${linkPickerHtml(key)}${outcome}${ctxHtml}${attention}${recoSlot(key)}${tools ? `<div class="toolbar issue-tools">${tools}</div>` : ''}${sessionsHtml(sessionsOf(key))}${cards}${ghSlot(key)}</div><div class="footer">${threadHtml(key, issue.title)}</div>`;
 }
 
-// ---------- MSRC ----------
-// Deadline label: "Jul 14 · overdue 105d" / "Nov 3 · in 7d" / "no deadline".
-function msrcDue(c) {
-	const t = Date.parse(c.resolveBy || '');
-	if (isNaN(t)) return { text: 'no deadline', cls: '' };
+// ---------- Your sections and their notes ----------
+// Due label: "Jul 14 · overdue 105d" / "Nov 3 · in 7d" / "no due date".
+function noteDue(n) {
+	const t = Date.parse(n.due || '');
+	if (isNaN(t)) return { text: 'no due date', cls: '' };
 	const days = Math.round((t - Date.now()) / 864e5);
 	const date = new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: new Date(t).getFullYear() === new Date().getFullYear() ? undefined : 'numeric' });
 	return days < 0 ? { text: `${date} · overdue ${-days}d`, cls: 'bad' } : { text: `${date} · in ${days}d`, cls: days <= 7 ? 'sev' : '' };
 }
-// MSRC items pasted into My Work: the user's own IcM link, title, deadline and description.
-function renderMsrcItemInto(el, id) {
-	const saved = (ui.work?.data?.msrcItems || []).find(x => x.incidentId === id);
-	const x = saved || (ui.msrcDraft?.incidentId === id ? ui.msrcDraft : null);
-	if (!x) { el.innerHTML = '<div class="empty">This MSRC item is no longer in My Work.</div>'; return; }
-	const link = x.link || `https://portal.microsofticm.com/imp/v5/incidents/details/${id}/summary`;
-	if (!saved || ui.msrcEditing === id) {
-		el.innerHTML = `<div class="detail-head">${titleBarHtml({ title: saved ? `Edit IcM ${id}` : `Add MSRC item · IcM ${id}`, url: link, meta: `<div class="meta"><a class="num-link" href="${esc(safeUrl(link))}" target="_blank" rel="noopener">IcM ${esc(id)}</a></div>` })}</div>
-			<div class="detail-body"><form class="msrc-form dcard" data-msrc-form data-id="${esc(id)}" data-link="${esc(link)}">
-				<label for="msrc-title">Title</label><input id="msrc-title" name="title" type="text" maxlength="200" value="${esc(saved ? x.title : '')}" placeholder="Short title, e.g. RCE via …" required>
-				<label for="msrc-due">Resolve by</label><input id="msrc-due" name="resolveBy" type="date" value="${esc(x.resolveBy || '')}">
-				<label for="msrc-desc">Description</label><textarea id="msrc-desc" name="description" rows="14" maxlength="20000" placeholder="Paste the case description">${esc(x.description || '')}</textarea>
-				<div class="msrc-form-actions"><button type="submit" class="btn primary">Save</button><button type="button" class="btn" data-msrc-cancel>Cancel</button></div>
-				<p class="cd msrc-note"><i class="codicon codicon-lock" aria-hidden="true"></i> Saved only on this machine (your My Work data folder). Never posted to GitHub.</p>
+function sectionOf(id) {
+	return (ui.work?.data?.sections || []).find(x => x.id === id) || null;
+}
+// The section a pasted link belongs to (its link pattern), with the reference it captures (e.g. an incident id).
+function sectionForLink(text) {
+	const t = String(text || '').trim();
+	if (!/^https?:\/\//i.test(t)) return null;
+	for (const x of ui.work?.data?.sections || []) {
+		if (!x.linkPattern) continue;
+		let m = null;
+		try { m = new RegExp(x.linkPattern, 'i').exec(t); } catch { continue; }
+		if (m) return { section: x.id, ref: m[1] || m[0], link: t };
+	}
+	return null;
+}
+function startNoteDraft(section, fields = {}) {
+	const notes = ui.work?.data?.notes || [];
+	const existing = fields.ref ? notes.find(n => n.section === section && n.ref === fields.ref) : null;
+	if (existing) { ui.noteEditing = existing.id; select('note', existing.id); return; }
+	ui.noteDraft = { id: 'draft', section, title: '', link: '', ref: '', description: '', due: '', ...fields, addedAt: new Date().toISOString() };
+	ui.noteEditing = 'draft';
+	render();
+	select('note', 'draft');
+}
+const LOCK_NOTE = '<p class="cd lock-note"><i class="codicon codicon-lock" aria-hidden="true"></i> Saved only on this machine (your My Work data folder). Never posted to GitHub.</p>';
+function renderNoteInto(el, id) {
+	const n = id === 'draft' ? ui.noteDraft : (ui.work?.data?.notes || []).find(x => x.id === id);
+	if (!n) { el.innerHTML = '<div class="empty">This note is no longer in My Work.</div>'; return; }
+	const section = sectionOf(n.section);
+	if (id === 'draft' || ui.noteEditing === id) {
+		el.innerHTML = `<div class="detail-head">${titleBarHtml({ title: id === 'draft' ? `New note in ${section?.name || n.section}` : 'Edit note', meta: '' })}</div>
+			<div class="detail-body"><form class="note-form dcard" data-note-form data-id="${esc(id)}" data-section="${esc(n.section)}" data-ref="${esc(n.ref || '')}">
+				<label for="note-title">Title</label><input id="note-title" name="title" type="text" maxlength="200" value="${esc(n.title || '')}" placeholder="Short title" required>
+				<label for="note-link">Link</label><input id="note-link" name="link" type="url" maxlength="1000" value="${esc(n.link || '')}" placeholder="https://…">
+				<label for="note-due">Due</label><input id="note-due" name="due" type="date" value="${esc(n.due || '')}">
+				<label for="note-desc">Description</label><textarea id="note-desc" name="description" rows="14" maxlength="20000" placeholder="Details for the session">${esc(n.description || '')}</textarea>
+				<div class="note-form-actions"><button type="submit" class="btn primary">Save</button><button type="button" class="btn" data-note-cancel>Cancel</button></div>
+				${LOCK_NOTE}
 			</form></div>`;
-		el.querySelector('#msrc-title')?.focus();
+		el.querySelector('#note-title')?.focus();
 		return;
 	}
-	const sessions = ui.work?.data?.msrcSessions?.[id] || [];
+	const sessions = ui.work?.data?.noteSessions?.[n.ref || n.title] || [];
 	const live = sessions.find(z => !z.archived);
-	const due = msrcDue(x);
-	const meta = `<div class="meta"><a class="num-link" href="${esc(safeUrl(link))}" target="_blank" rel="noopener" title="Open in IcM">IcM ${esc(id)}</a><span class="sep">·</span><span class="tag ${due.cls}"><i class="codicon codicon-clock" aria-hidden="true"></i>${esc(x.resolveBy ? `Resolve by ${due.text}` : 'No deadline set')}</span><span class="sep">·</span><span class="cd">added ${esc(agoText(x.addedAt))}</span></div>`;
-	const primary = live ? { act: 'open-session', link: live.link, label: 'Open session', icon: 'comment-discussion' } : { act: 'msrc-item-session', key: id, label: 'Start session', icon: 'rocket' };
-	const menu = [...(live ? [{ act: 'msrc-item-session', key: id, label: 'Start another session' }] : []), { act: 'msrc-item-edit', key: id, label: 'Edit' }, { act: 'msrc-item-remove', key: id, label: 'Remove from My Work' }];
-	el.innerHTML = `<div class="detail-head">${titleBarHtml({ title: x.title || `IcM ${id}`, url: link, meta, primary, menu })}</div>
+	const due = noteDue(n);
+	const meta = `<div class="meta">${n.link ? `<a class="num-link" href="${esc(safeUrl(n.link))}" target="_blank" rel="noopener">${esc(n.ref || 'Open link')}</a><span class="sep">·</span>` : ''}<span>${esc(section?.name || n.section)}</span><span class="sep">·</span><span class="tag ${due.cls}"><i class="codicon codicon-clock" aria-hidden="true"></i>${esc(n.due ? `Due ${due.text}` : 'No due date')}</span><span class="sep">·</span><span class="cd">added ${esc(agoText(n.addedAt))}</span></div>`;
+	const primary = live ? { act: 'open-session', link: live.link, label: 'Open session', icon: 'comment-discussion' } : { act: 'note-session', key: n.id, label: 'Start session', icon: 'rocket' };
+	const menu = [...(live ? [{ act: 'note-session', key: n.id, label: 'Start another session' }] : []), { act: 'note-edit', key: n.id, label: 'Edit' }, { act: 'note-remove', key: n.id, label: 'Remove from My Work' }];
+	el.innerHTML = `<div class="detail-head">${titleBarHtml({ title: n.title, url: n.link || undefined, meta, primary, menu })}</div>
 		<div class="detail-body">
 			${sessionsHtml(sessions)}
-			<section class="linked dcard"><div class="linked-head"><span class="section-label">Description</span></div><div class="msrc-desc">${x.description ? esc(x.description) : '<span class="cd">No description. Use Edit to paste it.</span>'}</div></section>
-			<p class="cd msrc-note"><i class="codicon codicon-lock" aria-hidden="true"></i> Security fix: the session follows your private fix workflow (msrc.fixWorkflow in my-work.config.json) and never uses a public repo, branch, PR or issue. Saved only on this machine.</p>
+			<section class="linked dcard"><div class="linked-head"><span class="section-label">Description</span></div><div class="note-desc">${n.description ? esc(n.description) : '<span class="cd">No description. Use Edit to add one.</span>'}</div></section>
+			<p class="cd lock-note"><i class="codicon codicon-lock" aria-hidden="true"></i> ${section?.instructions ? `Start session follows the instructions of your ${esc(section.name)} section.` : 'Start session asks the chat to pick the repository with you.'} Saved only on this machine.</p>
 		</div>`;
+}
+// Create or edit one of your sections.
+function renderSectionInto(el, id) {
+	const x = id === 'new' ? { name: '', instructions: '', linkPattern: '' } : sectionOf(id);
+	if (!x) { el.innerHTML = '<div class="empty">This section no longer exists.</div>'; return; }
+	const list = ui.work?.data?.sections || [];
+	const at = list.findIndex(v => v.id === id);
+	const notes = (ui.work?.data?.notes || []).filter(n => n.section === id).length;
+	el.innerHTML = `<div class="detail-head">${titleBarHtml({ title: id === 'new' ? 'New section' : `Section · ${x.name}`, meta: '<div class="meta"><span class="cd">Your own group in My Work, shown above the milestones.</span></div>' })}</div>
+		<div class="detail-body"><form class="note-form dcard" data-section-form data-id="${esc(id)}">
+			<label for="sec-name">Name</label><input id="sec-name" name="name" type="text" maxlength="40" value="${esc(x.name)}" placeholder="e.g. MSRC, Customer escalations" required>
+			<label for="sec-instr">Instructions for sessions</label><textarea id="sec-instr" name="instructions" rows="6" maxlength="4000" placeholder="Optional. Followed when you start a session from a note in this section, e.g. which repository, branch or skill to use, and what must stay private.">${esc(x.instructions || '')}</textarea>
+			<label for="sec-pattern">Link pattern</label><input id="sec-pattern" name="linkPattern" type="text" maxlength="200" spellcheck="false" value="${esc(x.linkPattern || '')}" placeholder="Optional regular expression, e.g. incidents/details/(\\d+)">
+			<p class="cd" style="margin:0">Pasting a matching link into the chat box adds a note here. The first capture group is the note's reference; sessions whose title mentions it are linked.</p>
+			<div class="note-form-actions"><button type="submit" class="btn primary">${id === 'new' ? 'Create section' : 'Save'}</button><button type="button" class="btn" data-section-cancel>Cancel</button>
+				${id === 'new' ? '' : `<span class="spacer"></span>${at > 0 ? '<button type="button" class="btn" data-section-move="up">Move up</button>' : ''}${at >= 0 && at < list.length - 1 ? '<button type="button" class="btn" data-section-move="down">Move down</button>' : ''}<button type="button" class="btn danger" data-section-delete>Delete…</button>`}</div>
+			${id === 'new' ? '' : `<p class="cd" data-section-delete-note hidden>Deleting removes the section and its ${notes} note${notes === 1 ? '' : 's'}; its issues and sessions move to Current. <button type="button" class="btn danger sm" data-section-delete-confirm>Delete section</button></p>`}
+			${LOCK_NOTE}
+		</form></div>`;
+	el.querySelector('#sec-name')?.focus();
 }
 // My Work home: the My Work chat and the recently active sessions that can be pinned.
 function renderWorkHomeInto(el) {
@@ -1801,14 +2108,19 @@ function renderWorkHomeInto(el) {
 }
 
 // Find work: pull candidates into My Work from live GitHub searches.
-const FIND_SOURCES = [['bugs', 'Bugs', 'bug'], ['features', 'Features', 'lightbulb'], ['area', 'Area', 'tag'], ['reviews', 'Reviews', 'git-pull-request'], ['mine', 'All', 'issues']];
+const FIND_SOURCES = [['bugs', 'Bugs', 'bug'], ['features', 'Features', 'lightbulb'], ['mine', 'All', 'issues'], ['reviews', 'Reviews', 'git-pull-request']];
 // The filter narrows the selected source and applies on Enter. GitHub search syntax (author:x, label:"y") is used
 // as is; anything else goes to the chat, which turns it into qualifiers using the user's memory.
 const looksLikeQuery = text => /(^|\s)-?[a-z][a-z-]*:\S/i.test(text);
+// "area" was a source of its own in earlier versions; it is now All with an area picked.
+function findSource() {
+	if (ui.findSource === 'area') ui.findSource = 'mine';
+	return ui.findSource || 'bugs';
+}
 function findSourceParams() {
-	const src = ui.findSource || 'bugs';
-	const area = ui.findArea || ui.state.areas?.find(a => a.labels?.length)?.id || '';
-	return `source=${src}${src === 'area' ? `&area=${encodeURIComponent(area)}` : ''}`;
+	const src = findSource();
+	const area = src === 'reviews' ? '' : ui.findArea || '';
+	return `source=${src}${area ? `&area=${encodeURIComponent(area)}` : ''}`;
 }
 function findQueryString() {
 	return `${findSourceParams()}${ui.findRefine ? `&refine=${encodeURIComponent(ui.findRefine.query)}` : ''}`;
@@ -1837,11 +2149,55 @@ async function applyFindFilter(text) {
 	try { await api('/api/browse-ask', { text, ...Object.fromEntries(new URLSearchParams(findSourceParams())) }); }
 	catch (error) { ui.findAsking = null; renderDetail(false, true); toast(`Could not ask the chat: ${error.message}`, true); }
 }
+// Browse grouping: computed from the search results, no extra GitHub calls.
+const GROUP_BY = [['', 'No grouping'], ['reporter', 'Reporter: team / community'], ['milestone', 'Milestone'], ['age', 'Age'], ['interest', 'Interest (👍, comments)'], ['label', 'Label']];
+const TEAM_ASSOC = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
+function groupFindItems(items, by) {
+	if (!by) return null;
+	const order = [];
+	const groups = new Map();
+	const put = (name, i, rank = 0) => { if (!groups.has(name)) { groups.set(name, []); order.push({ name, rank }); } groups.get(name).push(i); };
+	const days = iso => (Date.now() - Date.parse(iso || 0)) / 864e5;
+	const popular = ui.state.settings?.popularThreshold || 5;
+	// Labels that say nothing new inside this list: the issue types and the chosen area's labels.
+	const generic = new Set(['bug', 'feature-request', ...((ui.state.areas || []).find(a => a.id === ui.findArea)?.labels || [])]);
+	for (const i of items) {
+		if (by === 'reporter') {
+			const bot = i.authorType === 'Bot' || /\[bot\]$/.test(i.author || '');
+			put(bot ? 'Bots' : TEAM_ASSOC.has(i.association) ? 'Team' : 'Community', i, bot ? 2 : TEAM_ASSOC.has(i.association) ? 0 : 1);
+		} else if (by === 'milestone') {
+			put(i.milestone || 'No milestone', i, i.milestone ? (i.milestone === 'Backlog' ? 2 : /^On Deck|Backlog Candidates/i.test(i.milestone) ? 1 : 0) : 3);
+		} else if (by === 'age') {
+			const d = days(i.createdAt);
+			put(d <= 7 ? 'Opened this week' : d <= 31 ? 'Opened this month' : d <= 92 ? 'Opened in the last 3 months' : 'Older', i, d <= 7 ? 0 : d <= 31 ? 1 : d <= 92 ? 2 : 3);
+		} else if (by === 'interest') {
+			const up = i.thumbsUp || 0, c = i.comments || 0;
+			put(up >= popular ? `Popular (${popular}+ 👍)` : c >= 3 ? 'Discussed (3+ comments)' : 'Quiet', i, up >= popular ? 0 : c >= 3 ? 1 : 2);
+		} else if (by === 'label') {
+			const l = (i.labels || []).find(x => !generic.has(x));
+			put(l || 'No other label', i, l ? 0 : 1);
+		}
+	}
+	// Fixed buckets keep their natural order; milestones and labels go by size (biggest first).
+	const bySize = by === 'label' || by === 'milestone';
+	return order.sort((a, b) => (a.rank - b.rank) || (bySize ? groups.get(b.name).length - groups.get(a.name).length : 0)).map(o => ({ name: o.name, items: groups.get(o.name) }));
+}
+
+function findListHtml(items, row) {
+	const groups = groupFindItems(items, ui.findGroupBy);
+	if (!groups) return `<ul class="find-list">${items.map(row).join('')}</ul>`;
+	const folded = ui.findFolded ??= new Set();
+	return groups.map(g => {
+		const id = `${ui.findGroupBy}:${g.name}`;
+		const open = !folded.has(id);
+		return `<section class="find-group"><button type="button" class="find-group-h" data-find-fold="${esc(id)}" aria-expanded="${open}"><i class="codicon codicon-chevron-right" aria-hidden="true"></i>${esc(g.name)}<span class="group-n">${g.items.length}</span></button>${open ? `<ul class="find-list">${g.items.map(row).join('')}</ul>` : ''}</section>`;
+	}).join('');
+}
 function renderFindWorkInto(el) {
 	restoreBrowse();
-	const src = ui.findSource || 'bugs';
+	const src = findSource();
 	const areas = (ui.state.areas || []).filter(a => a.labels?.length);
-	const area = ui.findArea || areas[0]?.id || '';
+	const area = ui.findArea || '';
 	const q = findQueryString();
 	if (ui.find?.q !== q && !ui.find?.loading) setTimeout(loadFindWork);
 	const filter = ui.findRefine;
@@ -1850,7 +2206,8 @@ function renderFindWorkInto(el) {
 	const nxt = ui.work?.data?.milestones?.find(m => m.role === 'next');
 	const tips = { bugs: 'My open bugs', features: 'My open feature requests', area: 'My open issues in a feature area', reviews: 'Open PRs that request my review', mine: 'All my open issues' };
 	const pills = FIND_SOURCES.map(([id, label, icon]) => `<button type="button" class="seg-btn${src === id ? ' on' : ''}" data-find-src="${id}" aria-pressed="${src === id}" title="${esc(tips[id])}"><i class="codicon codicon-${icon}" aria-hidden="true"></i>${esc(label)}</button>`).join('');
-	const areaSel = src === 'area' ? `<label class="sr-only" for="find-area">Feature area</label><select id="find-area" class="find-area">${areas.map(a => `<option value="${esc(a.id)}"${a.id === area ? ' selected' : ''}>${esc(a.name)}</option>`).join('')}</select>` : '';
+	// The feature area narrows Bugs, Features or All (PRs awaiting review are not filtered by area).
+	const areaSel = areas.length ? `<label class="sr-only" for="find-area">Feature area</label><select id="find-area" class="find-area" ${src === 'reviews' ? 'disabled title="Reviews are not filtered by feature area"' : 'title="Show only issues in this feature area"'}><option value="">All areas</option>${areas.map(a => `<option value="${esc(a.id)}"${a.id === area ? ' selected' : ''}>${esc(a.name)}</option>`).join('')}</select>` : '';
 	const row = i => {
 		const has = inMyWork(i.key);
 		const isBug = i.labels.includes('bug');
@@ -1858,8 +2215,8 @@ function renderFindWorkInto(el) {
 		const chips = i.labels.filter(l => !['bug', 'feature-request'].includes(l)).slice(0, 2).map(l => `<span class="chip">${esc(l)}</span>`).join('');
 		const add = (b, label, title) => `<button type="button" class="find-btn" data-act="issue-move" data-key="${esc(i.key)}" data-milestone="${b}" title="${esc(title)}">${esc(label)}</button>`;
 		return `<li class="find-row${has ? ' has' : ''}"${has ? '' : ` draggable="true" data-new-issue="${esc(i.key)}"`}>
-			<span class="find-grip" aria-hidden="true">${has ? '' : '<i class="codicon codicon-gripper"></i>'}</span>
-			<i class="codicon codicon-${icon} find-icon${isBug ? ' bug' : i.isPr ? ' pr' : ''}" aria-hidden="true"></i>
+			<span class="find-grip" aria-hidden="true"${has ? '' : ' title="Drag into a group on the left to plan it"'}>${has ? '' : '<i class="codicon codicon-gripper"></i>'}</span>
+			<i class="codicon codicon-${icon} find-icon${isBug ? ' bug' : i.isPr ? ' pr' : ''}" aria-hidden="true" title="${i.isPr ? 'Pull request' : isBug ? 'Bug' : i.labels.includes('feature-request') ? 'Feature request' : 'Issue'}"></i>
 			<div class="find-main">
 				<button type="button" class="find-title" data-browse-open="${esc(i.key)}" title="Open ${esc(shortKey(i.key))} here">${esc(i.title)}</button>
 				<div class="find-meta"><span class="find-num">${esc(shortKey(i.key))}</span>${i.isPr ? `<span>@${esc(i.author)}</span>` : ''}${i.milestone ? `<span>${esc(i.milestone)}</span>` : ''}${chips}<span class="find-age">${esc(ago(i.updatedAt))}</span></div>
@@ -1874,19 +2231,24 @@ function renderFindWorkInto(el) {
 				${filter.note ? `<div class="find-query-note cd">${esc(filter.note)}</div>` : ''}
 			</div>` : '';
 	const asking = ui.findAsking ? `<p class="cd find-asking"><i class="codicon codicon-loading spin" aria-hidden="true"></i> Asking the chat to turn “${esc(ui.findAsking)}” into a GitHub search… <button type="button" class="link-btn" data-find-ask-cancel>Cancel</button></p>` : '';
-	el.innerHTML = `<div class="detail-head">${titleBarHtml({ title: 'Browse issues & PRs', meta: `<div class="meta"><span class="cd">Live from GitHub (org:microsoft, newest first). Type a filter and press Enter: GitHub syntax or plain words (e.g. “created by ${esc(ui.state.me || 'octocat')}”). Click a row to open it here, drag it into a group on the left, or use its buttons. Added locally: GitHub milestones stay unchanged.</span></div>` })}</div>
+	el.innerHTML = `<div class="detail-head">${titleBarHtml({ title: 'Browse issues & PRs', meta: `<div class="meta"><span class="cd" title="Type a filter and press Enter: GitHub syntax or plain words. Click a row to open it here, drag it into a group on the left, or use its buttons. Added locally: GitHub milestones stay unchanged.">Live from GitHub, org:microsoft, newest first. Drag a row into a group on the left to plan it.</span></div>` })}</div>
 		<div class="detail-body find-view">
 			<div class="find-tools">
-				<div class="seg" role="group" aria-label="Source">${pills}</div>${areaSel}
-				<span class="find-tools-end">
-					<button type="button" class="btn sm icon${ui.find?.loading ? ' busy' : ''}" data-find-refresh title="Run this search again on GitHub" aria-label="Refresh results"><i class="codicon codicon-refresh${ui.find?.loading ? ' spin' : ''}" aria-hidden="true"></i></button>
-					<button type="button" class="btn sm icon${ui.findHistoryOpen ? ' on' : ''}" data-find-history aria-expanded="${!!ui.findHistoryOpen}" title="Recent filters" aria-label="Recent filters"><i class="codicon codicon-history" aria-hidden="true"></i></button>
-				</span>
-				<div class="find-search"><i class="codicon codicon-search" aria-hidden="true"></i><label class="sr-only" for="find-filter">Filter, press Enter to apply</label><input id="find-filter" type="search" placeholder="Filter, press Enter to apply (e.g. created by ${esc(ui.state.me || 'octocat')})" value="${esc(ui.findFilter || '')}"></div>
+				<div class="find-search">
+					<i class="codicon codicon-search" aria-hidden="true"></i><label class="sr-only" for="find-filter">Filter, press Enter to apply</label><input id="find-filter" type="search" placeholder="Filter, press Enter to apply (e.g. created by ${esc(ui.state.me || 'octocat')})" value="${esc(ui.findFilter || '')}">
+					<span class="actionbar find-acts" role="toolbar" aria-label="Search actions">
+						<span class="act select-act${ui.findGroupBy ? ' on' : ''}" title="${esc(`Group by: ${(GROUP_BY.find(([id]) => id === (ui.findGroupBy || '')) || GROUP_BY[0])[1]}`)}"><i class="codicon codicon-group-by-ref-type" aria-hidden="true"></i><select id="find-group" aria-label="Group by">${GROUP_BY.map(([id, label]) => `<option value="${id}"${(ui.findGroupBy || '') === id ? ' selected' : ''}>${esc(label)}</option>`).join('')}</select></span>
+						${actHtml(`data-find-history aria-expanded="${!!ui.findHistoryOpen}"`, 'history', '', 'Recent filters', !!ui.findHistoryOpen)}
+						<button type="button" class="act" data-find-refresh title="Run this search again on GitHub" aria-label="Refresh results"><i class="codicon codicon-refresh${ui.find?.loading ? ' spin' : ''}" aria-hidden="true"></i></button>
+					</span>
+				</div>
+				<div class="find-tabs">
+					<div class="tabs" role="group" aria-label="Source">${pills}</div>${areaSel}
+				</div>
 			</div>
 			${ui.findHistoryOpen ? browseHistoryHtml() : ''}${queryBar}${asking}
 			${ui.find?.error ? `<p class="cd" style="color:var(--bad)">${esc(ui.find.error)}</p>` : ui.find?.loading && !items.length ? '<p class="cd"><i class="codicon codicon-loading spin" aria-hidden="true"></i> Searching GitHub…</p>'
-				: `<p class="find-count">${items.length}${items.length >= 100 ? '+' : ''} ${src === 'reviews' ? (items.length === 1 ? 'pull request' : 'pull requests') : (items.length === 1 ? 'issue' : 'issues')}${filter ? ' matching' : ''} · ${items.filter(i => inMyWork(i.key)).length} already in My Work</p><ul class="find-list">${items.map(row).join('')}</ul>`}
+				: `<p class="find-count">${items.length}${items.length >= 100 ? '+' : ''} ${src === 'reviews' ? (items.length === 1 ? 'pull request' : 'pull requests') : (items.length === 1 ? 'issue' : 'issues')}${filter ? ' matching' : ''} · ${items.filter(i => inMyWork(i.key)).length} already in My Work</p>${findListHtml(items, row)}`}
 		</div>`;
 
 }
@@ -1902,6 +2264,18 @@ async function renderBrowseItemInto(el, key, fetchDetail, silent) {
 }
 
 // The My Work chat, docked at the bottom of the My Work list. Messages go to the nested "My Work chat".
+// The My Work chat's conversation starts collapsed (just the input shows); opening it is remembered.
+function workChatCollapsed() {
+	return !(ui.state?.settings?.collapsedGroups || []).includes('workchat-open');
+}
+function setWorkChatCollapsed(collapsed) {
+	const set = new Set(ui.state.settings.collapsedGroups || []);
+	if (collapsed) set.delete('workchat-open'); else set.add('workchat-open');
+	ui.state.settings.collapsedGroups = [...set].slice(-200);
+	$('workchat').classList.toggle('collapsed', collapsed);
+	$('workchat').querySelector('[data-act="toggle-chat"]')?.setAttribute('aria-expanded', String(!collapsed));
+	saveSettings({ collapsedGroups: ui.state.settings.collapsedGroups });
+}
 function renderWorkChat() {
 	const box = $('workchat');
 	if (ui.tab !== 'work') { box.hidden = true; box.innerHTML = ''; return; }
@@ -1912,7 +2286,8 @@ function renderWorkChat() {
 	box.innerHTML = `<div class="wc-head"><i class="codicon codicon-comment-discussion" aria-hidden="true"></i><span>My Work chat</span>${link ? `<button type="button" class="link-btn" data-open-session="${esc(link)}" title="Open the nested My Work chat">Open chat</button>` : '<span class="cd">· created with your first message</span>'}</div>${threadHtml('my-work', 'My Work')}`;
 	box.querySelector('.dock-resize')?.remove();
 	box.querySelector('.thread')?.classList.remove('collapsed');
-	box.classList.toggle('collapsed', !!ui.workChatCollapsed);
+	box.classList.toggle('collapsed', workChatCollapsed());
+	box.querySelector('[data-act="toggle-chat"]')?.setAttribute('aria-expanded', String(!workChatCollapsed()));
 	const t = box.querySelector('.ask-input');
 	if (t) {
 		t.placeholder = 'Paste #123, an issue / IcM / session link, or ask: "add the session I\'m in"';
@@ -1950,10 +2325,29 @@ function renderPinnedSessionInto(el, id) {
 		${fact('Last active', z.modified ? esc(agoText(new Date(z.modified).toISOString())) : '')}
 		${fact('Folder', i.workingDirectory ? `<code>${esc(i.workingDirectory.replace(/^\/Users\/[^/]+/, '~'))}</code>` : '')}
 	</div></section>` : '';
-	const moves = ['current', 'next', 'priorities'].filter(b => b !== (p.bucket || 'current')).map(b => ({ act: 'sess-move', key: id, milestone: b, label: `Move to ${groupLabel(b)}` }));
+	const moves = ['current', 'next', 'priorities', ...(ui.work?.data?.sections || []).map(x => x.id)].filter(b => b !== (p.bucket || 'current')).map(b => ({ act: 'sess-move', key: id, milestone: b, label: `Move to ${groupLabel(b)}` }));
 	el.innerHTML = `<div class="detail-head">${titleBarHtml({ title: z?.title || p.note || 'Session', meta, primary: { act: 'open-session', link, label: 'Open session', icon: 'comment-discussion' }, menu: [...moves, { act: 'unpin-session', key: id, label: 'Remove from My Work' }] })}</div>
-		<div class="detail-body">${sessionInsightsHtml(id, true)}${p.summary ? about : ''}${z ? facts : '<p class="cd" style="padding:12px">This session is not in the Agents window\'s session store anymore.</p>'}
+		<div class="detail-body">${worksOnHtml(id, p)}${sessionInsightsHtml(id, true)}${p.summary ? about : ''}${z ? facts : '<p class="cd" style="padding:12px">This session is not in the Agents window\'s session store anymore.</p>'}
 			<p class="cd" style="padding:0 12px">In ${esc(groupLabel(p.bucket || 'current'))}. Drag it to another group or use the menu; marking the session done (archiving it) removes it from My Work.</p></div>`;
+}
+// Which issues a session works on: found automatically (its title, PRs, how it was added) or linked by hand.
+function worksOnHtml(id, p) {
+	const manual = ui.work?.data?.sessionLinks?.[id] || [];
+	const auto = [...sessionIssueKeys(p)].filter(k => !manual.includes(k));
+	const chip = (k, removable) => `<span class="link-chip"><button type="button" class="link-btn" data-open-issue="${esc(k)}" title="Open ${esc(shortKey(k))}">${esc(shortKey(k))}</button>${removable ? `<button type="button" class="link-btn" data-act="session-unlink" data-key="${esc(id)}" data-issue="${esc(k)}" title="Unlink" aria-label="Unlink ${esc(shortKey(k))}"><i class="codicon codicon-close" aria-hidden="true"></i></button>` : '<span class="cd" title="Found automatically"> · auto</span>'}</span>`;
+	return `<section class="linked dcard works-on"><div class="linked-head"><span class="section-label">Works on</span></div>
+		<div class="works-on-body">${[...auto.map(k => chip(k, false)), ...manual.map(k => chip(k, true))].join('') || '<span class="cd">No issue found automatically.</span>'}
+		<form class="link-form" data-link-form data-session="${esc(id)}"><label class="sr-only" for="link-issue">Issue</label><input id="link-issue" type="text" placeholder="#123, owner/repo#123 or issue link" spellcheck="false"><button type="submit" class="btn sm">Link issue</button></form></div></section>`;
+}
+// Issue page: pick one of your sessions to link to this issue.
+function linkPickerHtml(key) {
+	if (ui.linkPick !== key) return '';
+	const pinned = (ui.work?.data?.pinnedSessions || []).map(p => ({ id: p.id, title: p.session?.title || p.note || 'Session', meta: p.session?.project || '' }));
+	const recent = (ui.work?.data?.recentSessions || []).filter(z => !pinned.some(p => p.id === z.id)).map(z => ({ id: z.id, title: z.title || 'Untitled session', meta: z.project || '' }));
+	const linked = new Set(sessionsOf(key).map(z => z.id));
+	const row = z => `<li class="sess-row"><div class="sess-main"><div class="sess-title">${esc(z.title)}</div><div class="sess-meta cd">${esc(z.meta)}</div></div>${linked.has(z.id) ? '<span class="cd">linked</span>' : `<button type="button" class="btn sm" data-act="session-link" data-key="${esc(z.id)}" data-issue="${esc(key)}">Link</button>`}</li>`;
+	return `<section class="linked dcard sess-card"><div class="linked-head"><span class="section-label">Link a session to ${esc(shortKey(key))}</span><button type="button" class="link-btn" data-act="link-pick-close" style="margin-left:auto">Close</button></div>
+		<ul class="sess-list">${[...pinned, ...recent].slice(0, 25).map(row).join('') || '<li class="cd" style="padding:8px 12px">No sessions to link.</li>'}</ul></section>`;
 }
 // Session insights read from its local transcript (what it was asked, its latest reply, files, activity).
 async function loadSessionInfo(id) {
@@ -1988,11 +2382,6 @@ function parseSessionRef(text) {
 	const m = String(text || '').trim().match(/^agent-host-session:\/\/[\w-]+\/([\w-]{8,80})/);
 	return m ? m[1] : null;
 }
-function parseIncident(text) {
-	const t = String(text || '').trim();
-	const m = t.match(/incidents?\/(?:details\/)?(\d{5,20})/i) || t.match(/^icm\s*#?(\d{5,20})$/i);
-	return m ? { incidentId: m[1], link: /^https:\/\//.test(t) ? t : '' } : null;
-}
 
 async function updatePriority(key, op, to) {
 	const r = await api('/api/priorities', { op, key, ...(to !== undefined ? { to } : {}) });
@@ -2011,11 +2400,15 @@ function parseIssueRef(text) {
 }
 
 async function loadWork(fresh = false) {
+	// Only the latest load counts: an older, slower one (e.g. a fresh GitHub refresh) must not undo a change made since.
+	const seq = ui.workSeq = (ui.workSeq || 0) + 1;
 	ui.work = { ...(ui.work || {}), loading: true, error: null };
 	if (ui.tab === 'work') { renderAreaBar(); renderBatchBar(); }
 	try {
-		ui.work = { data: await api(`/api/work${fresh ? '?fresh=1' : ''}`), loading: false };
-	} catch (error) { ui.work = { ...ui.work, loading: false, error: error.message }; }
+		const data = await api(`/api/work${fresh ? '?fresh=1' : ''}`);
+		if (seq !== ui.workSeq) return;
+		ui.work = { data, loading: false };
+	} catch (error) { if (seq !== ui.workSeq) return; ui.work = { ...ui.work, loading: false, error: error.message }; }
 	if (ui.state) render();
 }
 
@@ -2040,7 +2433,8 @@ async function act(button) {
 	const act = button.dataset.act;
 	const key = button.dataset.key;
 	if (act === 'recheck') { loadChecks(key, true); return; }
-	if (act === 'msrc-item-edit') { closeMenus(); ui.msrcEditing = key; renderDetail(false); return; }
+	if (act === 'note-edit') { closeMenus(); ui.noteEditing = key; renderDetail(false); return; }
+	if (act === 'link-pick' || act === 'link-pick-close') { closeMenus(); ui.linkPick = act === 'link-pick' ? key : null; renderDetail(false, true); return; }
 	if (act === 'cancel-opinion') {
 		try { await api('/api/cancel-opinion', { key, mode: button.dataset.mode || 'blind' }); toast('Judgement request cancelled'); await load(); } catch (error) { toast(error.message, true); }
 		return;
@@ -2113,12 +2507,20 @@ async function act(button) {
 			await api('/api/open-session', { link: button.dataset.link });
 			msg = 'Opening the session in the Agents window';
 			move = false;
-		} else if (act === 'resend-new-chat') {
+		} else if (act === 'session-link' || act === 'session-unlink') {
+			await api('/api/work-pin', { op: act === 'session-link' ? 'link' : 'unlink', id: key, key: button.dataset.issue });
+			msg = act === 'session-link' ? `Linked to ${shortKey(button.dataset.issue)}` : `Unlinked ${shortKey(button.dataset.issue)}`;
+			move = false;
+			await loadWork();
+		} else if (act === 'resend-new-chat' || act === 'resend-same-chat') {
 			const entries = ui.state.threads?.[key] || [];
 			const lastMine = [...entries].reverse().find(e => e.role === 'user');
 			if (!lastMine) return;
-			await api('/api/message', { key, title: ui.gh?.[key]?.data?.title || ui.selected?.detail?.issue?.title || '', text: lastMine.text, fresh: true });
-			msg = 'Resent to a new chat';
+			const fresh = act === 'resend-new-chat';
+			await api('/api/message', { key, title: ui.gh?.[key]?.data?.title || ui.selected?.detail?.issue?.title || '', text: lastMine.text, ...(fresh ? { fresh: true } : { resend: true }) });
+			ui.resentAt ??= {};
+			ui.resentAt[key] = new Date().toISOString();
+			msg = fresh ? 'Resent to a new chat' : 'Sent again to the same chat';
 			move = false;
 		} else if (act === 'work-session' || act === 'work-session-new') {
 			const w = ui.work?.data?.milestones.flatMap(m => m.items.map(i => ({ ...i, milestone: m.title }))).find(i => i.key === key);
@@ -2162,12 +2564,12 @@ async function act(button) {
 			if (act === 'pin-session') ui.selected = r.issue ? { kind: 'work', id: r.issue, detail: null } : { kind: 'pinsess', id: key, detail: null };
 			if (act === 'unpin-session') { ui.selected = null; $('detail').innerHTML = '<div class="empty">Select an item to see details and actions.</div>'; }
 			await loadWork();
-		} else if (act === 'msrc-item-session') {
-			await api('/api/msrc-item-session', { incidentId: key });
-			msg = `Asked the chat to start a session for IcM ${key} (private repo)`;
+		} else if (act === 'note-session') {
+			await api('/api/note-session', { id: key });
+			msg = 'Asked the chat to start a session for this note';
 			move = false;
-		} else if (act === 'msrc-item-remove') {
-			await api('/api/msrc-item', { op: 'remove', incidentId: key });
+		} else if (act === 'note-remove') {
+			await api('/api/note', { op: 'remove', id: key });
 			msg = `IcM ${key} removed from My Work`;
 			move = false;
 			ui.selected = null;
@@ -2251,7 +2653,7 @@ function switchTab(tab) {
 	if (reopen) select(reopen.kind, reopen.id).then(() => renderAreaBar());
 }
 function saveBrowse() {
-	const browse = { source: ui.findSource || 'bugs', area: ui.findArea || '', refine: ui.findRefine || null };
+	const browse = { source: findSource(), area: ui.findArea || '', refine: ui.findRefine || null, groupBy: ui.findGroupBy || '' };
 	const patch = { browse };
 	// Every filter you apply is kept (most recent first, no duplicates) so you can run it again.
 	if (browse.refine) {
@@ -2267,7 +2669,7 @@ function browseHistoryHtml() {
 	const areaName = id => (ui.state.areas || []).find(a => a.id === id)?.name || id;
 	return `<div class="find-history dcard" role="menu" aria-label="Recent filters">
 		${list.length ? list.map((h, i) => `<button type="button" class="find-history-item" role="menuitem" data-find-history-run="${i}" title="${esc(h.refine.query)}">
-			<span>${esc(h.refine.text || h.refine.query)}</span><span class="cd">${esc(h.source === 'area' ? `Area: ${areaName(h.area)}` : label(h.source))} · ${esc(agoText(h.at))}</span></button>`).join('')
+			<span>${esc(h.refine.text || h.refine.query)}</span><span class="cd">${esc([label(h.source === 'area' ? 'mine' : h.source), h.area ? areaName(h.area) : ''].filter(Boolean).join(' · '))} · ${esc(agoText(h.at))}</span></button>`).join('')
 		+ '<button type="button" class="link-btn find-history-clear" data-find-history-clear>Clear history</button>'
 		: '<p class="cd" style="padding:8px 10px;margin:0">Filters you apply show up here.</p>'}
 	</div>`;
@@ -2278,6 +2680,7 @@ function restoreBrowse() {
 	ui.browseRestored = true;
 	ui.findSource = b.source || 'bugs';
 	ui.findArea = b.area || '';
+	ui.findGroupBy = b.groupBy || '';
 	ui.findRefine = b.refine?.query ? b.refine : null;
 	ui.findFilter = ui.findRefine ? (ui.findRefine.text || ui.findRefine.query) : '';
 }
@@ -2300,6 +2703,7 @@ $('areabar').addEventListener('change', e => {
 $('areabar').addEventListener('click', e => {
 	if (e.target.closest('#area-clear')) setAreaFilter('');
 	if (e.target.closest('[data-pick-session]')) { select('workhome', 'home'); return; }
+	if (e.target.closest('[data-section-new]')) { select('section', 'new'); return; }
 	if (e.target.closest('[data-find-work]')) {
 		if (['worksrc', 'browseitem'].includes(ui.selected?.kind)) { ui.selected = null; $('detail').innerHTML = '<div class="empty">Select an item to see details and actions.</div>'; render(); return; }
 		select('worksrc', 'find').then(() => { renderAreaBar(); $('detail').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); });
@@ -2307,7 +2711,7 @@ $('areabar').addEventListener('click', e => {
 	}
 	if (e.target.closest('[data-list-refresh]') && !ui.refreshing) refreshNow();
 });
-$('subtabs').addEventListener('click', e => {
+document.querySelector('.list').addEventListener('click', e => {
 	if (e.target.closest('[data-route-filter]')) {
 		ui.routeFilter = !ui.routeFilter;
 		ui.confirmRoute = false;
@@ -2324,7 +2728,7 @@ $('subtabs').addEventListener('click', e => {
 		return;
 	}
 });
-$('subtabs').addEventListener('click', e => {
+document.querySelector('.list').addEventListener('click', e => {
 	const cls = e.target.closest('button[data-classify]');
 	if (cls) {
 		cls.disabled = true;
@@ -2439,14 +2843,56 @@ $('batchbar').addEventListener('change', e => {
 	syncBulkBar();
 });
 $('list').addEventListener('click', e => {
+	const nn = e.target.closest('[data-note-new]');
+	if (nn) { startNoteDraft(nn.dataset.noteNew); return; }
+	const se = e.target.closest('[data-section-edit]');
+	if (se) { select('section', se.dataset.sectionEdit); return; }
+	const st = e.target.closest('[data-stage-toggle]');
+	if (st) {
+		const [role, stage] = st.dataset.stageToggle.split(':');
+		const set = new Set(ui.state.settings.collapsedGroups || []);
+		const token = stage === 'done' ? `${role}:done-open` : `${role}:${stage}`;
+		if (set.has(token)) set.delete(token); else set.add(token);
+		ui.state.settings.collapsedGroups = [...set];
+		renderList();
+		saveSettings({ collapsedGroups: ui.state.settings.collapsedGroups });
+		return;
+	}
+	const clr = e.target.closest('[data-clear-done]');
+	if (clr) { clearDone(clr.dataset.clearDone); return; }
 	if (e.target.closest('[data-done-toggle]')) { ui.showDone = !ui.showDone; renderList(); return; }
+	const tg = e.target.closest('[data-group-toggle]:not([data-group-toggle="recent"])');
+	if (tg) {
+		const role = tg.dataset.groupToggle;
+		const set = new Set(ui.state.settings.collapsedGroups || []);
+		if (set.has(role)) set.delete(role); else set.add(role);
+		ui.state.settings.collapsedGroups = [...set];
+		renderList();
+		saveSettings({ collapsedGroups: ui.state.settings.collapsedGroups });
+		return;
+	}
 	if (e.target.closest('[data-group-toggle="recent"]')) { ui.state.settings.recentCollapsed = !ui.state.settings.recentCollapsed; renderList(); saveSettings({ recentCollapsed: ui.state.settings.recentCollapsed }); return; }
 	if (e.target.closest('.row-check')) { ui.shiftPick = e.shiftKey; return; }
 	const b = e.target.closest('.row');
 	if (b) select(b.dataset.kind, b.dataset.id);
 });
+new MutationObserver(syncCollapseAct).observe($('list'), { childList: true });
+new MutationObserver(syncCollapseAct).observe($('areabar'), { childList: true });
+document.querySelector('.list').addEventListener('click', e => {
+	const ca = e.target.closest('[data-collapse-all]');
+	if (ca) setAllBands(ca.dataset.collapseAll !== 'expand');
+});
 $('list').addEventListener('keydown', e => {
 	if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+	const secRow = e.altKey && e.target.closest?.('[data-sec-item]');
+	if (secRow) {
+		e.preventDefault();
+		const ref = secRow.dataset.secItem;
+		reorderSection(secRow.dataset.group, ref, { dir: e.key === 'ArrowUp' ? 'up' : 'down' })
+			.then(() => document.querySelector(`[data-sec-item="${CSS.escape(ref)}"]`)?.focus())
+			.catch(error => toast(error.message, true));
+		return;
+	}
 	const prioRow = e.altKey && e.target.closest?.('[data-prio]');
 	if (prioRow) {
 		e.preventDefault();
@@ -2470,16 +2916,18 @@ function dropTarget(e) {
 	const t = e.target.closest?.('[data-group], [data-drop-group]');
 	if (!t || !drag) return null;
 	const group = t.dataset.group || t.dataset.dropGroup;
-	if (!['current', 'next', 'priorities'].includes(group)) return null;
-	if (!drag.sess && !drag.pinIssue && !drag.recent && group !== 'priorities') return null;
-	return { el: t, group, row: t.matches('[data-prio]') ? t : null };
+	if (!['current', 'next', 'priorities'].includes(group) && !sectionOf(group)) return null;
+	if (!drag.sess && !drag.pinIssue && !drag.recent && !drag.secItem && group !== 'priorities') return null;
+	// Notes only move within their own section.
+	if (drag.secItem?.startsWith('note:') && group !== drag.from) return null;
+	return { el: t, group, row: t.matches('[data-prio]') || (t.matches('[data-sec-item]') && sectionOf(group)) ? t : null };
 }
 $('list').addEventListener('dragstart', e => {
-	const row = e.target.closest?.('[data-prio], [data-sess], [data-pin-issue], [data-recent-sess]');
+	const row = e.target.closest?.('[data-prio], [data-sess], [data-pin-issue], [data-recent-sess], [data-sec-item]');
 	if (!row) return;
-	drag = { prio: row.dataset.prio || null, sess: row.dataset.sess || null, pinIssue: row.dataset.pinIssue || null, recent: row.dataset.recentSess || null, from: row.dataset.group || null };
+	drag = { prio: row.dataset.prio || null, sess: row.dataset.sess || null, pinIssue: row.dataset.pinIssue || null, recent: row.dataset.recentSess || null, secItem: row.dataset.secItem || null, from: row.dataset.group || null };
 	e.dataTransfer.effectAllowed = 'move';
-	e.dataTransfer.setData('text/plain', drag.prio || drag.sess || drag.recent || drag.pinIssue);
+	e.dataTransfer.setData('text/plain', drag.prio || drag.sess || drag.recent || drag.pinIssue || drag.secItem);
 	row.classList.add('dragging');
 });
 $('list').addEventListener('dragover', e => {
@@ -2503,7 +2951,22 @@ $('list').addEventListener('drop', e => {
 		if (idx >= 0 && t.row.classList.contains('drop-after')) idx++;
 		if (idx < 0) idx = undefined;
 	}
+	// Position within a section: before or after the row it was dropped on.
+	let secTo;
+	if (sectionOf(t.group) && t.row) {
+		const refs = (listGroups().find(x => x.role === t.group)?.items || []).filter(i => i.secRef && i.secRef !== d.secItem).map(i => i.secRef);
+		secTo = refs.indexOf(t.row.dataset.secItem);
+		if (secTo >= 0 && t.row.classList.contains('drop-after')) secTo++;
+		if (secTo < 0) secTo = undefined;
+	}
 	clearDrop();
+	// Reorder within a section.
+	if (d.secItem && d.from === t.group && sectionOf(t.group)) {
+		if (secTo !== undefined) reorderSection(t.group, d.secItem, { to: secTo }).catch(error => toast(error.message, true));
+		return;
+	}
+	// Moved into a section at a position: place it there once it has moved.
+	const placeIn = (ref) => secTo !== undefined && ref ? loadWork().then(() => reorderSection(t.group, ref, { to: secTo })) : null;
 	// An active (not yet added) session dropped on a group is added to My Work there.
 	if (d.recent) {
 		api('/api/work-pin', { op: 'add', id: d.recent, bucket: t.group, ...(t.group === 'priorities' ? { to: idx ?? 'top' } : {}) })
@@ -2514,9 +2977,9 @@ $('list').addEventListener('drop', e => {
 	const run = d.prio && t.group === 'priorities' && d.from === 'priorities'
 		? updatePriority(d.prio, 'move', idx ?? 'top')
 		: d.pinIssue && t.group !== d.from
-			? api('/api/work-issue', { op: 'move', key: d.pinIssue, bucket: t.group, ...(t.group === 'priorities' ? { to: idx ?? 'top' } : {}) }).then(() => loadWork())
+			? api('/api/work-issue', { op: 'move', key: d.pinIssue, bucket: t.group, ...(t.group === 'priorities' ? { to: idx ?? 'top' } : {}) }).then(() => placeIn(`issue:${d.pinIssue}`) || loadWork())
 		: d.sess && (t.group !== d.from || t.group === 'priorities')
-			? api('/api/work-pin', { op: 'move', id: d.sess, bucket: t.group, ...(t.group === 'priorities' ? { to: idx ?? 'top' } : {}) }).then(() => loadWork())
+			? api('/api/work-pin', { op: 'move', id: d.sess, bucket: t.group, ...(t.group === 'priorities' ? { to: idx ?? 'top' } : {}) }).then(() => placeIn(`session:${d.sess}`) || loadWork())
 			: null;
 	run?.then(() => { if ((d.sess || d.pinIssue) && t.group !== d.from) toast(`Moved to ${groupLabel(t.group)}`); }).catch(error => toast(error.message, true));
 });
@@ -2527,6 +2990,8 @@ $('list').addEventListener('dragend', () => {
 });
 function groupLabel(role) {
 	if (role === 'priorities') return 'My priorities';
+	const x = sectionOf(role);
+	if (x) return x.name;
 	const m = ui.work?.data?.milestones?.find(x => x.role === role);
 	return m ? `${m.title} (${role})` : role;
 }
@@ -2540,13 +3005,10 @@ $('areabar').addEventListener('submit', async e => {
 		try { await api('/api/work-pin', { op: 'add', id: sid }); input.value = ''; await loadWork(); select('pinsess', sid); toast('Session added to My Work'); } catch (error) { toast(error.message, true); }
 		return;
 	}
-	const inc = parseIncident(input.value);
-	if (inc) {
+	const hit = sectionForLink(input.value);
+	if (hit) {
 		input.value = '';
-		const existing = (ui.work?.data?.msrcItems || []).some(x => x.incidentId === inc.incidentId);
-		if (!existing) ui.msrcDraft = { incidentId: inc.incidentId, link: inc.link, addedAt: new Date().toISOString() };
-		ui.msrcEditing = null;
-		select('msrcitem', inc.incidentId);
+		startNoteDraft(hit.section, { link: hit.link, ref: hit.ref, title: hit.ref });
 		return;
 	}
 	const key = parseIssueRef(input.value);
@@ -2666,6 +3128,99 @@ $('detail').addEventListener('keydown', e => {
 	e.preventDefault();
 	setChatHeight((ui.state.settings.chatHeight || 160) + (e.key === 'ArrowUp' ? 24 : -24), true);
 });
+// Detail sections behave like VS Code view panes: a full-width header with a chevron folds the section,
+// and the choice is remembered per section name. Long comments are clamped with "Show more".
+const DETAIL_HEADS = '.reco-h, .reco > .section-label, .linked > .linked-head, .gh-title, .gh-comments-h';
+ui.openComments = new Set();
+function detailSectionKey(head) {
+	const label = (head.querySelector('.section-label') || head).textContent.split('·')[0];
+	return `d-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'section'}`;
+}
+function detailSectionBox(head) {
+	return head.matches('.gh-comments-h') ? head.parentElement : head.matches('.reco-h, .reco > .section-label') ? (head.closest('.reco') || head.parentElement) : head.parentElement;
+}
+function applyDetailSection(head, collapsed) {
+	head.setAttribute('aria-expanded', String(!collapsed));
+	detailSectionBox(head).classList.toggle(head.matches('.gh-comments-h') ? 'comments-collapsed' : 'dsec-collapsed', collapsed);
+}
+function sectionizeDetail() {
+	const folded = new Set(ui.state?.settings?.collapsedGroups || []);
+	for (const head of document.querySelectorAll(`#detail :is(${DETAIL_HEADS})`)) {
+		if (!head.classList.contains('dsec-h')) {
+			head.classList.add('dsec-h');
+			head.dataset.secKey = detailSectionKey(head);
+			head.tabIndex = 0;
+			head.setAttribute('role', 'button');
+			head.insertAdjacentHTML('afterbegin', '<i class="codicon codicon-chevron-right dsec-chev" aria-hidden="true"></i>');
+		}
+		const collapsed = folded.has(head.dataset.secKey);
+		if (head.getAttribute('aria-expanded') !== String(!collapsed)) applyDetailSection(head, collapsed);
+	}
+	syncDetailCollapseAct();
+	for (const md of document.querySelectorAll('#detail .gh-comment > .md:not([data-clamp])')) {
+		md.dataset.clamp = '1';
+		const id = md.parentElement.querySelector('.gh-c-head a[href]')?.getAttribute('href') || '';
+		if (md.scrollHeight <= 260 || ui.openComments.has(id)) continue;
+		md.classList.add('clamped');
+		md.insertAdjacentHTML('afterend', `<button type="button" class="link-btn gh-c-more" data-comment-more="${esc(id)}">Show more</button>`);
+	}
+}
+// Collapse All / Expand All for the details sections, in the details header like an editor title action.
+function syncDetailCollapseAct() {
+	const heads = [...document.querySelectorAll('#detail .dsec-h')];
+	let btn = document.querySelector('#detail [data-detail-collapse]');
+	if (heads.length < 2) { btn?.remove(); return; }
+	if (!btn) {
+		const host = document.querySelector('#detail .detail-head .title-actions') || document.querySelector('#detail .detail-head');
+		if (!host) return;
+		host.insertAdjacentHTML('afterbegin', '<button type="button" class="act detail-collapse" data-detail-collapse><i class="codicon" aria-hidden="true"></i></button>');
+		btn = host.querySelector('[data-detail-collapse]');
+	}
+	const anyOpen = heads.some(h => h.getAttribute('aria-expanded') === 'true');
+	const mode = anyOpen ? 'collapse' : 'expand';
+	if (btn.dataset.detailCollapse === mode) return;
+	btn.dataset.detailCollapse = mode;
+	btn.title = anyOpen ? 'Collapse All Sections' : 'Expand All Sections';
+	btn.setAttribute('aria-label', btn.title);
+	btn.querySelector('.codicon').className = `codicon codicon-${anyOpen ? 'collapse-all' : 'expand-all'}`;
+}
+function setAllDetailSections(collapse) {
+	const set = new Set(ui.state.settings.collapsedGroups || []);
+	for (const h of document.querySelectorAll('#detail .dsec-h')) {
+		if (collapse) set.add(h.dataset.secKey); else set.delete(h.dataset.secKey);
+		applyDetailSection(h, collapse);
+	}
+	ui.state.settings.collapsedGroups = [...set].slice(-200);
+	syncDetailCollapseAct();
+	saveSettings({ collapsedGroups: ui.state.settings.collapsedGroups });
+}
+function toggleDetailSection(head) {
+	const set = new Set(ui.state.settings.collapsedGroups || []);
+	const key = head.dataset.secKey;
+	const collapse = !set.has(key);
+	if (collapse) set.add(key); else set.delete(key);
+	ui.state.settings.collapsedGroups = [...set].slice(-200);
+	for (const h of document.querySelectorAll(`#detail .dsec-h[data-sec-key="${key}"]`)) applyDetailSection(h, collapse);
+	syncDetailCollapseAct();
+	saveSettings({ collapsedGroups: ui.state.settings.collapsedGroups });
+}
+new MutationObserver(() => sectionizeDetail()).observe($('detail'), { childList: true, subtree: true });
+$('detail').addEventListener('click', e => {
+	const dc = e.target.closest('[data-detail-collapse]');
+	if (dc) { setAllDetailSections(dc.dataset.detailCollapse !== 'expand'); return; }
+	const more = e.target.closest('[data-comment-more]');
+	if (more) {
+		ui.openComments.add(more.dataset.commentMore);
+		more.previousElementSibling?.classList.remove('clamped');
+		more.remove();
+		return;
+	}
+	const head = e.target.closest('.dsec-h');
+	if (head && !e.target.closest('button, a, input, select, textarea, .seg')) toggleDetailSection(head);
+});
+$('detail').addEventListener('keydown', e => {
+	if ((e.key === 'Enter' || e.key === ' ') && e.target.classList?.contains('dsec-h')) { e.preventDefault(); toggleDetailSection(e.target); }
+});
 $('detail').addEventListener('click', e => {
 	// A click anywhere on a Browse row (except its buttons and links) opens the issue, like clicking its title.
 	const rowEl = e.target.closest('button, a, input, select') ? null : e.target.closest('.find-row');
@@ -2678,6 +3233,8 @@ $('detail').addEventListener('click', e => {
 	const p = e.target.closest('[data-find-src]');
 	if (p) { ui.findSource = p.dataset.findSrc; saveBrowse(); renderDetail(false, true); document.querySelector(`[data-find-src="${p.dataset.findSrc}"]`)?.focus(); return; }
 	if (e.target.closest('[data-find-refresh]')) { loadFindWork(true); return; }
+	const fold = e.target.closest('[data-find-fold]');
+	if (fold) { const set = ui.findFolded ??= new Set(); const id = fold.dataset.findFold; if (set.has(id)) set.delete(id); else set.add(id); renderDetail(false, true); return; }
 	if (e.target.closest('[data-find-history]')) { ui.findHistoryOpen = !ui.findHistoryOpen; renderDetail(false, true); return; }
 	if (e.target.closest('[data-find-history-clear]')) { ui.state.settings.browseHistory = []; api('/api/settings', { browseHistory: [] }).catch(() => { }); ui.findHistoryOpen = false; renderDetail(false, true); return; }
 	const run = e.target.closest('[data-find-history-run]');
@@ -2704,6 +3261,7 @@ $('detail').addEventListener('keydown', e => {
 	} else applyFindFilter(text.slice(0, 300));
 });
 $('detail').addEventListener('change', e => {
+	if (e.target.id === 'find-group') { ui.findGroupBy = e.target.value; saveBrowse(); renderDetail(false, true); document.getElementById('find-group')?.focus(); return; }
 	if (e.target.id === 'find-area') { ui.findArea = e.target.value; saveBrowse(); renderDetail(false, true); document.getElementById('find-area')?.focus(); }
 });
 // The filter applies on Enter; clearing the search box (its × button) removes it.
@@ -2728,27 +3286,67 @@ $('detail').addEventListener('dragend', () => {
 	$('list').classList.remove('drop-ready');
 	for (const r of document.querySelectorAll('.dragging')) r.classList.remove('dragging');
 });
+$('detail').addEventListener('click', e => {
+	const oi = e.target.closest('[data-open-issue]');
+	if (!oi) return;
+	const key = oi.dataset.openIssue;
+	select(inMyWork(key) ? 'work' : 'browseitem', key);
+});
 $('detail').addEventListener('submit', async e => {
-	const form = e.target.closest('[data-msrc-form]');
+	const lf = e.target.closest('[data-link-form]');
+	if (lf) {
+		e.preventDefault();
+		const key = parseIssueRef(lf.querySelector('input').value);
+		if (!key) { toast('Enter an issue: #123, owner/repo#123 or its link', true); return; }
+		try { await api('/api/work-pin', { op: 'link', id: lf.dataset.session, key }); toast(`Linked to ${shortKey(key)}`); await loadWork(); } catch (error) { toast(error.message, true); }
+		return;
+	}
+	const form = e.target.closest('[data-note-form], [data-section-form]');
 	if (!form) return;
 	e.preventDefault();
 	const f = new FormData(form);
 	const btn = form.querySelector('[type="submit"]');
 	btn.disabled = true;
 	try {
-		await api('/api/msrc-item', { op: 'save', incidentId: form.dataset.id, link: form.dataset.link, title: f.get('title'), resolveBy: f.get('resolveBy'), description: f.get('description') });
-		ui.msrcDraft = null; ui.msrcEditing = null;
-		await loadWork();
-		select('msrcitem', form.dataset.id);
-		toast(`IcM ${form.dataset.id} saved in My Work`);
+		if (form.matches('[data-note-form]')) {
+			const id = form.dataset.id === 'draft' ? undefined : form.dataset.id;
+			const link = String(f.get('link') || '').trim();
+			const hit = link ? sectionForLink(link) : null;
+			const note = await api('/api/note', { op: 'save', id, section: form.dataset.section, ref: hit?.section === form.dataset.section ? hit.ref : form.dataset.ref, title: f.get('title'), link, due: f.get('due'), description: f.get('description') });
+			ui.noteDraft = null; ui.noteEditing = null;
+			await loadWork();
+			select('note', note.id);
+			toast('Note saved in My Work');
+		} else {
+			const id = form.dataset.id === 'new' ? undefined : form.dataset.id;
+			const x = await api('/api/section', { op: 'save', id, name: f.get('name'), instructions: f.get('instructions'), linkPattern: f.get('linkPattern') });
+			await loadWork();
+			select('section', x.id);
+			toast(id ? 'Section saved' : `Section ${x.name} created`);
+		}
 	} catch (error) { toast(error.message, true); btn.disabled = false; }
 });
-$('detail').addEventListener('click', e => {
-	if (!e.target.closest('[data-msrc-cancel]')) return;
-	const id = ui.selected?.id;
-	const saved = (ui.work?.data?.msrcItems || []).some(x => x.incidentId === id);
-	ui.msrcEditing = null;
-	if (!saved) { ui.msrcDraft = null; ui.selected = null; render(); } else renderDetail(false);
+$('detail').addEventListener('click', async e => {
+	if (e.target.closest('[data-note-cancel]')) {
+		const draft = ui.selected?.id === 'draft';
+		ui.noteEditing = null;
+		if (draft) { ui.noteDraft = null; ui.selected = null; $('detail').innerHTML = '<div class="empty">Select an item to see details and actions.</div>'; render(); } else renderDetail(false);
+		return;
+	}
+	if (e.target.closest('[data-section-cancel]')) { ui.selected = null; $('detail').innerHTML = '<div class="empty">Select an item to see details and actions.</div>'; render(); return; }
+	const id = ui.selected?.kind === 'section' ? ui.selected.id : null;
+	if (!id || id === 'new') return;
+	const mv = e.target.closest('[data-section-move]');
+	if (mv) { try { await api('/api/section', { op: 'move', id, dir: mv.dataset.sectionMove }); await loadWork(); renderDetail(false); } catch (error) { toast(error.message, true); } return; }
+	if (e.target.closest('[data-section-delete]')) { const n = document.querySelector('[data-section-delete-note]'); if (n) n.hidden = false; return; }
+	if (e.target.closest('[data-section-delete-confirm]')) {
+		try {
+			const r = await api('/api/section', { op: 'remove', id });
+			ui.selected = null; $('detail').innerHTML = '<div class="empty">Select an item to see details and actions.</div>';
+			await loadWork();
+			toast(`Section deleted${r.moved ? `; ${r.moved} item${r.moved === 1 ? '' : 's'} moved to Current` : ''}`);
+		} catch (error) { toast(error.message, true); }
+	}
 });
 $('detail').addEventListener('submit', e => {
 	const form = e.target.closest('.composer');
@@ -2824,14 +3422,11 @@ async function sendWorkChat(form) {
 			else { select('pinsess', sid); toast('Session added; the My Work chat will describe what it is doing'); }
 			return;
 		}
-		const inc = ui.work?.data?.msrcEnabled === false ? null : parseIncident(first);
-		if (inc) {
-			// IcM link (optionally followed by the pasted description): open the MSRC form prefilled.
+		const hit = sectionForLink(first);
+		if (hit) {
+			// A link matching one of your sections (optionally followed by a description): open its note form prefilled.
 			ta.value = ''; autoGrow(ta);
-			const existing = (ui.work?.data?.msrcItems || []).find(x => x.incidentId === inc.incidentId);
-			if (!existing) ui.msrcDraft = { incidentId: inc.incidentId, link: inc.link, description: restText, addedAt: new Date().toISOString() };
-			ui.msrcEditing = existing ? inc.incidentId : null;
-			select('msrcitem', inc.incidentId);
+			startNoteDraft(hit.section, { link: hit.link, ref: hit.ref, title: hit.ref, description: restText });
 			return;
 		}
 		const keys = text.split(/[\s,]+/).map(parseIssueRef);
@@ -2868,7 +3463,7 @@ $('workchat').addEventListener('input', e => { if (e.target.classList?.contains(
 $('workchat').addEventListener('click', e => {
 	const os = e.target.closest('[data-open-session]');
 	if (os) { api('/api/open-session', { link: os.dataset.openSession }).then(() => toast('Opening the My Work chat'), error => toast(error.message, true)); return; }
-	if (e.target.closest('[data-act="toggle-chat"]')) { ui.workChatCollapsed = !ui.workChatCollapsed; $('workchat').classList.toggle('collapsed', ui.workChatCollapsed); return; }
+	if (e.target.closest('[data-act="toggle-chat"]')) { setWorkChatCollapsed(!workChatCollapsed()); return; }
 	const choice = e.target.closest('[data-act="choice"]');
 	if (!choice) return;
 	const c = (ui.state.threads?.['my-work'] || []).at(-1)?.choices?.[Number(choice.dataset.i)];
@@ -2956,6 +3551,7 @@ events.addEventListener('reload', () => {
 	location.reload();
 });
 events.addEventListener('theme', e => applyVsCodeTheme(JSON.parse(e.data).theme ?? null));
+events.addEventListener('density', e => { ui.vscodeDensity = JSON.parse(e.data).density ?? null; applyDensity(); });
 // The chat turned a Browse search into a GitHub query.
 events.addEventListener('browse-query', e => {
 	const f = JSON.parse(e.data);
@@ -3045,4 +3641,67 @@ document.addEventListener('error', e => {
 			} catch (error) { toast(`Paste failed: ${error.message}`, true); }
 		}, 120);
 	}, true);
+}
+
+// VS Code-style hover: native title tooltips don't show inside the canvas webview, so every element
+// with a title (and the activity bar's labels) gets a hover widget instead, after a short delay like VS Code.
+{
+	const hover = document.createElement('div');
+	hover.className = 'vs-hover';
+	hover.setAttribute('role', 'tooltip');
+	hover.hidden = true;
+	document.body.appendChild(hover);
+	let target = null, timer = 0, px = -1, py = -1;
+	// Icon-only controls without a title fall back to their aria-label.
+	const iconOnly = el => el.matches('button, a, [role="button"]') && !el.textContent.trim();
+	const textOf = el => el.dataset.hover || el.dataset.label || (iconOnly(el) ? el.getAttribute('aria-label') || '' : '');
+	const adopt = el => {
+		// Move the native title aside so the browser tooltip never doubles up with ours.
+		if (el.hasAttribute('title')) {
+			const t = el.getAttribute('title');
+			if (t) el.dataset.hover = t;
+			el.removeAttribute('title');
+		}
+		return textOf(el);
+	};
+	const hostOf = node => { const el = node?.closest?.('[title], [data-hover], .rail-btn[data-label], button[aria-label], a[aria-label]'); return el && (el.matches('[title], [data-hover], [data-label]') || iconOnly(el)) ? el : null; };
+	const hide = () => { clearTimeout(timer); timer = 0; target = null; hover.hidden = true; };
+	const show = el => {
+		// Re-rendered lists replace elements: use whatever now sits under the pointer.
+		if (!el.isConnected && px >= 0) { el = hostOf(document.elementFromPoint(px, py)); if (el) { adopt(el); target = el; } }
+		const text = el && textOf(el);
+		if (!text || !el.isConnected) return hide();
+		hover.textContent = text;
+		hover.hidden = false;
+		const r = el.getBoundingClientRect();
+		const h = hover.getBoundingClientRect();
+		const rail = el.closest('.rail');
+		let x, y;
+		if (rail) { x = r.right + 6; y = r.top + (r.height - h.height) / 2; hover.dataset.side = 'right'; }
+		else {
+			x = r.left + (r.width - h.width) / 2;
+			y = r.bottom + 6; hover.dataset.side = 'below';
+			if (y + h.height > innerHeight - 4) { y = r.top - h.height - 6; hover.dataset.side = 'above'; }
+		}
+		hover.style.left = `${Math.round(Math.max(4, Math.min(x, innerWidth - h.width - 4)))}px`;
+		hover.style.top = `${Math.round(Math.max(4, y))}px`;
+	};
+	const schedule = (el, delay) => {
+		if (el === target) return;
+		hide();
+		if (!adopt(el)) return;
+		target = el;
+		timer = setTimeout(() => show(el), hover.hidden ? delay : 0);
+	};
+	document.addEventListener('pointermove', e => { px = e.clientX; py = e.clientY; }, { passive: true });
+	document.addEventListener('pointerover', e => { const el = hostOf(e.target); if (el) schedule(el, 500); else if (target) hide(); });
+	document.addEventListener('pointerout', e => { if (target && e.relatedTarget && !target.contains(e.relatedTarget) && hostOf(e.relatedTarget) !== target) hide(); });
+	document.documentElement.addEventListener('pointerleave', hide);
+	document.addEventListener('focusin', e => { const el = hostOf(e.target); if (el === e.target && e.target.matches(':focus-visible')) schedule(el, 0); });
+	document.addEventListener('focusout', () => hide());
+	for (const ev of ['pointerdown', 'keydown', 'wheel']) document.addEventListener(ev, hide, { capture: true, passive: true });
+	addEventListener('blur', hide);
+	// Titles set after render (e.g. Collapse All toggling) keep working: adopt them on the fly.
+	new MutationObserver(list => { for (const m of list) if (m.target === target && m.attributeName === 'title') { adopt(target); if (!hover.hidden) show(target); } })
+		.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['title'] });
 }

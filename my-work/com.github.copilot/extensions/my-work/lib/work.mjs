@@ -50,15 +50,13 @@ export async function getMyWork({ fresh = false } = {}) {
 	const prios = await getPriorities();
 	// Pinned sessions can sit in My priorities as `session:<id>`; only issues need GitHub details.
 	const details = await issueDetails(prios.map(p => p.key).filter(k => !k.startsWith('session:')), fresh);
-	// Closed issues drop off the list; issues now planned for current/next show there instead.
-	const closed = prios.filter(p => details[p.key]?.state === 'CLOSED' || details[p.key]?.state === 'MERGED').map(p => p.key);
-	if (closed.length) await updatePriorities({ op: 'prune', key: closed });
-	const items = prios.filter(p => !closed.includes(p.key) && !plannedKeys.has(p.key) && !p.key.startsWith('session:')).map(p => {
+	// Closed or merged items stay, marked with their state, until the user clears them; issues now planned for current/next show there instead.
+	const items = prios.filter(p => !plannedKeys.has(p.key) && !p.key.startsWith('session:')).map(p => {
 		const d = details[p.key] || {};
 		const labels = d.labels || [];
-		return { key: p.key, title: d.title || p.key, url: d.url || `https://github.com/${p.key.replace('#', '/issues/')}`, updatedAt: d.updatedAt || p.addedAt, labels, isBug: labels.includes('bug'), milestone: d.milestone || null, rank: prios.indexOf(p) + 1 };
+		return { key: p.key, title: d.title || p.key, url: d.url || `https://github.com/${p.key.replace('#', '/issues/')}`, updatedAt: d.updatedAt || p.addedAt, labels, isBug: labels.includes('bug'), milestone: d.milestone || null, rank: prios.indexOf(p) + 1, state: doneState(d.state), stateReason: d.stateReason || null };
 	});
-	return { ...planned, milestones: [...planned.milestones, { role: 'priorities', title: 'My priorities', due: null, items }], priorityKeys: prios.filter(p => !closed.includes(p.key)).map(p => p.key) };
+	return { ...planned, milestones: [...planned.milestones, { role: 'priorities', title: 'My priorities', due: null, items }], priorityKeys: prios.map(p => p.key) };
 }
 
 const detailCache = new Map(); // key -> { at, d }
@@ -70,29 +68,38 @@ export async function issueDetails(keys, fresh) {
 			const [repo, num] = k.split('#');
 			const [owner, name] = repo.split('/');
 			return `i${j}: repository(owner: ${JSON.stringify(owner)}, name: ${JSON.stringify(name)}) { issueOrPullRequest(number: ${Number(num)}) {
-				__typename ... on Issue { title url state updatedAt milestone { title } labels(first: 30) { nodes { name } } }
+				__typename ... on Issue { title url state stateReason updatedAt milestone { title } labels(first: 30) { nodes { name } } }
 				... on PullRequest { title url state updatedAt milestone { title } labels(first: 30) { nodes { name } } } } }`;
 		});
 		try {
 			const out = JSON.parse(await gh(['api', 'graphql', '-f', `query=query { ${parts.join('\n')} }`]));
 			chunk.forEach((k, j) => {
 				const n = out.data?.[`i${j}`]?.issueOrPullRequest;
-				if (n) detailCache.set(k, { at: Date.now(), d: { type: n.__typename, title: n.title, url: n.url, state: n.state, updatedAt: n.updatedAt, milestone: n.milestone?.title || null, labels: (n.labels?.nodes || []).map(l => l.name) } });
+				if (n) detailCache.set(k, { at: Date.now(), d: { type: n.__typename, title: n.title, url: n.url, state: n.state, stateReason: n.stateReason ? n.stateReason.toLowerCase() : null, updatedAt: n.updatedAt, milestone: n.milestone?.title || null, labels: (n.labels?.nodes || []).map(l => l.name) } });
 			});
 		} catch { /* show stored keys without details */ }
 	}
 	return Object.fromEntries(keys.map(k => [k, detailCache.get(k)?.d]));
 }
 
+/** 'closed' / 'merged' for finished issues and PRs, null while open. */
+export function doneState(state) {
+	return state === 'MERGED' ? 'merged' : state === 'CLOSED' ? 'closed' : null;
+}
+const DONE_DAYS = 7;
+
 async function getPlanned(fresh) {
 	if (!fresh && workCache.data && Date.now() - workCache.at < 2 * 60 * 1000) return workCache.data;
 	const [ms, me] = await Promise.all([planMilestones(), myLogin()]);
 	const milestones = await Promise.all(ms.map(async m => {
-		const q = `org:${config().org} assignee:${me} is:issue is:open milestone:"${m.title}"`;
-		const out = await gh(['api', '-X', 'GET', 'search/issues', '-f', `q=${q}`, '-f', 'per_page=100', '--jq',
-			'[.items[] | {key: ((.repository_url | sub("https://api.github.com/repos/"; "")) + "#" + (.number|tostring)), title, url: .html_url, updatedAt: .updated_at, labels: [.labels[].name]}]']);
-		const items = JSON.parse(out).map(i => ({ ...i, isBug: i.labels.includes('bug') }))
-			.sort((a, b) => (b.isBug - a.isBug) || b.updatedAt.localeCompare(a.updatedAt));
+		// Open issues, plus those closed in the last week so finished work shows as done before it drops off.
+		const since = new Date(Date.now() - DONE_DAYS * 864e5).toISOString().slice(0, 10);
+		const search = async q => JSON.parse(await gh(['api', '-X', 'GET', 'search/issues', '-f', `q=${q}`, '-f', 'per_page=100', '--jq',
+			'[.items[] | {key: ((.repository_url | sub("https://api.github.com/repos/"; "")) + "#" + (.number|tostring)), title, url: .html_url, updatedAt: .updated_at, labels: [.labels[].name], state: (if .state == "closed" then "closed" else null end), stateReason: .state_reason, closedAt: .closed_at}]']));
+		const base = `org:${config().org} assignee:${me} is:issue milestone:"${m.title}"`;
+		const [open, done] = await Promise.all([search(`${base} is:open`), search(`${base} is:closed closed:>=${since}`).catch(() => [])]);
+		const items = [...open, ...done].map(i => ({ ...i, isBug: i.labels.includes('bug') }))
+			.sort((a, b) => (!!a.state - !!b.state) || (b.isBug - a.isBug) || b.updatedAt.localeCompare(a.updatedAt));
 		return { ...m, items };
 	}));
 	workCache = { at: Date.now(), data: { milestones, fetchedAt: new Date().toISOString() } };
@@ -141,12 +148,13 @@ export async function sourceQuery(source, { labels = [], refine = '' } = {}) {
 	// A filter that asks for closed (or explicitly open) items replaces the default is:open.
 	const state = /(^|\s)is:(open|closed)\b/i.test(extra) ? '' : ' is:open';
 	const base = `org:${config().org}${state} archived:false`;
-	const q = source === 'bugs' ? `${base} is:issue assignee:${me} label:bug`
-		: source === 'features' ? `${base} is:issue assignee:${me} label:feature-request`
-			: source === 'mine' ? `${base} is:issue assignee:${me}`
+	// A feature area narrows any issue source: its labels are OR-ed (label:"a","b") on top of the source's own.
+	const area = labels.length && source !== 'reviews' ? ` label:${labels.map(l => JSON.stringify(l)).join(',')}` : '';
+	const q = source === 'bugs' ? `${base} is:issue assignee:${me} label:bug${area}`
+		: source === 'features' ? `${base} is:issue assignee:${me} label:feature-request${area}`
+			: source === 'mine' || source === 'area' ? `${base} is:issue assignee:${me}${area}`
 				: source === 'reviews' ? `${base} is:pr user-review-requested:${me}`
-					: source === 'area' && labels.length ? `${base} is:issue assignee:${me} label:${labels.map(l => JSON.stringify(l)).join(',')}`
-						: null;
+					: null;
 	return q && extra ? `${q} ${extra}` : q;
 }
 export async function workSource(source, { labels = [], refine = '', fresh = false } = {}) {
@@ -155,7 +163,7 @@ export async function workSource(source, { labels = [], refine = '', fresh = fal
 	const hit = sourceCache.get(q);
 	if (hit && !fresh && Date.now() - hit.at < 2 * 60 * 1000) return hit.items;
 	const out = await gh(['api', '-X', 'GET', 'search/issues', '-f', `q=${q}`, '-f', 'sort=updated', '-f', 'per_page=100', '--jq',
-		'[.items[] | {key: ((.repository_url | sub("https://api.github.com/repos/"; "")) + "#" + (.number|tostring)), title, url: .html_url, updatedAt: .updated_at, labels: [.labels[].name], isPr: (.pull_request != null), milestone: .milestone.title, author: .user.login}]']);
+		'[.items[] | {key: ((.repository_url | sub("https://api.github.com/repos/"; "")) + "#" + (.number|tostring)), title, url: .html_url, updatedAt: .updated_at, labels: [.labels[].name], isPr: (.pull_request != null), milestone: .milestone.title, author: .user.login, authorType: .user.type, association: .author_association, createdAt: .created_at, comments: .comments, thumbsUp: (.reactions["+1"] // 0)}]']);
 	const items = JSON.parse(out);
 	sourceCache.set(q, { at: Date.now(), items });
 	return items;

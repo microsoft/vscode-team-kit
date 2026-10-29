@@ -26,15 +26,10 @@
 	<div class="app">
 		<header class="top">
 			<div class="brand">
-				<h1 id="heading">Today</h1>
+				<div class="title-row"><h1 id="heading">Today</h1><span class="top-meta" id="top-meta"></span></div>
 				<p class="sub" id="subtitle">Loading…</p>
+				<div class="top-progress" id="top-progress" role="img" aria-label="Progress"></div>
 			</div>
-			<dl class="stats" aria-label="Today">
-				<div><dt>Unread</dt><dd id="chip-unread">–</dd></div>
-				<div><dt>Notifications done</dt><dd id="chip-notif-done">–</dd></div>
-				<div><dt>Issues done</dt><dd id="chip-issues-done">–</dd></div>
-				<div><dt>Sessions</dt><dd id="chip-sessions">–</dd></div>
-			</dl>
 		</header>
 
 		<main class="layout" id="panel" role="tabpanel">
@@ -46,7 +41,7 @@
 				<div id="list" class="list-body"></div>
 				<div id="workchat" class="list-chat" hidden></div>
 			</section>
-			<div class="split-handle" id="split-handle" role="separator" aria-orientation="horizontal" aria-label="Resize list" tabindex="0" title="Drag to resize"></div>
+			<div class="split-handle" id="split-handle" role="separator" aria-orientation="horizontal" aria-label="Resize list" tabindex="0" title="Drag to resize, double-click to reset"></div>
 			<section class="detail" id="detail" aria-label="Details" tabindex="-1">
 				<div class="empty">Select an item to see details and actions.</div>
 			</section>
@@ -79,8 +74,8 @@
 		<fieldset>
 			<legend>Density</legend>
 			<div class="seg seg-3" id="density-seg">
-				<button type="button" data-density="auto" title="Compact when the panel is small">Auto</button>
-				<button type="button" data-density="comfortable">Comfortable</button>
+				<button type="button" data-density="auto" title="Follow VS Code's Layout Density (View &gt; Appearance &gt; Layout Density)">VS Code</button>
+				<button type="button" data-density="comfortable">Default</button>
 				<button type="button" data-density="compact">Compact</button>
 			</div>
 		</fieldset>
