@@ -1165,3 +1165,6 @@ body > * { min-width: 0; }
 .composer { box-sizing: border-box; width: 100%; min-width: 0; }
 .composer .ask-input { width: 100%; min-width: 0; box-sizing: border-box; }
 .list-chat { grid-template-columns: minmax(0, 1fr); }
+/* single-line chat input: text and Send on one row (a toolbar row can come back when there are more actions) */
+.composer, .footer .composer, .list-chat .composer, [data-density="compact"] .composer { grid-template-areas: "img img" "input send"; align-items: end; padding: 4px 4px 4px 8px; }
+.composer .ask-input { align-self: center; padding: 1px 0; }
