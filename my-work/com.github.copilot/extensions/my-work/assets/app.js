@@ -429,7 +429,9 @@ function renderSubtabs() {
 	if (ui.tab === 'work') { $('subtabs').innerHTML = ''; return; }
 	if (ui.tab === 'queue') {
 		const n = sec => areaFilter() ? sec.items.filter(i => inArea(areaOfIssue(i))).length : sec.total;
-		opts = [['all', 'All'], ...st.sections.filter(s => s.items.length && n(s)).map(s => [s.id, `${s.title.replace(/:.*$/, '')} ${n(s)}`])];
+		// The bands below are the sections (each collapsible), so no section pills here.
+		ui.sub.queue = 'all';
+		opts = [];
 	} else if (ui.tab === 'cleanup') {
 		opts = Object.entries(st.cleanup).map(([g, v]) => [g, `${CLEANUP_LABELS[g]} ${v.items.filter(i => !i.handled && inArea(areaOfIssue(i))).length}`]);
 	} else if (ui.tab === 'notifications') {
@@ -441,7 +443,7 @@ function renderSubtabs() {
 		const busy = p && !p.stalled;
 		const classify = busy
 			? `<span class="pill classify busy" role="status"><i class="codicon codicon-loading" aria-hidden="true"></i>${p.recompute ? 'Re-checking' : 'Classifying'} ${p.total - p.left}/${p.total}</span>`
-			: `${st.untriaged ? `<button type="button" class="pill classify" data-classify="new" title="Ask the chat to classify the ${st.untriaged} notifications that are new or changed since they were classified">Classify ${st.untriaged} new</button>` : ''}<button type="button" class="pill classify icon" data-classify="recompute" title="Ask the chat to re-check what is not yet in Auto-dismiss / Safe to dismiss / Route, and move everything that doesn't need you into them${p?.stalled ? ' (last request stalled)' : ''}"><i class="codicon codicon-refresh" aria-hidden="true"></i>Re-check</button>`;
+			: `${st.untriaged ? `<button type="button" class="pill classify" data-classify="new" title="Ask the chat to classify the ${st.untriaged} notifications that are new or changed since they were classified">Classify ${st.untriaged} new</button>` : ''}<button type="button" class="pill classify icon" data-classify="recompute" aria-label="Re-check classification" title="Re-check: ask the chat to re-check what is not yet in Auto-dismiss / Safe to dismiss / Route, and move everything that doesn't need you into them${p?.stalled ? ' (last request stalled)' : ''}"><i class="codicon codicon-refresh" aria-hidden="true"></i><span class="sr-only">Re-check</span></button>`;
 		$('subtabs').innerHTML = [
 			show('route', route) ? `<button type="button" class="pill bulk" data-bulk="route" aria-pressed="${ui.notifFilter === 'route'}"><i class="codicon codicon-person" aria-hidden="true"></i>Route ${route}</button>` : '',
 			`<button type="button" class="pill bulk" data-bulk="auto" aria-pressed="${ui.notifFilter === 'auto'}"><i class="codicon codicon-check-all" aria-hidden="true"></i>Auto-dismiss ${auto}</button>`,
@@ -460,7 +462,7 @@ function renderSubtabs() {
 	const busy = p && !p.stalled;
 	const rules = busy
 		? `<span class="pill classify busy" role="status"><i class="codicon codicon-loading" aria-hidden="true"></i>Checking your rules ${p.total - p.left}/${p.total}</span>`
-		: `<button type="button" class="pill classify icon" data-rules="recompute" title="Ask the chat to re-apply your inbox rules (routing, close, needs-info) to the issues shown${p?.stalled ? ' (last request stalled)' : ''}"><i class="codicon codicon-law" aria-hidden="true"></i>Re-check rules</button>`;
+		: `<button type="button" class="pill classify icon" data-rules="recompute" aria-label="Re-check rules" title="Re-check your inbox rules: ask the chat to re-apply routing, close and needs-info rules to the issues shown${p?.stalled ? ' (last request stalled)' : ''}"><i class="codicon codicon-law" aria-hidden="true"></i><span class="sr-only">Re-check rules</span></button>`;
 	$('subtabs').innerHTML = opts.map(([id, label]) => `<button type="button" class="pill" data-sub="${esc(id)}" aria-pressed="${!ui.routeFilter && ui.sub[ui.tab] === id}">${esc(label)}</button>`).join('')
 		+ (nRoute || ui.routeFilter ? `<button type="button" class="pill bulk" data-route-filter aria-pressed="${!!ui.routeFilter}" title="Issues your routing rules say belong to someone else"><i class="codicon codicon-person" aria-hidden="true"></i>Route ${nRoute}</button>` : '')
 		+ `<span class="subtabs-spacer"></span>${rules}`;
@@ -894,9 +896,9 @@ function groupHeadHtml(g) {
 	const tools = `${g.items.some(clearableDone) ? `<button type="button" class="link-btn group-clear" data-clear-done="${esc(g.role)}" title="Remove the finished items in this group from My Work">Clear done</button>` : ''}${g.section ? `<span class="group-tools"><button type="button" class="row-pin" data-note-new="${esc(g.role)}" title="Add a note to ${esc(g.header)}" aria-label="Add a note to ${esc(g.header)}"><i class="codicon codicon-add" aria-hidden="true"></i></button><button type="button" class="row-pin" data-section-edit="${esc(g.role)}" title="Edit section" aria-label="Edit section ${esc(g.header)}"><i class="codicon codicon-gear" aria-hidden="true"></i></button></span>` : ''}`;
 	const toggle = g.role === 'handled' ? 'data-done-toggle' : `data-group-toggle="${esc(g.role)}"`;
 	return `<div class="band group-h"${g.drop ? ` data-drop-group="${esc(g.role)}"` : ''}>
-		<button type="button" class="band-toggle" ${toggle} aria-expanded="${!g.collapsed}"><i class="codicon codicon-chevron-right" aria-hidden="true"></i><span class="band-title">${esc(g.header)}</span></button>
+		<button type="button" class="band-toggle" ${toggle} aria-expanded="${!g.collapsed}"${g.desc ? ` title="${esc(g.desc.charAt(0).toUpperCase() + g.desc.slice(1))}"` : ''}><i class="codicon codicon-chevron-right" aria-hidden="true"></i><span class="band-title">${esc(g.header)}</span></button>
 		${tools ? `<span class="band-tools">${tools}</span>` : ''}<span class="band-n">${count || ''}</span>
-	</div>${g.desc ? `<p class="band-desc">${esc(g.desc.charAt(0).toUpperCase() + g.desc.slice(1))}</p>` : ''}`;
+	</div>`;
 }
 function emptyGroupHtml(g) {
 	return g.role === 'priorities' ? '<div class="cd empty-group" data-drop-group="priorities">Your own ordered list, kept locally (milestones on GitHub are untouched). Paste <b>#123</b> or an issue link into the chat below, or use <b>Add to my priorities</b> on any issue.</div>'

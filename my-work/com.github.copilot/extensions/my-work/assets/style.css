@@ -956,3 +956,5 @@ html.narrow .title-sub { gap: 8px; }
 [data-density="compact"] .title-row { gap: 8px; }
 [data-density="compact"] .top-meta { font-size: 11px; }
 [data-density="compact"] .top-progress { margin-top: 6px; height: 3px; }
+/* Quieter toolbar: icon-only secondary actions. */
+.pill.classify.icon { padding: 3px 7px; }
