@@ -346,7 +346,7 @@ function nextBatch(tab, pool, handled, size) {
 	return { ids: candidates.slice(0, size), seen: [...seen].filter(id => pool.includes(id)), number: (tab.number || 0) + 1 };
 }
 
-function resolveBatch(tabs, key, pool, handled, size) {
+export function resolveBatch(tabs, key, pool, handled, size) {
 	let tab = tabs[key] || { ids: [], seen: [], number: 0 };
 	const present = tab.ids.filter(id => pool.includes(id));
 	const open = present.filter(id => !handled.has(id));
@@ -354,9 +354,14 @@ function resolveBatch(tabs, key, pool, handled, size) {
 	if (!open.length) {
 		tab = nextBatch({ ...tab, ids: present }, pool, handled, size);
 		changed = true;
-	} else if (present.length !== tab.ids.length) {
-		tab = { ...tab, ids: present };
-		changed = true;
+	} else if (present.length !== tab.ids.length || present.length < size) {
+		// Items left the batch (e.g. dismissed elsewhere): top it up to the batch size, new items first, then ones skipped earlier.
+		const seen = new Set(tab.seen);
+		const rest = pool.filter(id => !handled.has(id) && !present.includes(id));
+		const fill = [...rest.filter(id => !seen.has(id)), ...rest.filter(id => seen.has(id))].slice(0, Math.max(0, size - present.length));
+		const ids = [...present, ...fill];
+		changed = ids.length !== tab.ids.length || ids.some((id, i) => id !== tab.ids[i]);
+		tab = { ...tab, ids };
 	}
 	tabs[key] = tab;
 	const remaining = pool.filter(id => !handled.has(id) && !tab.ids.includes(id)).length;

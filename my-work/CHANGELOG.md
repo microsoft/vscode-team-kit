@@ -2,6 +2,7 @@
 
 ## 1.0.7 (2026-10-28)
 
+- A batch tops itself up to your batch size when items leave it (for example notifications dismissed in bulk or from the chat), instead of making you press Next to see the rest.
 - The batch bar shows what's left instead of an internal batch number: "24 to go · 0 of 24 done · 23 more after these".
 - **Your own sections** in My Work, created with **+ Section**: a name, optional instructions for sessions started from it, and an optional link pattern. A section holds **notes** (title, link, description, due date) plus issues and sessions you move or drag into it. Start session on a note follows the section's instructions; pasting a matching link into the chat box adds a note. Sections can be edited, reordered and deleted (their issues and sessions go back to Current).
 - BREAKING: the built-in MSRC group and the `msrc` config are removed. On first run, existing MSRC items and `msrc.fixWorkflow` become a custom **MSRC** section with the same items, linked sessions and instructions (still private).

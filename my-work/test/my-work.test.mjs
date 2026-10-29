@@ -394,3 +394,19 @@ test('finished work is marked by its GitHub state', async () => {
 	assert.equal(work.doneState('MERGED'), 'merged');
 	assert.equal(work.doneState(undefined), null, 'unknown state counts as open');
 });
+
+test('a batch tops up to its size when items leave it', () => {
+	const pool = Array.from({ length: 40 }, (_, i) => `n${i}`);
+	const tabs = { notifications: { ids: pool.slice(0, 25), seen: ['n30', 'n31'], number: 3 } };
+	// 19 of the 25 were dismissed elsewhere (no longer unread), one is handled but still shown.
+	const left = [...pool.slice(19, 25), ...pool.slice(25)];
+	const { view } = data.resolveBatch(tabs, 'notifications', left, new Set(['n19']), 25);
+	assert.equal(view.ids.length, 21, 'all remaining items fit in the 25 slots, including ones skipped earlier');
+	assert.deepEqual(view.ids.slice(0, 6), pool.slice(19, 25), 'items already in the batch keep their place');
+	assert.deepEqual(view.ids.slice(-2), ['n30', 'n31'], 'skipped items come after new ones');
+	assert.equal(view.open, 20);
+	assert.equal(view.remaining, 0);
+	// Nothing left to add: the batch keeps what it has.
+	const again = data.resolveBatch(tabs, 'notifications', left, new Set(['n19']), 25);
+	assert.equal(again.changed, false);
+});
