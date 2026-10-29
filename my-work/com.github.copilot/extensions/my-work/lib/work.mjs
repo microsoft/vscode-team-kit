@@ -54,7 +54,7 @@ export async function getMyWork({ fresh = false } = {}) {
 	const items = prios.filter(p => !plannedKeys.has(p.key) && !p.key.startsWith('session:')).map(p => {
 		const d = details[p.key] || {};
 		const labels = d.labels || [];
-		return { key: p.key, title: d.title || p.key, url: d.url || `https://github.com/${p.key.replace('#', '/issues/')}`, updatedAt: d.updatedAt || p.addedAt, labels, isBug: labels.includes('bug'), milestone: d.milestone || null, rank: prios.indexOf(p) + 1, state: doneState(d.state) };
+		return { key: p.key, title: d.title || p.key, url: d.url || `https://github.com/${p.key.replace('#', '/issues/')}`, updatedAt: d.updatedAt || p.addedAt, labels, isBug: labels.includes('bug'), milestone: d.milestone || null, rank: prios.indexOf(p) + 1, state: doneState(d.state), stateReason: d.stateReason || null };
 	});
 	return { ...planned, milestones: [...planned.milestones, { role: 'priorities', title: 'My priorities', due: null, items }], priorityKeys: prios.map(p => p.key) };
 }
@@ -68,14 +68,14 @@ export async function issueDetails(keys, fresh) {
 			const [repo, num] = k.split('#');
 			const [owner, name] = repo.split('/');
 			return `i${j}: repository(owner: ${JSON.stringify(owner)}, name: ${JSON.stringify(name)}) { issueOrPullRequest(number: ${Number(num)}) {
-				__typename ... on Issue { title url state updatedAt milestone { title } labels(first: 30) { nodes { name } } }
+				__typename ... on Issue { title url state stateReason updatedAt milestone { title } labels(first: 30) { nodes { name } } }
 				... on PullRequest { title url state updatedAt milestone { title } labels(first: 30) { nodes { name } } } } }`;
 		});
 		try {
 			const out = JSON.parse(await gh(['api', 'graphql', '-f', `query=query { ${parts.join('\n')} }`]));
 			chunk.forEach((k, j) => {
 				const n = out.data?.[`i${j}`]?.issueOrPullRequest;
-				if (n) detailCache.set(k, { at: Date.now(), d: { type: n.__typename, title: n.title, url: n.url, state: n.state, updatedAt: n.updatedAt, milestone: n.milestone?.title || null, labels: (n.labels?.nodes || []).map(l => l.name) } });
+				if (n) detailCache.set(k, { at: Date.now(), d: { type: n.__typename, title: n.title, url: n.url, state: n.state, stateReason: n.stateReason ? n.stateReason.toLowerCase() : null, updatedAt: n.updatedAt, milestone: n.milestone?.title || null, labels: (n.labels?.nodes || []).map(l => l.name) } });
 			});
 		} catch { /* show stored keys without details */ }
 	}
@@ -95,7 +95,7 @@ async function getPlanned(fresh) {
 		// Open issues, plus those closed in the last week so finished work shows as done before it drops off.
 		const since = new Date(Date.now() - DONE_DAYS * 864e5).toISOString().slice(0, 10);
 		const search = async q => JSON.parse(await gh(['api', '-X', 'GET', 'search/issues', '-f', `q=${q}`, '-f', 'per_page=100', '--jq',
-			'[.items[] | {key: ((.repository_url | sub("https://api.github.com/repos/"; "")) + "#" + (.number|tostring)), title, url: .html_url, updatedAt: .updated_at, labels: [.labels[].name], state: (if .state == "closed" then "closed" else null end), closedAt: .closed_at}]']));
+			'[.items[] | {key: ((.repository_url | sub("https://api.github.com/repos/"; "")) + "#" + (.number|tostring)), title, url: .html_url, updatedAt: .updated_at, labels: [.labels[].name], state: (if .state == "closed" then "closed" else null end), stateReason: .state_reason, closedAt: .closed_at}]']));
 		const base = `org:${config().org} assignee:${me} is:issue milestone:"${m.title}"`;
 		const [open, done] = await Promise.all([search(`${base} is:open`), search(`${base} is:closed closed:>=${since}`).catch(() => [])]);
 		const items = [...open, ...done].map(i => ({ ...i, isBug: i.labels.includes('bug') }))

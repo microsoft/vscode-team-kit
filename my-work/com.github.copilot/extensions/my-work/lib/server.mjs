@@ -328,7 +328,7 @@ export class TriageServer {
 			const det = await issueDetails(pinIssues.map(p => p.key), url.searchParams.get('fresh') === '1').catch(() => ({}));
 			const pinnedIssues = pinIssues.map(p => {
 				const d = det[p.key] || {};
-				return { ...p, title: d.title || p.key, url: d.url || `https://github.com/${p.key.replace('#', '/issues/')}`, labels: d.labels || [], isBug: (d.labels || []).includes('bug'), milestone: d.milestone || null, updatedAt: d.updatedAt || p.addedAt, state: doneState(d.state) };
+				return { ...p, title: d.title || p.key, url: d.url || `https://github.com/${p.key.replace('#', '/issues/')}`, labels: d.labels || [], isBug: (d.labels || []).includes('bug'), milestone: d.milestone || null, updatedAt: d.updatedAt || p.addedAt, state: doneState(d.state), stateReason: d.stateReason || null };
 			});
 			const sessions = await sessionsFor([...keys, ...pinnedIssues.map(p => p.key)]).catch(() => ({}));
 			// Sessions linked explicitly (resolved from a branch or PR) show on their issue too.

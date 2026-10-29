@@ -888,3 +888,7 @@ html.narrow .title-sub { gap: 8px; }
 .find-group-h[aria-expanded="true"] .codicon { transform: rotate(90deg); }
 .stage-h { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--faint); padding: 6px 10px 2px 12px; }
 .stage-h .group-n { margin-left: 2px; }
+.closed-fold .done-sum { margin-left: 6px; font-size: 11px; }
+.tag.closed-other { color: var(--muted); }
+.tag.closed-other .codicon { font-size: 11px; margin-right: 3px; }
+.codicon-circle-slash::before { content: "\eabd"; }
