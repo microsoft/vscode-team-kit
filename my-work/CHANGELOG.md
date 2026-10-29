@@ -16,6 +16,7 @@
   - Each view has one toolbar row: the area picker, then an icon action bar with counts (Route, Auto-dismiss, Safe to dismiss, Re-check rules), then Refresh. Labels and "Updated …" are in the tooltips. Toggled filters use VS Code's `inputOption.active*` colours.
   - **Collapse All / Expand All** in every view's action bar folds or opens all its bands at once, like a VS Code view. The choice is remembered.
   - Browse works like the Settings editor: a search box with Group by, Recent filters and Refresh inside it, and Bugs / Features / All / Reviews tabs underneath next to the area picker.
+- Fixed: the toolbar actions (Route, Auto-dismiss, Safe to dismiss, Re-check) vanished every 30 seconds and during Refresh, when the bar redrew its "Updated …" time.
 - The Notifications action bar no longer jumps. Route, Auto-dismiss and Safe to dismiss always keep their place, disabled when empty, and Classify / Re-check keeps one slot, which turns into a spinner while the chat works.
 - Fixed: a classification stored from another chat or panel didn't refresh your open panel, so its "Classifying 0/1" spinner stayed until a reload. Panels now refresh when classifications, rules or dismissals change.
 - **Hovers everywhere:** native tooltips don't show in the canvas, so every action, icon button and activity bar item now shows a VS Code-style hover after a short delay. Browse rows explain their kind icon and drag grip.

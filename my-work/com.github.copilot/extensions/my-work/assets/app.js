@@ -410,12 +410,15 @@ function renderAreaBar() {
 	const auto = shown.filter(a => a.auto).sort((a, b) => (counts[b.id] || 0) - (counts[a.id] || 0) || a.name.localeCompare(b.name));
 	const rest = shown.filter(a => a.id === 'others' || a.id === NO_AREA);
 	const opts = [...mine, ...auto, ...rest].map(opt).join('');
+	// Redrawing the bar alone (the "Updated …" timer, Refresh) must keep the actions renderSubtabs put in it.
+	const keptActs = $('area-acts')?.innerHTML || '';
 	$('areabar').innerHTML = `<label class="area-pick${f ? ' active' : ''}" title="Filter by feature area"><i class="codicon codicon-filter" aria-hidden="true"></i><span class="sr-only">Feature area</span>
 		<select id="area-filter" aria-label="Filter by feature area"><option value="">All areas (${total})</option>${opts}</select></label>
 		${f ? `<button type="button" class="link-btn" id="area-clear" title="Show all areas">Clear</button><span class="cd area-note">all batches</span>` : ''}
 		<span class="subtabs-spacer"></span>
 		<span class="actionbar" id="area-acts" role="toolbar" aria-label="Actions"></span>
 		${COLLAPSE_ACT}${refreshActHtml(ui.refreshing, ui.tab === 'notifications' && ui.state.notificationsFetchedAt ? `Updated ${agoText(ui.state.notificationsFetchedAt)}` : '', ui.tab === 'notifications' ? 'Fetch notifications from GitHub now' : 'Reload the index, notifications and live data')}`;
+	if (keptActs && $('area-acts')) $('area-acts').innerHTML = keptActs;
 }
 async function setAreaFilter(value) {
 	ui.state.settings.areaFilter = value;
