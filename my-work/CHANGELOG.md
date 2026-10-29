@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.8 (2026-10-29)
+
+- Fixed: the toolbar actions (Route, Auto-dismiss, Safe to dismiss, Re-check) vanished every 30 seconds and during Refresh, when the bar redrew its "Updated …" time.
+
 ## 1.0.7 (2026-10-28)
 
 - Fixed: dismissing a notification only marked it as read, so it stayed in your github.com/notifications inbox. Dismiss now marks it **Done** (`DELETE /notifications/threads/{id}`).
