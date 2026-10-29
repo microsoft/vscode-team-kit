@@ -1219,3 +1219,8 @@ body > * { min-width: 0; }
 .find-view .find-tools { padding-top: 10px; }
 .find-tabs { align-items: center; min-height: 34px; }
 .find-tabs .find-area { margin: 0 0 4px auto; height: 26px; padding: 0 8px; }
+/* Browse tabs: no separator line under the row, less space above it */
+.find-view .find-tools { padding-top: 2px; }
+.find-tabs { border-bottom: 0; }
+.find-tabs .seg-btn { margin-bottom: 0; }
+.find-tabs .find-area { margin-bottom: 0; }
