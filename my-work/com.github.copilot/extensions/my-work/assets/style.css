@@ -1197,3 +1197,5 @@ body > * { min-width: 0; }
 .row-wrap .row .row-meta, .row .row-meta { margin-top: 2px; }
 .areabar > .btn { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 1 auto; }
 .areabar > .btn .codicon { flex: none; }
+.list-chat .dock-head .codicon-chevron-right { transform: none; transition: transform .12s; }
+.list-chat .dock-head[aria-expanded="true"] .codicon-chevron-right { transform: rotate(90deg); }

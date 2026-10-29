@@ -15,6 +15,7 @@
   - Each view has one toolbar row: the area picker, then an icon action bar with counts (Route, Auto-dismiss, Safe to dismiss, Re-check rules), then Refresh. Labels and "Updated …" are in the tooltips. Toggled filters use VS Code's `inputOption.active*` colours.
   - **Collapse All / Expand All** in every view's action bar folds or opens all its bands at once, like a VS Code view. The choice is remembered.
   - Browse works like the Settings editor: a search box with Group by, Recent filters and Refresh inside it, and Bugs / Features / All / Reviews tabs underneath next to the area picker.
+- The My Work chat's conversation starts collapsed, showing just the input. Opening it is remembered.
 - More breathing space: padding around each view's toolbar and the header, and slightly taller rows in Compact. The toolbar buttons shrink with an ellipsis instead of pushing the actions out of view.
 - **Activity bar like VS Code's:** 48px items with 24px icons, inactive and active icon colours, a 2px active edge, quiet counts under the icons and hover-style tooltips. The logo is gone.
 - **Collapse All Sections / Expand All Sections** in the details header, for every kind of item. Cleanup's Recommended next is now a section too.

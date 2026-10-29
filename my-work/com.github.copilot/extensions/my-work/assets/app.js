@@ -2260,6 +2260,18 @@ async function renderBrowseItemInto(el, key, fetchDetail, silent) {
 }
 
 // The My Work chat, docked at the bottom of the My Work list. Messages go to the nested "My Work chat".
+// The My Work chat's conversation starts collapsed (just the input shows); opening it is remembered.
+function workChatCollapsed() {
+	return !(ui.state?.settings?.collapsedGroups || []).includes('workchat-open');
+}
+function setWorkChatCollapsed(collapsed) {
+	const set = new Set(ui.state.settings.collapsedGroups || []);
+	if (collapsed) set.delete('workchat-open'); else set.add('workchat-open');
+	ui.state.settings.collapsedGroups = [...set].slice(-200);
+	$('workchat').classList.toggle('collapsed', collapsed);
+	$('workchat').querySelector('[data-act="toggle-chat"]')?.setAttribute('aria-expanded', String(!collapsed));
+	saveSettings({ collapsedGroups: ui.state.settings.collapsedGroups });
+}
 function renderWorkChat() {
 	const box = $('workchat');
 	if (ui.tab !== 'work') { box.hidden = true; box.innerHTML = ''; return; }
@@ -2270,7 +2282,8 @@ function renderWorkChat() {
 	box.innerHTML = `<div class="wc-head"><i class="codicon codicon-comment-discussion" aria-hidden="true"></i><span>My Work chat</span>${link ? `<button type="button" class="link-btn" data-open-session="${esc(link)}" title="Open the nested My Work chat">Open chat</button>` : '<span class="cd">· created with your first message</span>'}</div>${threadHtml('my-work', 'My Work')}`;
 	box.querySelector('.dock-resize')?.remove();
 	box.querySelector('.thread')?.classList.remove('collapsed');
-	box.classList.toggle('collapsed', !!ui.workChatCollapsed);
+	box.classList.toggle('collapsed', workChatCollapsed());
+	box.querySelector('[data-act="toggle-chat"]')?.setAttribute('aria-expanded', String(!workChatCollapsed()));
 	const t = box.querySelector('.ask-input');
 	if (t) {
 		t.placeholder = 'Paste #123, an issue / IcM / session link, or ask: "add the session I\'m in"';
@@ -3446,7 +3459,7 @@ $('workchat').addEventListener('input', e => { if (e.target.classList?.contains(
 $('workchat').addEventListener('click', e => {
 	const os = e.target.closest('[data-open-session]');
 	if (os) { api('/api/open-session', { link: os.dataset.openSession }).then(() => toast('Opening the My Work chat'), error => toast(error.message, true)); return; }
-	if (e.target.closest('[data-act="toggle-chat"]')) { ui.workChatCollapsed = !ui.workChatCollapsed; $('workchat').classList.toggle('collapsed', ui.workChatCollapsed); return; }
+	if (e.target.closest('[data-act="toggle-chat"]')) { setWorkChatCollapsed(!workChatCollapsed()); return; }
 	const choice = e.target.closest('[data-act="choice"]');
 	if (!choice) return;
 	const c = (ui.state.threads?.['my-work'] || []).at(-1)?.choices?.[Number(choice.dataset.i)];
