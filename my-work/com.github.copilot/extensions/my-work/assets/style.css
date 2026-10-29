@@ -1168,3 +1168,20 @@ body > * { min-width: 0; }
 /* single-line chat input: text and Send on one row (a toolbar row can come back when there are more actions) */
 .composer, .footer .composer, .list-chat .composer, [data-density="compact"] .composer { grid-template-areas: "img img" "input send"; align-items: end; padding: 4px 4px 4px 8px; }
 .composer .ask-input { align-self: center; padding: 1px 0; }
+
+/* ---------- Activity bar like VS Code: 48px items, 24px icons, active left border, count badges on the icon ---------- */
+.rail, [data-density="compact"] .rail { padding: 0; gap: 0; background: var(--ab-bg, var(--bg)); border-left: 0; border-right: 1px solid var(--ab-border, var(--line)); }
+.rail .logo { display: none; }
+.rail-nav, .rail-foot, [data-density="compact"] .rail-nav, [data-density="compact"] .rail-foot { gap: 0; }
+.rail > :first-child { transform: none; }
+.rail-btn, [data-density="compact"] .rail-btn { width: 48px; height: 48px; min-height: 48px; padding: 0; border-radius: 0; background: none; color: var(--ab-inactive, var(--faint)); }
+.rail-btn .codicon, [data-density="compact"] .rail-btn .codicon { font-size: 24px; }
+.rail-btn:hover, .rail-btn[aria-expanded="true"], .rail-btn:focus-visible { background: none; color: var(--ab-fg, var(--fg)); }
+.rail-btn[aria-selected="true"] { background: none; color: var(--ab-fg, var(--fg)); }
+.rail-btn[aria-selected="true"]::before, [data-density="compact"] .rail-btn[aria-selected="true"]::before { left: 0; top: 0; bottom: 0; width: 2px; border-radius: 0; background: var(--ab-active-border, var(--accent)); }
+.rail-btn:focus-visible { outline: 1px solid var(--focus, var(--accent)); outline-offset: -1px; }
+.rail-btn .badge, [data-density="compact"] .rail-btn .badge, .rail-btn[aria-selected="true"] .badge { position: absolute; top: 24px; right: 6px; min-width: 8px; height: 16px; padding: 0 4px; border-radius: 16px; font-size: 9px; font-weight: 600; line-height: 16px; text-align: center; background: var(--ab-badge-bg, var(--accent)); color: var(--ab-badge-fg, var(--accent-fg)); }
+.rail-btn::after, [data-density="compact"] .rail-btn::after { left: 50px; padding: 3px 8px; border-radius: 4px; font-size: 12px; background: var(--hover-widget-bg, var(--surface)); color: var(--hover-widget-fg, var(--fg)); border: 1px solid var(--hover-widget-border, var(--line)); box-shadow: 0 2px 8px rgba(0, 0, 0, .16); }
+
+/* details header: Collapse All sits with the title actions */
+.title-actions { display: flex; align-items: center; gap: 4px; }

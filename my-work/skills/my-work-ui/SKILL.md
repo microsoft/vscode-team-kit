@@ -35,6 +35,12 @@ Code: `com.github.copilot/extensions/my-work/assets/` (`app.js`, `style.css`, `i
 - **Icons are codicons.** The font comes from the VS Code installation. A new icon needs its `.codicon-<name>::before` code point, taken from VS Code's `src/vs/base/common/codiconsLibrary.ts`.
 - **Text:** sentence case. The only uppercase text is 11px bold pane and section headers, as in VS Code.
 
+- **The activity bar (the left rail) is VS Code's activity bar.**
+  - 48px square items with 24px icons and no logo. Inactive icons use `--ab-inactive` (`activityBar.inactiveForeground`); the active one uses `--ab-fg`, with a 2px `--ab-active-border` on its left edge.
+  - Counts are `activityBarBadge` badges at the bottom right of the icon.
+  - Tooltips use the hover widget colours (`editorHoverWidget.*`).
+  - Settings and Refresh sit at the bottom, like Manage and Accounts.
+
 ## 2. Layout and density
 
 - **Two panes:** the list on the left and the details on the right. When the panel is narrow they stack, list on top. The page grid uses `minmax(0, 1fr)`, so wide content (a long code line) can never push a pane past the window.
@@ -85,9 +91,10 @@ Code: `com.github.copilot/extensions/my-work/assets/` (`app.js`, `style.css`, `i
 ## 5. Details pane
 
 - **The header** has the title (15px), one meta line (number, kind, age) and the primary split button on the right.
-- **Sections are VS Code panes.** Every block (Recommended next, On GitHub, Comments, Your checks, Sweeper's evidence, Works on, Latest reply…) gets a full-width section header with a chevron, built by `sectionizeDetail()` from `.reco-h`, `.linked > .linked-head`, `.gh-title` and `.gh-comments-h`.
+- **Sections are VS Code panes.** Every block (Recommended next, Suggested approach, Sweeper's assessment, Sessions, Description, On GitHub, Comments, Your checks, Sweeper's evidence, Works on, Latest reply…) gets a full-width section header with a chevron, built by `sectionizeDetail()` from `.reco-h`, `.reco > .section-label`, `.linked > .linked-head`, `.gh-title` and `.gh-comments-h`.
   - Header actions such as "Ask the chat" sit on the right of the header.
   - Folded sections stay folded, keyed by name (`d-<name>` in `collapsedGroups`). A new block must use one of these header classes, so it becomes a section automatically.
+  - **Collapse All Sections / Expand All Sections** is an icon action in the details header next to the primary button, shown when there are two or more sections. Every details view (notification, issue, PR, session, note, browse item) uses the same section style.
 - **Flat content:** no cards, boxes, tinted backgrounds or shadows inside sections.
   - Status messages (Needs you, Your rules, Sweeper proposes) are an icon line with a 2px coloured left edge.
   - Recommendations are plain list rows.

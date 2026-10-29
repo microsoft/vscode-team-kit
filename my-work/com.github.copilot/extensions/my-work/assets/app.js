@@ -3113,14 +3113,14 @@ $('detail').addEventListener('keydown', e => {
 });
 // Detail sections behave like VS Code view panes: a full-width header with a chevron folds the section,
 // and the choice is remembered per section name. Long comments are clamped with "Show more".
-const DETAIL_HEADS = '.reco-h, .linked > .linked-head, .gh-title, .gh-comments-h';
+const DETAIL_HEADS = '.reco-h, .reco > .section-label, .linked > .linked-head, .gh-title, .gh-comments-h';
 ui.openComments = new Set();
 function detailSectionKey(head) {
 	const label = (head.querySelector('.section-label') || head).textContent.split('·')[0];
 	return `d-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'section'}`;
 }
 function detailSectionBox(head) {
-	return head.matches('.gh-comments-h') ? head.parentElement : head.matches('.reco-h') ? (head.closest('.reco') || head.parentElement) : head.parentElement;
+	return head.matches('.gh-comments-h') ? head.parentElement : head.matches('.reco-h, .reco > .section-label') ? (head.closest('.reco') || head.parentElement) : head.parentElement;
 }
 function applyDetailSection(head, collapsed) {
 	head.setAttribute('aria-expanded', String(!collapsed));
@@ -3139,6 +3139,7 @@ function sectionizeDetail() {
 		const collapsed = folded.has(head.dataset.secKey);
 		if (head.getAttribute('aria-expanded') !== String(!collapsed)) applyDetailSection(head, collapsed);
 	}
+	syncDetailCollapseAct();
 	for (const md of document.querySelectorAll('#detail .gh-comment > .md:not([data-clamp])')) {
 		md.dataset.clamp = '1';
 		const id = md.parentElement.querySelector('.gh-c-head a[href]')?.getAttribute('href') || '';
@@ -3147,6 +3148,35 @@ function sectionizeDetail() {
 		md.insertAdjacentHTML('afterend', `<button type="button" class="link-btn gh-c-more" data-comment-more="${esc(id)}">Show more</button>`);
 	}
 }
+// Collapse All / Expand All for the details sections, in the details header like an editor title action.
+function syncDetailCollapseAct() {
+	const heads = [...document.querySelectorAll('#detail .dsec-h')];
+	let btn = document.querySelector('#detail [data-detail-collapse]');
+	if (heads.length < 2) { btn?.remove(); return; }
+	if (!btn) {
+		const host = document.querySelector('#detail .detail-head .title-actions') || document.querySelector('#detail .detail-head');
+		if (!host) return;
+		host.insertAdjacentHTML('afterbegin', '<button type="button" class="act detail-collapse" data-detail-collapse><i class="codicon" aria-hidden="true"></i></button>');
+		btn = host.querySelector('[data-detail-collapse]');
+	}
+	const anyOpen = heads.some(h => h.getAttribute('aria-expanded') === 'true');
+	const mode = anyOpen ? 'collapse' : 'expand';
+	if (btn.dataset.detailCollapse === mode) return;
+	btn.dataset.detailCollapse = mode;
+	btn.title = anyOpen ? 'Collapse All Sections' : 'Expand All Sections';
+	btn.setAttribute('aria-label', btn.title);
+	btn.querySelector('.codicon').className = `codicon codicon-${anyOpen ? 'collapse-all' : 'expand-all'}`;
+}
+function setAllDetailSections(collapse) {
+	const set = new Set(ui.state.settings.collapsedGroups || []);
+	for (const h of document.querySelectorAll('#detail .dsec-h')) {
+		if (collapse) set.add(h.dataset.secKey); else set.delete(h.dataset.secKey);
+		applyDetailSection(h, collapse);
+	}
+	ui.state.settings.collapsedGroups = [...set].slice(-200);
+	syncDetailCollapseAct();
+	saveSettings({ collapsedGroups: ui.state.settings.collapsedGroups });
+}
 function toggleDetailSection(head) {
 	const set = new Set(ui.state.settings.collapsedGroups || []);
 	const key = head.dataset.secKey;
@@ -3154,10 +3184,13 @@ function toggleDetailSection(head) {
 	if (collapse) set.add(key); else set.delete(key);
 	ui.state.settings.collapsedGroups = [...set].slice(-200);
 	for (const h of document.querySelectorAll(`#detail .dsec-h[data-sec-key="${key}"]`)) applyDetailSection(h, collapse);
+	syncDetailCollapseAct();
 	saveSettings({ collapsedGroups: ui.state.settings.collapsedGroups });
 }
 new MutationObserver(() => sectionizeDetail()).observe($('detail'), { childList: true, subtree: true });
 $('detail').addEventListener('click', e => {
+	const dc = e.target.closest('[data-detail-collapse]');
+	if (dc) { setAllDetailSections(dc.dataset.detailCollapse !== 'expand'); return; }
 	const more = e.target.closest('[data-comment-more]');
 	if (more) {
 		ui.openComments.add(more.dataset.commentMore);
