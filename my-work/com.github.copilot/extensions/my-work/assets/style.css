@@ -904,3 +904,6 @@ html.narrow .title-sub { gap: 8px; }
 .stage-h .group-n { margin-left: 2px; color: var(--faint); }
 .codicon-sync::before { content: "\ea77"; }
 .codicon-circle-large-outline::before { content: "\ebb5"; }
+/* Stage headers share the group headers' left edge: chevrons line up in one column with the row dots. */
+.stage-h { padding: 8px 10px 4px 10px; gap: 4px; }
+.stage-h .stage-icon { margin: 0 2px 0 0; }
