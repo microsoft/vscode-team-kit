@@ -1199,3 +1199,9 @@ body > * { min-width: 0; }
 .areabar > .btn .codicon { flex: none; }
 .list-chat .dock-head .codicon-chevron-right { transform: none; transition: transform .12s; }
 .list-chat .dock-head[aria-expanded="true"] .codicon-chevron-right { transform: rotate(90deg); }
+/* tree: stage headers one indent (16px) in from the band, their rows one indent further; counts right-aligned */
+.list-body .stage-h { width: 100%; box-sizing: border-box; padding: 4px 8px 2px 16px; }
+.list-body .stage-h .group-n { margin-left: auto; display: inline-block; box-sizing: border-box; min-width: 18px; padding: 3px 5px; border-radius: 11px; font-size: 11px; line-height: 11px; font-weight: normal; text-align: center; background: var(--badge-bg, var(--surface-2)); color: var(--badge-fg, var(--muted)); }
+.list-body .stage-body { padding-left: 30px; }
+.band-tools .act.group-clear { height: 20px; min-width: 20px; }
+.band-tools .act.group-clear .codicon { font-size: 14px; }

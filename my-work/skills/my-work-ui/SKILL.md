@@ -65,7 +65,9 @@ Code: `com.github.copilot/extensions/my-work/assets/` (`app.js`, `style.css`, `i
 - **My Work groups** have In progress / To do / Done stages:
   - Stages collapse; Done starts collapsed.
   - A session that works on or fixed an issue stands for that issue, so nothing is listed twice.
-  - Chevrons line up on a 16px grid: group 16px, stage 32px, row dot 48px.
+  - Indent like a VS Code tree, one 16px step per level: band chevron, stage chevron 16px in, item titles under the stage title.
+  - Every count (band and stage) is a badge aligned on the same right edge.
+  - Header actions such as Clear done are icon actions, not text links.
 
 ## 4. Toolbars and actions
 
