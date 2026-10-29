@@ -2,11 +2,61 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createTimelineModel, selectEvents, sectionOutlines } from '../com.github.copilot/extensions/session-timeline/model.mjs';
+import { createTimelineModel, selectEvents, sectionOutlines, sortTools } from '../com.github.copilot/extensions/session-timeline/model.mjs';
 
 export function record(id, type, data, agentId) {
 	return { id, type, data, parentId: null, timestamp: '2026-10-21T12:00:00.000Z', ...(agentId ? { agentId } : {}) };
 }
+
+test('sorts tools by name within non-deferred and deferred groups without changing the catalog', () => {
+	const tools = [
+		{ name: 'b_deferred', deferLoading: true },
+		{ name: 'z_loaded' },
+		{ name: 'a_deferred', deferLoading: true },
+		{ name: 'a_loaded', deferLoading: false },
+	];
+	const original = structuredClone(tools);
+	const names = ['a_loaded', 'z_loaded', 'a_deferred', 'b_deferred'];
+	assert.deepEqual(sortTools(tools).map(tool => tool.name), names);
+	const model = createTimelineModel([record('u', 'user.message', { content: 'Request' })], new Map([['u', {
+		status: 'ready', capturedAt: '2026-10-29T10:00:00Z', tools,
+	}]]));
+	assert.deepEqual(model.events[1].sections.filter(s => s.toolName !== undefined).map(s => s.toolName), names);
+	assert.deepEqual(tools, original);
+	assert.deepEqual(sortTools([]), []);
+});
+
+test('makes request tool snapshots searchable with count pills without changing SDK records', () => {
+	const user = record('u', 'user.message', { content: 'Request' });
+	const snapshots = new Map([['u', {
+		status: 'ready', capturedAt: '2026-10-29T10:00:00Z',
+		tools: [{ name: 'unique_catalog_tool', description: 'Read files' }], error: '',
+	}]]);
+	const model = createTimelineModel([user], snapshots);
+	const entry = model.events[1];
+	assert.deepEqual(model.events[0].rawRecords, [user]);
+	assert.deepEqual(entry.rawRecords, []);
+	assert.equal(entry.parentEventId, 'u');
+	assert.equal(entry.title, 'Tools');
+	assert.equal(entry.category, 'system');
+	assert.deepEqual(model.events[0].sections.map(s => s.label), ['User request']);
+	assert.equal(model.totalRecords, 1);
+	assert.deepEqual(selectEvents(model.events, 'unique_catalog_tool', ['system']).map(e => e.id), ['u', 'tool-catalog:u']);
+	assert.equal(selectEvents(model.events, '', ['user']).length, 1);
+	assert.equal(sectionOutlines(entry.sections).at(-1).text, 'Tool catalog snapshot 1');
+	assert.equal(entry.sections[1].label, 'unique_catalog_tool');
+	assert.equal(entry.sections[1].toolName, 'unique_catalog_tool');
+	assert.deepEqual(JSON.parse(entry.sections[1].content), snapshots.get('u').tools[0]);
+	assert.equal(sectionOutlines(entry.sections).length, 1);
+	snapshots.get('u').tools = [];
+	assert.equal(sectionOutlines(createTimelineModel([user], snapshots).events[1].sections).at(-1).text, 'Tool catalog snapshot 0');
+	for (const status of ['loading', 'uninitialized', 'error']) {
+		snapshots.set('u', { status, tools: null, error: 'Unavailable' });
+		const section = createTimelineModel([user], snapshots).events[1].sections.at(-1);
+		assert.equal(sectionOutlines([section])[0].text, 'Tool catalog snapshot');
+		assert.match(section.content, status === 'error' ? /Unavailable/ : status === 'loading' ? /Capturing/ : /not initialized/);
+	}
+});
 
 test('groups turns and pairs tool results by semantic ownership, retaining raw data', () => {
 	const records = [

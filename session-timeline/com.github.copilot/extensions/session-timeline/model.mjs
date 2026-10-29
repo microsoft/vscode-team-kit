@@ -2,6 +2,10 @@
 
 export const categories = ['system', 'user', 'assistant', 'tool', 'subagent'];
 
+export function sortTools(tools) {
+	return tools.toSorted((a, b) => Number(Boolean(a.deferLoading)) - Number(Boolean(b.deferLoading)) || a.name.localeCompare(b.name));
+}
+
 const completionTypes = new Map([
 	['tool.execution_start', 'tool.execution_complete'],
 	['external_tool.requested', 'external_tool.completed'],
@@ -15,6 +19,9 @@ export function readable(value) {
 export function sectionOutlines(sections) {
 	const groups = new Map();
 	for (const [index, section] of sections.entries()) {
+		if (section.toolName !== undefined) {
+			continue;
+		}
 		let label = section.label;
 		let count = 1;
 		if (label === 'Advertised skills') {
@@ -23,6 +30,8 @@ export function sectionOutlines(sections) {
 			label = 'Tool guidance';
 		} else if (label === 'Tool requests') {
 			count = section.count ?? 0;
+		} else if (label === 'Tool catalog snapshot') {
+			count = section.count ?? 1;
 		} else if (label.startsWith('Instruction:')) {
 			label = 'Instructions';
 		}
@@ -39,7 +48,10 @@ export function sectionOutlines(sections) {
 		if (group.label === 'Model') {
 			return { ...group, text: sections[group.index].content };
 		}
-		const showCount = ['Advertised skills', 'Tool guidance', 'Instructions', 'Tool requests'].includes(group.label) || group.count > 1;
+		const showCount = ['Advertised skills', 'Tool guidance', 'Instructions', 'Tool requests', 'Tool catalog snapshot'].includes(group.label) || group.count > 1;
+		if (group.label === 'Tool catalog snapshot' && sections[group.index].count === undefined) {
+			return { ...group, text: group.label };
+		}
 		return { ...group, text: showCount ? `${group.label} ${group.count}` : group.label };
 	});
 }
@@ -125,7 +137,7 @@ export function validateEvent(event) {
 }
 
 /** Build semantic ownership without mistaking the chronological parentId chain for a tree. */
-export function createTimelineModel(records) {
+export function createTimelineModel(records, requestTools = new Map()) {
 	const completions = new Map();
 	const starts = new Map();
 	const owners = new Map();
@@ -240,6 +252,29 @@ export function createTimelineModel(records) {
 		}
 		event.searchText = [event.title, event.summary, ...event.sections.map(s => `${s.label}\n${s.content}`), readable(event.rawRecords)].join('\n');
 		events.push(event);
+		const tools = type === 'user.message' ? requestTools.get(record.id) : undefined;
+		if (tools) {
+			const note = 'Main-agent catalog captured after this user request arrived; not the exact tools sent to the model.';
+			const content = tools.status === 'ready'
+				? `${note}\nCaptured at: ${tools.capturedAt}\n${tools.tools.length} tools`
+				: tools.status === 'error' ? `Tool catalog capture failed: ${tools.error}`
+					: tools.status === 'loading' ? 'Capturing the tool catalog...'
+						: `${note}\nThe tool catalog was not initialized at capture time.`;
+			const sections = [{
+				label: 'Tool catalog snapshot', content,
+				count: tools.status === 'ready' ? tools.tools.length : undefined,
+			}, ...(tools.status === 'ready' ? sortTools(tools.tools).map(tool => ({
+				label: tool.name, toolName: tool.name, content: readable(tool),
+			})) : [])];
+			events.push({
+				id: `tool-catalog:${record.id}`, category: 'system', title: 'Tools',
+				summary: 'Tool catalog snapshot', timestamp: record.timestamp,
+				agentId: record.agentId, parentEventId: record.id,
+				sections,
+				rawRecords: [], status: tools.status === 'error' ? 'Failed' : '', duration: undefined,
+				searchText: `Tools\n${sections.map(s => `${s.label}\n${s.content}`).join('\n')}`,
+			});
+		}
 	}
 	return { totalRecords: records.length, events };
 }

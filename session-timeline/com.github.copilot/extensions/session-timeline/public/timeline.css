@@ -34,10 +34,16 @@ input[type="search"] { min-width: 120px; width: 100%; background: var(--vscode-i
 fieldset { padding: 0; border: 0; margin: 0; }
 legend { float: left; margin-right: 8px; color: var(--muted); }
 label { display: inline-flex; align-items: center; gap: 4px; }
-#status { margin: 8px 0 0; }
+.status-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; margin-top: 8px; }
+#status { margin: 0; }
+button.link { padding: 0; border: 0; color: var(--vscode-textLink-foreground, var(--accent)); font-size: 12px; text-decoration: underline; }
 #error { border-left: 3px solid var(--vscode-errorForeground, #e55); padding-left: 8px; }
+#tools-panel { max-height: 50vh; overflow: auto; overflow-wrap: anywhere; margin-top: 12px; padding: 12px; border: 1px solid var(--vscode-widget-border, var(--border)); border-radius: var(--radius-inner); }
+#tools-content details { margin: 8px 0; }
+#tools-content pre { padding: 8px 12px; }
+#tools-error { color: var(--vscode-errorForeground, #e55); }
 .layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 24px; padding: 20px; }
-nav#request-nav { position: sticky; top: var(--toolbar-height, 200px); max-height: calc(100vh - var(--toolbar-height, 200px)); overflow: auto; align-self: start; }
+#sidebar { position: sticky; top: var(--toolbar-height, 200px); max-height: calc(100vh - var(--toolbar-height, 200px)); overflow: auto; align-self: start; min-width: 0; }
 nav#request-nav ol { list-style: none; padding: 0; margin: 0; }
 nav#request-nav a { display: block; padding: 6px 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-radius: var(--radius-control); text-decoration: none; }
 nav#request-nav a:hover { background: var(--recessed); }
@@ -74,7 +80,8 @@ dialog pre { max-height: 60vh; overflow: auto; margin: 12px 0 20px; }
 dialog::backdrop { background: #0007; }
 @media (max-width: 760px) {
 	.layout { grid-template-columns: minmax(0, 1fr); padding: 12px; }
-	nav#request-nav { position: static; max-height: 160px; }
+	#sidebar { position: static; max-height: none; overflow: visible; }
+	nav#request-nav { max-height: 160px; overflow: auto; }
 	.toolbar { padding: 12px; }
 	.children { margin-left: 4px; padding-left: 6px; }
 }
