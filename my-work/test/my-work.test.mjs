@@ -355,10 +355,10 @@ test('Browse keeps its last source and filter across panel reloads', async () =>
 		req.on('error', reject); req.end(JSON.stringify(body));
 	});
 	try {
-		await post({ browse: { source: 'area', area: 'agents-window', refine: { query: 'author:alexdima', text: 'created by alexdima', note: '', extra: 'x' } } });
-		assert.deepEqual((await data.getSettings()).browse, { source: 'area', area: 'agents-window', refine: { query: 'author:alexdima', text: 'created by alexdima', note: '' } });
-		await post({ browse: { source: 'evil', area: '../x', refine: { query: ' ' } } });
-		assert.deepEqual((await data.getSettings()).browse, { source: 'bugs', area: '', refine: null }, 'unknown values fall back to defaults');
+		await post({ browse: { source: 'area', area: 'agents-window', groupBy: 'reporter', refine: { query: 'author:alexdima', text: 'created by alexdima', note: '', extra: 'x' } } });
+		assert.deepEqual((await data.getSettings()).browse, { source: 'area', area: 'agents-window', groupBy: 'reporter', refine: { query: 'author:alexdima', text: 'created by alexdima', note: '' } });
+		await post({ browse: { source: 'evil', area: '../x', groupBy: 'x', refine: { query: ' ' } } });
+		assert.deepEqual((await data.getSettings()).browse, { source: 'bugs', area: '', groupBy: '', refine: null }, 'unknown values fall back to defaults');
 		await post({ browseHistory: [{ source: 'area', area: 'agents-window', refine: { query: 'author:alexdima' }, at: '2026-10-28T10:00:00Z' }, { source: 'bugs', refine: null }] });
 		const history = (await data.getSettings()).browseHistory;
 		assert.equal(history.length, 1, 'entries without a filter are dropped');

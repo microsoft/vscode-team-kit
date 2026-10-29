@@ -881,3 +881,8 @@ html.narrow .title-sub { gap: 8px; }
 .codicon-note::before { content: "\eb26"; }
 .codicon-gear::before { content: "\eaf8"; }
 .codicon-beaker::before { content: "\ea79"; }
+/* Browse grouping */
+.find-group-h { display: flex; align-items: center; gap: 5px; width: 100%; border: 0; background: none; color: var(--faint); font: inherit; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; padding: 10px 4px 4px; cursor: pointer; text-align: left; }
+.find-group-h:hover { color: var(--muted); }
+.find-group-h .codicon { font-size: 12px; transition: transform .12s; }
+.find-group-h[aria-expanded="true"] .codicon { transform: rotate(90deg); }

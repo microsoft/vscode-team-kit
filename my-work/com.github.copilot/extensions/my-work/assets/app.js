@@ -1966,6 +1966,50 @@ async function applyFindFilter(text) {
 	try { await api('/api/browse-ask', { text, ...Object.fromEntries(new URLSearchParams(findSourceParams())) }); }
 	catch (error) { ui.findAsking = null; renderDetail(false, true); toast(`Could not ask the chat: ${error.message}`, true); }
 }
+// Browse grouping: computed from the search results, no extra GitHub calls.
+const GROUP_BY = [['', 'No grouping'], ['reporter', 'Reporter: team / community'], ['milestone', 'Milestone'], ['age', 'Age'], ['interest', 'Interest (👍, comments)'], ['label', 'Label']];
+const TEAM_ASSOC = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
+function groupFindItems(items, by) {
+	if (!by) return null;
+	const order = [];
+	const groups = new Map();
+	const put = (name, i, rank = 0) => { if (!groups.has(name)) { groups.set(name, []); order.push({ name, rank }); } groups.get(name).push(i); };
+	const days = iso => (Date.now() - Date.parse(iso || 0)) / 864e5;
+	const popular = ui.state.settings?.popularThreshold || 5;
+	// Labels that say nothing new inside this list: the issue types and the chosen area's labels.
+	const generic = new Set(['bug', 'feature-request', ...((ui.state.areas || []).find(a => a.id === ui.findArea)?.labels || [])]);
+	for (const i of items) {
+		if (by === 'reporter') {
+			const bot = i.authorType === 'Bot' || /\[bot\]$/.test(i.author || '');
+			put(bot ? 'Bots' : TEAM_ASSOC.has(i.association) ? 'Team' : 'Community', i, bot ? 2 : TEAM_ASSOC.has(i.association) ? 0 : 1);
+		} else if (by === 'milestone') {
+			put(i.milestone || 'No milestone', i, i.milestone ? (i.milestone === 'Backlog' ? 2 : /^On Deck|Backlog Candidates/i.test(i.milestone) ? 1 : 0) : 3);
+		} else if (by === 'age') {
+			const d = days(i.createdAt);
+			put(d <= 7 ? 'Opened this week' : d <= 31 ? 'Opened this month' : d <= 92 ? 'Opened in the last 3 months' : 'Older', i, d <= 7 ? 0 : d <= 31 ? 1 : d <= 92 ? 2 : 3);
+		} else if (by === 'interest') {
+			const up = i.thumbsUp || 0, c = i.comments || 0;
+			put(up >= popular ? `Popular (${popular}+ 👍)` : c >= 3 ? 'Discussed (3+ comments)' : 'Quiet', i, up >= popular ? 0 : c >= 3 ? 1 : 2);
+		} else if (by === 'label') {
+			const l = (i.labels || []).find(x => !generic.has(x));
+			put(l || 'No other label', i, l ? 0 : 1);
+		}
+	}
+	// Fixed buckets keep their natural order; milestones and labels go by size (biggest first).
+	const bySize = by === 'label' || by === 'milestone';
+	return order.sort((a, b) => (a.rank - b.rank) || (bySize ? groups.get(b.name).length - groups.get(a.name).length : 0)).map(o => ({ name: o.name, items: groups.get(o.name) }));
+}
+
+function findListHtml(items, row) {
+	const groups = groupFindItems(items, ui.findGroupBy);
+	if (!groups) return `<ul class="find-list">${items.map(row).join('')}</ul>`;
+	const folded = ui.findFolded ??= new Set();
+	return groups.map(g => {
+		const id = `${ui.findGroupBy}:${g.name}`;
+		const open = !folded.has(id);
+		return `<section class="find-group"><button type="button" class="find-group-h" data-find-fold="${esc(id)}" aria-expanded="${open}"><i class="codicon codicon-chevron-right" aria-hidden="true"></i>${esc(g.name)}<span class="group-n">${g.items.length}</span></button>${open ? `<ul class="find-list">${g.items.map(row).join('')}</ul>` : ''}</section>`;
+	}).join('');
+}
 function renderFindWorkInto(el) {
 	restoreBrowse();
 	const src = findSource();
@@ -2009,6 +2053,7 @@ function renderFindWorkInto(el) {
 			<div class="find-tools">
 				<div class="seg" role="group" aria-label="Source">${pills}</div>${areaSel}
 				<span class="find-tools-end">
+					<label class="sr-only" for="find-group">Group by</label><select id="find-group" class="find-area" title="Group the results">${GROUP_BY.map(([id, label]) => `<option value="${id}"${(ui.findGroupBy || '') === id ? ' selected' : ''}>${esc(id ? `Group: ${label}` : label)}</option>`).join('')}</select>
 					<button type="button" class="btn sm icon${ui.find?.loading ? ' busy' : ''}" data-find-refresh title="Run this search again on GitHub" aria-label="Refresh results"><i class="codicon codicon-refresh${ui.find?.loading ? ' spin' : ''}" aria-hidden="true"></i></button>
 					<button type="button" class="btn sm icon${ui.findHistoryOpen ? ' on' : ''}" data-find-history aria-expanded="${!!ui.findHistoryOpen}" title="Recent filters" aria-label="Recent filters"><i class="codicon codicon-history" aria-hidden="true"></i></button>
 				</span>
@@ -2016,7 +2061,7 @@ function renderFindWorkInto(el) {
 			</div>
 			${ui.findHistoryOpen ? browseHistoryHtml() : ''}${queryBar}${asking}
 			${ui.find?.error ? `<p class="cd" style="color:var(--bad)">${esc(ui.find.error)}</p>` : ui.find?.loading && !items.length ? '<p class="cd"><i class="codicon codicon-loading spin" aria-hidden="true"></i> Searching GitHub…</p>'
-				: `<p class="find-count">${items.length}${items.length >= 100 ? '+' : ''} ${src === 'reviews' ? (items.length === 1 ? 'pull request' : 'pull requests') : (items.length === 1 ? 'issue' : 'issues')}${filter ? ' matching' : ''} · ${items.filter(i => inMyWork(i.key)).length} already in My Work</p><ul class="find-list">${items.map(row).join('')}</ul>`}
+				: `<p class="find-count">${items.length}${items.length >= 100 ? '+' : ''} ${src === 'reviews' ? (items.length === 1 ? 'pull request' : 'pull requests') : (items.length === 1 ? 'issue' : 'issues')}${filter ? ' matching' : ''} · ${items.filter(i => inMyWork(i.key)).length} already in My Work</p>${findListHtml(items, row)}`}
 		</div>`;
 
 }
@@ -2383,7 +2428,7 @@ function switchTab(tab) {
 	if (reopen) select(reopen.kind, reopen.id).then(() => renderAreaBar());
 }
 function saveBrowse() {
-	const browse = { source: findSource(), area: ui.findArea || '', refine: ui.findRefine || null };
+	const browse = { source: findSource(), area: ui.findArea || '', refine: ui.findRefine || null, groupBy: ui.findGroupBy || '' };
 	const patch = { browse };
 	// Every filter you apply is kept (most recent first, no duplicates) so you can run it again.
 	if (browse.refine) {
@@ -2410,6 +2455,7 @@ function restoreBrowse() {
 	ui.browseRestored = true;
 	ui.findSource = b.source || 'bugs';
 	ui.findArea = b.area || '';
+	ui.findGroupBy = b.groupBy || '';
 	ui.findRefine = b.refine?.query ? b.refine : null;
 	ui.findFilter = ui.findRefine ? (ui.findRefine.text || ui.findRefine.query) : '';
 }
@@ -2854,6 +2900,8 @@ $('detail').addEventListener('click', e => {
 	const p = e.target.closest('[data-find-src]');
 	if (p) { ui.findSource = p.dataset.findSrc; saveBrowse(); renderDetail(false, true); document.querySelector(`[data-find-src="${p.dataset.findSrc}"]`)?.focus(); return; }
 	if (e.target.closest('[data-find-refresh]')) { loadFindWork(true); return; }
+	const fold = e.target.closest('[data-find-fold]');
+	if (fold) { const set = ui.findFolded ??= new Set(); const id = fold.dataset.findFold; if (set.has(id)) set.delete(id); else set.add(id); renderDetail(false, true); return; }
 	if (e.target.closest('[data-find-history]')) { ui.findHistoryOpen = !ui.findHistoryOpen; renderDetail(false, true); return; }
 	if (e.target.closest('[data-find-history-clear]')) { ui.state.settings.browseHistory = []; api('/api/settings', { browseHistory: [] }).catch(() => { }); ui.findHistoryOpen = false; renderDetail(false, true); return; }
 	const run = e.target.closest('[data-find-history-run]');
@@ -2880,6 +2928,7 @@ $('detail').addEventListener('keydown', e => {
 	} else applyFindFilter(text.slice(0, 300));
 });
 $('detail').addEventListener('change', e => {
+	if (e.target.id === 'find-group') { ui.findGroupBy = e.target.value; saveBrowse(); renderDetail(false, true); document.getElementById('find-group')?.focus(); return; }
 	if (e.target.id === 'find-area') { ui.findArea = e.target.value; saveBrowse(); renderDetail(false, true); document.getElementById('find-area')?.focus(); }
 });
 // The filter applies on Enter; clearing the search box (its × button) removes it.

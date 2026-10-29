@@ -163,7 +163,7 @@ export async function workSource(source, { labels = [], refine = '', fresh = fal
 	const hit = sourceCache.get(q);
 	if (hit && !fresh && Date.now() - hit.at < 2 * 60 * 1000) return hit.items;
 	const out = await gh(['api', '-X', 'GET', 'search/issues', '-f', `q=${q}`, '-f', 'sort=updated', '-f', 'per_page=100', '--jq',
-		'[.items[] | {key: ((.repository_url | sub("https://api.github.com/repos/"; "")) + "#" + (.number|tostring)), title, url: .html_url, updatedAt: .updated_at, labels: [.labels[].name], isPr: (.pull_request != null), milestone: .milestone.title, author: .user.login}]']);
+		'[.items[] | {key: ((.repository_url | sub("https://api.github.com/repos/"; "")) + "#" + (.number|tostring)), title, url: .html_url, updatedAt: .updated_at, labels: [.labels[].name], isPr: (.pull_request != null), milestone: .milestone.title, author: .user.login, authorType: .user.type, association: .author_association, createdAt: .created_at, comments: .comments, thumbsUp: (.reactions["+1"] // 0)}]']);
 	const items = JSON.parse(out);
 	sourceCache.set(q, { at: Date.now(), items });
 	return items;

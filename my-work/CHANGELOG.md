@@ -2,6 +2,7 @@
 
 ## 1.0.7 (2026-10-28)
 
+- Browse issues & PRs: **Group by** reporter (team / community / bots), milestone, age, interest (👍 and comments) or label. Groups collapse, and the choice is remembered. Grouping uses the search results, so it costs no extra GitHub calls.
 - Browse issues & PRs: the feature-area picker sits next to the sources and narrows Bugs, Features or All (for example only the bugs in Agents Window). The separate Area source is gone; saved views and history that used it open as All with that area.
 - Messages forwarded to an issue's chat or the My Work chat are checked after sending: the Agents window can drop a message to a nested chat it lost track of while reporting success. If it didn't arrive, the panel says so. A late reply now offers **Resend** (same chat, keeps the conversation) next to **Resend in a new chat**.
 - Recommended next suggests **Reproduce** for open bugs whose report has steps: the issue's own chat tries the steps on the latest code (no code or GitHub changes) and reports back in the conversation whether it reproduces, with evidence and a suggested next step.
