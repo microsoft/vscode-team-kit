@@ -2237,6 +2237,9 @@ function renderFindWorkInto(el) {
 	el.innerHTML = `<div class="detail-head">${titleBarHtml({ title: 'Browse issues & PRs', meta: `<div class="meta"><span class="cd" title="Type a filter and press Enter: GitHub syntax or plain words. Click a row to open it here, drag it into a group on the left, or use its buttons. Added locally: GitHub milestones stay unchanged.">Live from GitHub, org:microsoft, newest first. Drag a row into a group on the left to plan it.</span></div>` })}</div>
 		<div class="detail-body find-view">
 			<div class="find-tools">
+				<div class="find-tabs">
+					<div class="tabs" role="group" aria-label="Source">${pills}</div>${areaSel}
+				</div>
 				<div class="find-search">
 					<i class="codicon codicon-search" aria-hidden="true"></i><label class="sr-only" for="find-filter">Filter, press Enter to apply</label><input id="find-filter" type="search" placeholder="Filter, press Enter to apply (e.g. created by ${esc(ui.state.me || 'octocat')})" value="${esc(ui.findFilter || '')}">
 					<span class="actionbar find-acts" role="toolbar" aria-label="Search actions">
@@ -2244,9 +2247,6 @@ function renderFindWorkInto(el) {
 						${actHtml(`data-find-history aria-expanded="${!!ui.findHistoryOpen}"`, 'history', '', 'Recent filters', !!ui.findHistoryOpen)}
 						<button type="button" class="act" data-find-refresh title="Run this search again on GitHub" aria-label="Refresh results"><i class="codicon codicon-refresh${ui.find?.loading ? ' spin' : ''}" aria-hidden="true"></i></button>
 					</span>
-				</div>
-				<div class="find-tabs">
-					<div class="tabs" role="group" aria-label="Source">${pills}</div>${areaSel}
 				</div>
 			</div>
 			${ui.findHistoryOpen ? browseHistoryHtml() : ''}${queryBar}${asking}

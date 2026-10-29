@@ -78,7 +78,7 @@ Code: `com.github.copilot/extensions/my-work/assets/` (`app.js`, `style.css`, `i
   - Don't add rows of pills. A filter that switches on is a toggle action using `--toggle-*`.
 - **Search works like the Settings and Keyboard Shortcuts editors.**
   - One full-width input with its actions inside it on the right: Group by (an icon over an invisible native select), Recent filters, Refresh.
-  - Source tabs (Bugs, Features, All, Reviews) go under the input as VS Code panel tabs with an underline on the active one. A secondary dropdown goes on the right of that row.
+  - Source tabs (Bugs, Features, All, Reviews) go above the input as VS Code panel tabs with an underline on the active one. A secondary dropdown goes on the right of that row.
 - **Buttons:**
   - Give each place one primary button. Everything else is a secondary button or an icon action.
   - A primary action with alternatives is a split button: one joined shape with a `--btn-separator` line, not two separate buttons.

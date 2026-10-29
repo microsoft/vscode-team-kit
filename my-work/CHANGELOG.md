@@ -2,6 +2,7 @@
 
 ## 1.0.8 (2026-10-29)
 
+- Browse shows its Bugs / Features / All / Reviews tabs and the area dropdown above the search box.
 - The filter actions (Route, Auto-dismiss, Safe to dismiss, Re-check) sit right next to the area dropdown; Collapse All and Refresh stay on the right.
 - Fixed: the toolbar actions (Route, Auto-dismiss, Safe to dismiss, Re-check) vanished every 30 seconds and during Refresh, when the bar redrew its "Updated …" time.
 

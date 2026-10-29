@@ -1213,3 +1213,5 @@ body > * { min-width: 0; }
 /* the classify slot keeps its width whether it shows an icon, a count or the spinner */
 .act-slot { display: inline-flex; min-width: 44px; justify-content: flex-start; }
 .act:disabled .act-n { color: var(--faint); }
+/* Browse: tabs on top, search under them */
+.find-view .find-tools { gap: 10px; }
