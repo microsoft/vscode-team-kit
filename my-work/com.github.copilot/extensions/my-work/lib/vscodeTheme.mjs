@@ -95,6 +95,12 @@ function toTokens(data) {
 		'--dropdown-border': first(cm, 'dropdown.border'),
 		'--toolbar-hover': first(cm, 'toolbar.hoverBackground'),
 		'--icon-fg': first(cm, 'icon.foreground'),
+		'--toggle-bg': first(cm, 'inputOption.activeBackground'),
+		'--toggle-fg': first(cm, 'inputOption.activeForeground'),
+		'--toggle-border': first(cm, 'inputOption.activeBorder'),
+		'--tab-active-fg': first(cm, 'panelTitle.activeForeground'),
+		'--tab-active-border': first(cm, 'panelTitle.activeBorder'),
+		'--tab-fg': first(cm, 'panelTitle.inactiveForeground'),
 	});
 	tokens['--accent-soft'] = `color-mix(in srgb, ${tokens['--accent']} ${dark ? 22 : 12}%, ${tokens['--surface']})`;
 	tokens['--shadow'] = hc ? 'none' : dark ? '0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25)' : '0 1px 2px rgba(16,24,40,.04), 0 4px 16px rgba(16,24,40,.06)';

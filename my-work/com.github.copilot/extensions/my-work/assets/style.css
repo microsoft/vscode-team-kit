@@ -1048,3 +1048,38 @@ html[data-density] .list-body { padding: 0 0 8px; }
 .row-act:has(.row[aria-current="true"]) .row-quick { background: linear-gradient(var(--sel-bg, var(--accent-soft)), var(--sel-bg, var(--accent-soft))), var(--surface); }
 .list-body:focus-within .row-act:has(.row[aria-current="true"]) .row-quick { background: linear-gradient(var(--sel-active-bg, var(--accent-soft)), var(--sel-active-bg, var(--accent-soft))), var(--surface); }
 .list-refresh { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- VS Code action bars: icon buttons with an optional count, label in the tooltip ---------- */
+.codicon-group-by-ref-type::before { content: "\eb97"; }
+.codicon-clear-all::before { content: "\eabf"; }
+.actionbar { display: inline-flex; align-items: center; gap: 2px; flex: none; }
+.actionbar:empty { display: none; }
+.act { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 3px; height: 22px; min-width: 22px; padding: 0 3px; border: 0; border-radius: 5px; background: transparent; color: var(--icon-fg, var(--fg)); font: inherit; font-size: 11px; cursor: pointer; }
+.act:hover { background: var(--toolbar-hover, var(--hover)); }
+.act[aria-pressed="true"], .act.on { background: var(--toggle-bg, var(--accent-soft)); color: var(--toggle-fg, var(--fg)); box-shadow: inset 0 0 0 1px var(--toggle-border, var(--focus, var(--accent))); }
+.act .codicon { font-size: 16px; margin: 0; vertical-align: 0; }
+.act-n { color: var(--fg); font-variant-numeric: tabular-nums; }
+.act.busy { cursor: default; }
+.act.busy .act-n { color: var(--muted); }
+.act:disabled { opacity: .5; cursor: default; }
+.act.list-refresh { padding: 0 3px; min-width: 22px; overflow: visible; }
+.select-act select { position: absolute; inset: 0; width: 100%; opacity: 0; cursor: pointer; }
+.areabar { gap: 4px; }
+
+/* ---------- Browse: VS Code search box with inline actions, tabs underneath (Settings editor style) ---------- */
+.find-view .find-tools { display: flex; flex-direction: column; align-items: stretch; gap: 8px; margin-bottom: 8px; }
+.find-view .find-search { flex: none; height: 28px; padding: 0 2px 0 8px; gap: 6px; background: var(--input-bg, var(--surface)); border: 1px solid var(--input-border, var(--line)); border-radius: 4px; }
+.find-view .find-search:focus-within { border-color: var(--focus, var(--accent)); background: var(--input-bg, var(--surface)); }
+.find-view .find-search > .codicon { color: var(--icon-fg, var(--faint)); font-size: 16px; }
+.find-view .find-search input { color: var(--input-fg, var(--fg)); font-size: 13px; padding: 0; height: 100%; }
+.find-view .find-search input::-webkit-search-cancel-button { display: none; }
+.find-tabs { display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--line); }
+.find-tabs .tabs { display: flex; }
+.find-tabs .seg-btn { display: inline-flex; align-items: center; gap: 5px; border: 0; border-bottom: 1px solid transparent; border-radius: 0; background: none; box-shadow: none; padding: 4px 10px 5px; margin-bottom: -1px; font: inherit; font-size: 11px; text-transform: uppercase; color: var(--tab-fg, var(--muted)); cursor: pointer; }
+.find-tabs .seg-btn .codicon { font-size: 14px; }
+.find-tabs .seg-btn:hover { color: var(--tab-active-fg, var(--fg)); }
+.find-tabs .seg-btn.on { color: var(--tab-active-fg, var(--fg)); border-bottom-color: var(--tab-active-border, var(--accent)); }
+.find-tabs .find-area { margin-left: auto; margin-bottom: 3px; padding: 2px 6px; font-size: 12px; background: var(--dropdown-bg, var(--surface)); color: var(--fg); border: 1px solid var(--dropdown-border, var(--line)); border-radius: 4px; }
+.areabar { flex-wrap: nowrap; }
+.areabar .area-pick { flex: 0 1 auto; min-width: 60px; }
+.areabar .area-pick select { min-width: 0; width: 100%; text-overflow: ellipsis; }

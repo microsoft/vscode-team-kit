@@ -9,6 +9,10 @@
   - Simpler toolbars: Today drops its section pills (the bands are the sections) and the Re-check buttons are icon-only.
 - **Layout like VS Code:** the list and details panes follow VS Code's Layout Density (`window.density.layout`, View > Appearance > Layout Density). Default shows them as cards with a small gap; Compact joins them with a single border. The Density setting now offers VS Code (the default), Default and Compact.
 - **Resizable panes:** drag the sash between the list and details to resize them, or use the arrow keys on it. Double-click resets the size, and the panel remembers it.
+- **VS Code toolbars:**
+  - Each view has one toolbar row: the area picker, then an icon action bar with counts (Route, Auto-dismiss, Safe to dismiss, Re-check rules), then Refresh. Labels and "Updated …" are in the tooltips. Toggled filters use VS Code's `inputOption.active*` colours.
+  - Browse works like the Settings editor: a search box with Group by, Recent filters and Refresh inside it, and Bugs / Features / All / Reviews tabs underneath next to the area picker.
+- Notification rows drop the description line and show just the title, the issue number and the age. The reason is in the tooltip and the details.
 - **VS Code look:** the panel uses VS Code's own theme colours and shapes.
   - Bands are VS Code view pane headers: `sideBarSectionHeader.*` colours, 22px tall and uppercase, with `badge.*` count badges.
   - Rows are square list rows with `list.hoverBackground` and `list.*SelectionBackground`.

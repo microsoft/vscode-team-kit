@@ -351,12 +351,23 @@ function areaCounts() {
 	else st.implement.items.filter(m => !m.handled).forEach(m => add(areaOfIssue(m)));
 	return counts;
 }
+// VS Code-style action bar buttons: an icon, an optional count, the label in the tooltip.
+function actHtml(attrs, icon, n, title, pressed) {
+	return `<button type="button" class="act" ${attrs}${pressed === undefined ? '' : ` aria-pressed="${!!pressed}"`} title="${esc(title)}" aria-label="${esc(title)}"><i class="codicon codicon-${icon}" aria-hidden="true"></i>${n === undefined || n === '' ? '' : `<span class="act-n">${esc(String(n))}</span>`}</button>`;
+}
+function busyActHtml(text, progress) {
+	return `<span class="act busy" role="status" title="${esc(text)}" aria-label="${esc(text)}"><i class="codicon codicon-loading spin" aria-hidden="true"></i><span class="act-n">${esc(progress)}</span></span>`;
+}
+function refreshActHtml(busy, updated, title) {
+	const tip = busy ? 'Refreshing…' : `${updated ? `${updated} · ` : ''}${title}`;
+	return `<button type="button" class="act list-refresh" data-list-refresh title="${esc(tip)}" aria-label="${esc(tip)}"><i class="codicon codicon-refresh${busy ? ' spin' : ''}" aria-hidden="true"></i></button>`;
+}
 function renderAreaBar() {
 	if (ui.tab === 'work') {
 		const src = ui.work;
 		const at = src?.data?.fetchedAt;
 		$('areabar').innerHTML = `${`<button type="button" class="btn sm${['worksrc', 'browseitem'].includes(ui.selected?.kind) ? ' on' : ''}" data-find-work aria-pressed="${['worksrc', 'browseitem'].includes(ui.selected?.kind)}" aria-controls="detail" title="Browse your bugs, feature requests, feature-area issues and PRs awaiting your review; drag them into a group or use the + buttons"><i class="codicon codicon-search" aria-hidden="true"></i>Browse issues &amp; PRs</button>`}<button type="button" class="btn sm" data-section-new title="Create your own section, e.g. for security cases or escalations"><i class="codicon codicon-add" aria-hidden="true"></i>Section</button><span class="subtabs-spacer"></span>${`
-			<button type="button" class="link-btn list-refresh" data-list-refresh><i class="codicon codicon-refresh${ui.refreshing || src?.loading ? ' spin' : ''}" aria-hidden="true"></i>${ui.refreshing || src?.loading ? 'Refreshing…' : at ? `Updated ${esc(agoText(at))}` : 'Refresh'}</button>`}`;
+			${refreshActHtml(ui.refreshing || src?.loading, at ? `Updated ${agoText(at)}` : '', 'Refresh')}`}`;
 		return;
 	}
 	const f = areaFilter();
@@ -375,7 +386,8 @@ function renderAreaBar() {
 		<select id="area-filter" aria-label="Filter by feature area"><option value="">All areas (${total})</option>${opts}</select></label>
 		${f ? `<button type="button" class="link-btn" id="area-clear" title="Show all areas">Clear</button><span class="cd area-note">all batches</span>` : ''}
 		<span class="subtabs-spacer"></span>
-		<button type="button" class="link-btn list-refresh" data-list-refresh title="${ui.tab === 'notifications' ? 'Fetch notifications from GitHub now' : 'Reload the index, notifications and live data'}"><i class="codicon codicon-refresh${ui.refreshing ? ' spin' : ''}" aria-hidden="true"></i>${ui.refreshing ? 'Refreshing…' : ui.tab === 'notifications' && ui.state.notificationsFetchedAt ? `Updated ${esc(agoText(ui.state.notificationsFetchedAt))}` : 'Refresh'}</button>`;
+		<span class="actionbar" id="area-acts" role="toolbar" aria-label="Actions"></span>
+		${refreshActHtml(ui.refreshing, ui.tab === 'notifications' && ui.state.notificationsFetchedAt ? `Updated ${agoText(ui.state.notificationsFetchedAt)}` : '', ui.tab === 'notifications' ? 'Fetch notifications from GitHub now' : 'Reload the index, notifications and live data')}`;
 }
 async function setAreaFilter(value) {
 	ui.state.settings.areaFilter = value;
@@ -442,17 +454,18 @@ function renderSubtabs() {
 		const p = st.notifTriagePending;
 		const busy = p && !p.stalled;
 		const classify = busy
-			? `<span class="pill classify busy" role="status"><i class="codicon codicon-loading" aria-hidden="true"></i>${p.recompute ? 'Re-checking' : 'Classifying'} ${p.total - p.left}/${p.total}</span>`
-			: `${st.untriaged ? `<button type="button" class="pill classify" data-classify="new" title="Ask the chat to classify the ${st.untriaged} notifications that are new or changed since they were classified">Classify ${st.untriaged} new</button>` : ''}<button type="button" class="pill classify icon" data-classify="recompute" aria-label="Re-check classification" title="Re-check: ask the chat to re-check what is not yet in Auto-dismiss / Safe to dismiss / Route, and move everything that doesn't need you into them${p?.stalled ? ' (last request stalled)' : ''}"><i class="codicon codicon-refresh" aria-hidden="true"></i><span class="sr-only">Re-check</span></button>`;
-		$('subtabs').innerHTML = [
-			show('route', route) ? `<button type="button" class="pill bulk" data-bulk="route" aria-pressed="${ui.notifFilter === 'route'}"><i class="codicon codicon-person" aria-hidden="true"></i>Route ${route}</button>` : '',
-			`<button type="button" class="pill bulk" data-bulk="auto" aria-pressed="${ui.notifFilter === 'auto'}"><i class="codicon codicon-check-all" aria-hidden="true"></i>Auto-dismiss ${auto}</button>`,
-			`<button type="button" class="pill bulk" data-bulk="dismiss" aria-pressed="${ui.notifFilter === 'dismiss'}">Safe to dismiss ${safe}</button>`,
+			? busyActHtml(`${p.recompute ? 'Re-checking' : 'Classifying'} ${p.total - p.left} of ${p.total}`, `${p.total - p.left}/${p.total}`)
+			: `${st.untriaged ? actHtml('data-classify="new"', 'sparkle', st.untriaged, `Classify ${st.untriaged} new: ask the chat to classify the notifications that are new or changed since they were classified`) : ''}${actHtml('data-classify="recompute"', 'law', '', `Re-check: ask the chat to re-check what is not yet in Auto-dismiss / Safe to dismiss / Route, and move everything that doesn't need you into them${p?.stalled ? ' (last request stalled)' : ''}`)}`;
+		$('subtabs').innerHTML = '';
+		($('area-acts') || $('subtabs')).innerHTML = [
+			show('route', route) ? actHtml('data-bulk="route"', 'person', route, `Route: ${route} that belong to other owners`, ui.notifFilter === 'route') : '',
+			show('auto', auto) ? actHtml('data-bulk="auto"', 'check-all', auto, `Auto-dismiss: ${auto} your rules dismiss`, ui.notifFilter === 'auto') : '',
+			show('dismiss', safe) ? actHtml('data-bulk="dismiss"', 'clear-all', safe, `Safe to dismiss: ${safe}`, ui.notifFilter === 'dismiss') : '',
 			...notifGroups().filter(g => g.custom && g.bulk !== 'none').map(g => {
 				const count = bulkItems(g.id).length;
-				return show(g.id, count) ? `<button type="button" class="pill bulk custom" data-bulk="${esc(g.id)}" aria-pressed="${ui.notifFilter === g.id}" title="${esc(g.criteria)}"><i class="codicon codicon-tag" aria-hidden="true"></i>${esc(g.label)} ${count}</button>` : '';
+				return show(g.id, count) ? actHtml(`data-bulk="${esc(g.id)}"`, 'tag', count, `${g.label}: ${count}${g.criteria ? ` (${g.criteria})` : ''}`, ui.notifFilter === g.id) : '';
 			}),
-			`<span class="subtabs-spacer"></span>${classify}`,
+			classify,
 		].join('');
 		autoClassify();
 		return;
@@ -461,11 +474,10 @@ function renderSubtabs() {
 	const p = st.issueRulesPending;
 	const busy = p && !p.stalled;
 	const rules = busy
-		? `<span class="pill classify busy" role="status"><i class="codicon codicon-loading" aria-hidden="true"></i>Checking your rules ${p.total - p.left}/${p.total}</span>`
-		: `<button type="button" class="pill classify icon" data-rules="recompute" aria-label="Re-check rules" title="Re-check your inbox rules: ask the chat to re-apply routing, close and needs-info rules to the issues shown${p?.stalled ? ' (last request stalled)' : ''}"><i class="codicon codicon-law" aria-hidden="true"></i><span class="sr-only">Re-check rules</span></button>`;
-	$('subtabs').innerHTML = opts.map(([id, label]) => `<button type="button" class="pill" data-sub="${esc(id)}" aria-pressed="${!ui.routeFilter && ui.sub[ui.tab] === id}">${esc(label)}</button>`).join('')
-		+ (nRoute || ui.routeFilter ? `<button type="button" class="pill bulk" data-route-filter aria-pressed="${!!ui.routeFilter}" title="Issues your routing rules say belong to someone else"><i class="codicon codicon-person" aria-hidden="true"></i>Route ${nRoute}</button>` : '')
-		+ `<span class="subtabs-spacer"></span>${rules}`;
+		? busyActHtml(`Checking your rules: ${p.total - p.left} of ${p.total}`, `${p.total - p.left}/${p.total}`)
+		: actHtml('data-rules="recompute"', 'law', '', `Re-check your inbox rules: ask the chat to re-apply routing, close and needs-info rules to the issues shown${p?.stalled ? ' (last request stalled)' : ''}`);
+	$('subtabs').innerHTML = opts.map(([id, label]) => `<button type="button" class="pill" data-sub="${esc(id)}" aria-pressed="${!ui.routeFilter && ui.sub[ui.tab] === id}">${esc(label)}</button>`).join('');
+	($('area-acts') || $('subtabs')).innerHTML = (nRoute || ui.routeFilter ? actHtml('data-route-filter', 'person', nRoute, `Route: ${nRoute} issues your routing rules say belong to someone else`, !!ui.routeFilter) : '') + rules;
 	autoRules();
 }
 
@@ -845,11 +857,10 @@ function rowHtml(item) {
 		const checked = item.bulk ? !ui.unchecked?.has(n.id) : ui.picked.has(n.id);
 		const check = handled ? '<span></span>' : `<input type="checkbox" class="row-check" data-id="${esc(n.id)}" aria-label="Select ${esc(n.title)}" ${checked ? 'checked' : ''}>`;
 		const tag = n.triage?.group === 'route' ? `<span class="tag sev">${esc(routeLabel(n.triage))}</span> ` : item.bulk && n.triage?.rule ? `<span class="tag ok">${esc(n.triage.rule)}</span> ` : '';
-		const reason = n.triage?.reason
-			? `<span class="row-reason">${n.issueKey ? sessTag(n.issueKey) : ''}${tag}${esc(n.triage.reason)}</span>`
-			: `<span class="row-meta"><span>${esc(n.repo.replace('microsoft/', ''))}</span><span>${esc(n.reason)}</span><span>${esc(ago(n.updated_at))}</span></span>`;
+		const ref = n.issueKey ? shortKey(n.issueKey) : n.repo.replace('microsoft/', '');
+		const reason = `<span class="row-meta">${n.issueKey ? sessTag(n.issueKey) : ''}${tag}<span>${esc(ref)}</span>${n.triage ? '' : `<span>${esc(n.reason)}</span>`}<span>${esc(ago(n.updated_at))}</span></span>`;
 		const btn = `<button type="button" class="${cls} ${g?.dot || ''}" data-kind="notification" data-id="${esc(n.id)}" aria-current="${!!current}">
-			<span class="row-title" title="${esc(n.title)}">${esc(n.title)}</span>
+			<span class="row-title" title="${esc(n.title)}${n.triage?.reason ? `\n${esc(n.triage.reason)}` : ''}">${esc(n.title)}</span>
 			${reason}
 		</button>`;
 		return `<div class="row-wrap${item.bulk ? '' : ' pick'}">${check}${btn}</div>`;
@@ -2188,16 +2199,20 @@ function renderFindWorkInto(el) {
 				${filter.note ? `<div class="find-query-note cd">${esc(filter.note)}</div>` : ''}
 			</div>` : '';
 	const asking = ui.findAsking ? `<p class="cd find-asking"><i class="codicon codicon-loading spin" aria-hidden="true"></i> Asking the chat to turn “${esc(ui.findAsking)}” into a GitHub search… <button type="button" class="link-btn" data-find-ask-cancel>Cancel</button></p>` : '';
-	el.innerHTML = `<div class="detail-head">${titleBarHtml({ title: 'Browse issues & PRs', meta: `<div class="meta"><span class="cd">Live from GitHub (org:microsoft, newest first). Type a filter and press Enter: GitHub syntax or plain words (e.g. “created by ${esc(ui.state.me || 'octocat')}”). Click a row to open it here, drag it into a group on the left, or use its buttons. Added locally: GitHub milestones stay unchanged.</span></div>` })}</div>
+	el.innerHTML = `<div class="detail-head">${titleBarHtml({ title: 'Browse issues & PRs', meta: `<div class="meta"><span class="cd" title="Type a filter and press Enter: GitHub syntax or plain words. Click a row to open it here, drag it into a group on the left, or use its buttons. Added locally: GitHub milestones stay unchanged.">Live from GitHub, org:microsoft, newest first. Drag a row into a group on the left to plan it.</span></div>` })}</div>
 		<div class="detail-body find-view">
 			<div class="find-tools">
-				<div class="seg" role="group" aria-label="Source">${pills}</div>${areaSel}
-				<span class="find-tools-end">
-					<label class="sr-only" for="find-group">Group by</label><select id="find-group" class="find-area" title="Group the results">${GROUP_BY.map(([id, label]) => `<option value="${id}"${(ui.findGroupBy || '') === id ? ' selected' : ''}>${esc(id ? `Group: ${label}` : label)}</option>`).join('')}</select>
-					<button type="button" class="btn sm icon${ui.find?.loading ? ' busy' : ''}" data-find-refresh title="Run this search again on GitHub" aria-label="Refresh results"><i class="codicon codicon-refresh${ui.find?.loading ? ' spin' : ''}" aria-hidden="true"></i></button>
-					<button type="button" class="btn sm icon${ui.findHistoryOpen ? ' on' : ''}" data-find-history aria-expanded="${!!ui.findHistoryOpen}" title="Recent filters" aria-label="Recent filters"><i class="codicon codicon-history" aria-hidden="true"></i></button>
-				</span>
-				<div class="find-search"><i class="codicon codicon-search" aria-hidden="true"></i><label class="sr-only" for="find-filter">Filter, press Enter to apply</label><input id="find-filter" type="search" placeholder="Filter, press Enter to apply (e.g. created by ${esc(ui.state.me || 'octocat')})" value="${esc(ui.findFilter || '')}"></div>
+				<div class="find-search">
+					<i class="codicon codicon-search" aria-hidden="true"></i><label class="sr-only" for="find-filter">Filter, press Enter to apply</label><input id="find-filter" type="search" placeholder="Filter, press Enter to apply (e.g. created by ${esc(ui.state.me || 'octocat')})" value="${esc(ui.findFilter || '')}">
+					<span class="actionbar find-acts" role="toolbar" aria-label="Search actions">
+						<span class="act select-act${ui.findGroupBy ? ' on' : ''}" title="${esc(`Group by: ${(GROUP_BY.find(([id]) => id === (ui.findGroupBy || '')) || GROUP_BY[0])[1]}`)}"><i class="codicon codicon-group-by-ref-type" aria-hidden="true"></i><select id="find-group" aria-label="Group by">${GROUP_BY.map(([id, label]) => `<option value="${id}"${(ui.findGroupBy || '') === id ? ' selected' : ''}>${esc(label)}</option>`).join('')}</select></span>
+						${actHtml(`data-find-history aria-expanded="${!!ui.findHistoryOpen}"`, 'history', '', 'Recent filters', !!ui.findHistoryOpen)}
+						<button type="button" class="act" data-find-refresh title="Run this search again on GitHub" aria-label="Refresh results"><i class="codicon codicon-refresh${ui.find?.loading ? ' spin' : ''}" aria-hidden="true"></i></button>
+					</span>
+				</div>
+				<div class="find-tabs">
+					<div class="tabs" role="group" aria-label="Source">${pills}</div>${areaSel}
+				</div>
 			</div>
 			${ui.findHistoryOpen ? browseHistoryHtml() : ''}${queryBar}${asking}
 			${ui.find?.error ? `<p class="cd" style="color:var(--bad)">${esc(ui.find.error)}</p>` : ui.find?.loading && !items.length ? '<p class="cd"><i class="codicon codicon-loading spin" aria-hidden="true"></i> Searching GitHub…</p>'
@@ -2651,7 +2666,7 @@ $('areabar').addEventListener('click', e => {
 	}
 	if (e.target.closest('[data-list-refresh]') && !ui.refreshing) refreshNow();
 });
-$('subtabs').addEventListener('click', e => {
+document.querySelector('.list').addEventListener('click', e => {
 	if (e.target.closest('[data-route-filter]')) {
 		ui.routeFilter = !ui.routeFilter;
 		ui.confirmRoute = false;
@@ -2668,7 +2683,7 @@ $('subtabs').addEventListener('click', e => {
 		return;
 	}
 });
-$('subtabs').addEventListener('click', e => {
+document.querySelector('.list').addEventListener('click', e => {
 	const cls = e.target.closest('button[data-classify]');
 	if (cls) {
 		cls.disabled = true;
