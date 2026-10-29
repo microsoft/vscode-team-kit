@@ -918,3 +918,41 @@ html.narrow .title-sub { gap: 8px; }
 /* Tree grid (16px steps): group chevron 16 → stage chevron 32 (under the group title) → row dot 48 (under the stage icon). */
 .stage-h { padding-left: 26px; }
 .stage-body { padding-left: 33px; }
+
+/* ---------- Bands: section headers everywhere (light band, chevron, title, count right, description below) ---------- */
+.band.group-h { display: flex; align-items: center; gap: 6px; margin: 10px 0 0; padding: 0 10px 0 6px; min-height: 30px; background: var(--surface-2); border-radius: 6px; text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 500; color: var(--fg); border-top: 0; }
+.band.group-h:first-child { margin-top: 2px; }
+.band-toggle { display: inline-flex; align-items: center; gap: 6px; flex: 1; min-width: 0; border: 0; background: none; padding: 6px 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.band-toggle .codicon { font-size: 12px; color: var(--muted); transition: transform .12s; }
+.band-toggle[aria-expanded="true"] .codicon { transform: rotate(90deg); }
+.band-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.band-n { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; min-width: 1ch; text-align: right; }
+.band-tools { display: inline-flex; align-items: center; gap: 6px; }
+.band .group-tools { margin-left: 0; }
+.band:hover .group-tools, .band:focus-within .group-tools { opacity: 1; }
+.band .group-clear { margin-left: 0; }
+.band-desc { margin: 4px 10px 6px 24px; font-size: 12px; color: var(--muted); }
+.band + .row-act, .band + .row, .band + .stage-h { margin-top: 4px; }
+
+/* Sub-sections inside a band: quiet row, chevron + icon + label + count pill. */
+.stage-h { font-size: 12px; font-weight: 600; color: var(--fg); padding: 6px 10px 4px 24px; }
+.stage-h .group-n { margin-left: 4px; padding: 0 6px; border-radius: 9px; background: var(--surface-2); color: var(--muted); font-size: 11px; font-weight: 500; line-height: 16px; }
+.stage-body { padding-left: 14px; }
+
+/* ---------- Header: title, meta on the right, summary line, segmented progress bar ---------- */
+.top { align-items: stretch; }
+.brand { flex: 1; min-width: 0; }
+.title-row { display: flex; align-items: baseline; gap: 12px; }
+.top-meta { margin-left: auto; color: var(--faint); font-size: 12px; white-space: nowrap; }
+.top-progress { display: flex; gap: 2px; height: 4px; margin-top: 10px; border-radius: 2px; overflow: hidden; background: var(--surface-2); }
+.top-progress:empty { visibility: hidden; }
+.top-progress span { min-width: 3px; }
+.top-progress .seg-done { background: var(--good, #2da44e); }
+.top-progress .seg-progress { background: var(--accent); }
+.top-progress .seg-attention { background: var(--bad, #cf222e); }
+.top-progress .seg-todo { background: repeating-linear-gradient(-45deg, var(--line) 0 4px, transparent 4px 8px); }
+/* Compact density: title and meta on one line, summary below, then the progress bar. */
+[data-density="compact"] .brand { display: block; }
+[data-density="compact"] .title-row { gap: 8px; }
+[data-density="compact"] .top-meta { font-size: 11px; }
+[data-density="compact"] .top-progress { margin-top: 6px; height: 3px; }

@@ -2,17 +2,17 @@ const TOKEN = document.querySelector('meta[name="triage-token"]').content;
 const $ = id => document.getElementById(id);
 
 const BUILTIN_NOTIF_GROUPS = [
-	{ id: 'action', label: 'Needs you', dot: 'dot-action' },
-	{ id: 'route', label: 'Route', dot: 'dot-warn' },
-	{ id: 'auto', label: 'Auto-dismiss', dot: 'dot-dismiss' },
-	{ id: 'cleanup', label: 'Cleanup offers', dot: 'dot-cleanup' },
-	{ id: 'dismiss', label: 'Safe to dismiss', dot: 'dot-dismiss' },
-	{ id: 'fyi', label: 'FYI', dot: '' },
-	{ id: 'untriaged', label: 'Not triaged yet', dot: '' },
+	{ id: 'action', label: 'Needs you', dot: 'dot-action', desc: 'A reply, review or decision is waiting on you' },
+	{ id: 'route', label: 'Route', dot: 'dot-warn', desc: 'Belongs to another owner: route it with one click' },
+	{ id: 'auto', label: 'Auto-dismiss', dot: 'dot-dismiss', desc: 'Matches one of your auto-dismiss rules' },
+	{ id: 'cleanup', label: 'Cleanup offers', dot: 'dot-cleanup', desc: 'Sweeper proposes closing or asking for info' },
+	{ id: 'dismiss', label: 'Safe to dismiss', dot: 'dot-dismiss', desc: 'Nothing for you to do' },
+	{ id: 'fyi', label: 'FYI', dot: '', desc: 'For your information' },
+	{ id: 'untriaged', label: 'Not triaged yet', dot: '', desc: 'New or changed since the chat last classified them' },
 ];
 // Built-in groups plus the user's persistent custom groups (shown before FYI).
 function notifGroups() {
-	const custom = (ui.state?.customGroups || []).map(g => ({ id: g.id, label: g.label, dot: 'dot-custom', custom: true, bulk: g.bulk, criteria: g.criteria }));
+	const custom = (ui.state?.customGroups || []).map(g => ({ id: g.id, label: g.label, dot: 'dot-custom', custom: true, bulk: g.bulk, criteria: g.criteria, desc: g.criteria }));
 	const i = BUILTIN_NOTIF_GROUPS.findIndex(g => g.id === 'fyi');
 	return [...BUILTIN_NOTIF_GROUPS.slice(0, i), ...custom, ...BUILTIN_NOTIF_GROUPS.slice(i)];
 }
@@ -260,7 +260,7 @@ function listGroups() {
 	const f = areaFilter();
 	if (ui.tab === 'work') {
 		if (!ui.work?.data) return [];
-		const label = m => `${m.title}${m.role === 'current' ? ' · current' : m.role === 'next' ? ' · next' : ''}${m.due ? ` · due ${new Date(m.due).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : ''}`;
+		const label = m => `${m.title}${m.role === 'current' ? ' · Current' : m.role === 'next' ? ' · Next' : ''}${m.due ? ` · due ${new Date(m.due).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : ''}`;
 		const due = x => { const t = Date.parse(x.due || ''); return isNaN(t) ? Infinity : t; };
 		const sections = ui.work.data.sections || [];
 		const sectionIds = new Set(sections.map(x => x.id));
@@ -285,7 +285,7 @@ function listGroups() {
 		};
 		const recent = (ui.work.data.recentSessions || []).filter(z => z.id !== ui.work.data.myWorkChat?.split('/').pop()).slice(0, 10);
 		const collapsed = !!ui.state?.settings?.recentCollapsed;
-		const recentGroup = recent.length ? [{ header: 'Active sessions', role: 'recent', collapsible: true, collapsed, keepEmpty: true, count: recent.length, items: collapsed ? [] : recent.map(z => ({ kind: 'recentsess', id: z.id, z })) }] : [];
+		const recentGroup = recent.length ? [{ header: 'Active sessions', role: 'recent', desc: 'Recently active sessions that are not in My Work', collapsible: true, collapsed, keepEmpty: true, count: recent.length, items: collapsed ? [] : recent.map(z => ({ kind: 'recentsess', id: z.id, z })) }] : [];
 		const folded = new Set(ui.state?.settings?.collapsedGroups || []);
 		// Your own sections first, in the order you arranged them (new items: notes by due date, then issues, then sessions).
 		const sectionGroups = sections.map(x => {
@@ -296,10 +296,11 @@ function listGroups() {
 				.map(i => ({ ...i, secRef: secRefOf(i) }))
 				.map((i, at) => ({ i, at, r: rank.get(i.secRef) ?? Infinity }))
 				.sort((a, b) => (a.r - b.r) || (a.at - b.at)).map(v => v.i);
-			return { header: x.name, role: x.id, section: x, keepEmpty: true, drop: true, toggle: true, collapsed: folded.has(x.id),
+			return { header: x.name, role: x.id, section: x, desc: x.instructions ? 'Your section · sessions follow its instructions' : 'Your section', keepEmpty: true, drop: true, toggle: true, collapsed: folded.has(x.id),
 				items: [...draft.map(n => ({ kind: 'note', id: n.id, n, group: x.id })), ...items] };
 		});
-		return [...sectionGroups, ...ui.work.data.milestones.map(m => ({ header: label(m), role: m.role, keepEmpty: true, drop: true, toggle: true, collapsed: folded.has(m.role),
+		const MS_DESC = { current: 'Your issues in the current milestone, live from GitHub', next: 'Planned for the next milestone', priorities: 'Your own ordered list, kept locally' };
+		return [...sectionGroups, ...ui.work.data.milestones.map(m => ({ header: label(m), role: m.role, desc: MS_DESC[m.role], keepEmpty: true, drop: true, toggle: true, collapsed: folded.has(m.role),
 			items: m.role === 'priorities' ? prioItems(m) : [...m.items.filter(w => !w.state && !inSection.has(w.key)).map(w => ({ kind: 'work', id: w.key, w, milestone: m, group: m.role })), ...issuesIn(m.role), ...sessIn(m.role)],
 			// Issues closed this week in the milestone: folded into one line at the bottom of the group.
 			closed: m.role === 'priorities' ? [] : m.items.filter(w => w.state).map(w => ({ kind: 'work', id: w.key, w, milestone: m, group: m.role })) })), ...recentGroup];
@@ -314,7 +315,7 @@ function listGroups() {
 		const items = f ? st.notifications.filter(n => !n.handled && inArea(areaOfNotif(n), f)) : st.notifications.filter(n => ids.has(n.id));
 		const groups = Object.fromEntries(notifGroups().map(g => [g.id, []]));
 		for (const n of items) groups[groupOf(n)].push(n);
-		return notifGroups().map(g => ({ header: g.label, items: groups[g.id].map(n => ({ kind: 'notification', id: n.id, n })) }));
+		return notifGroups().map(g => ({ header: g.label, role: `n-${g.id}`, desc: g.desc, items: groups[g.id].map(n => ({ kind: 'notification', id: n.id, n })) }));
 	}
 	if (ui.routeFilter && ['queue', 'cleanup', 'implement'].includes(ui.tab)) {
 		return [{ header: null, items: routeItems() }];
@@ -322,7 +323,7 @@ function listGroups() {
 	if (ui.tab === 'queue') {
 		const sub = ui.sub.queue;
 		return st.sections.filter(s => s.items.length && (sub === 'all' || sub === s.id)).map(s => ({
-			header: s.title, items: s.items.filter(i => inArea(areaOfIssue(i), f)).map(i => ({ kind: 'issue', id: i.key, i })),
+			header: s.title.replace(/:.*$/, ''), role: `q-${s.id}`, desc: s.why || s.title.replace(/^[^:]*:\s*/, ''), items: s.items.filter(i => inArea(areaOfIssue(i), f)).map(i => ({ kind: 'issue', id: i.key, i })),
 		}));
 	}
 	if (ui.tab === 'cleanup') {
@@ -334,8 +335,8 @@ function listGroups() {
 	const byKey = new Map(st.implement.items.map(m => [m.key, m]));
 	const items = f ? st.implement.items.filter(m => !m.handled && inArea(areaOfIssue(m), f)) : batchIds('implement').map(k => byKey.get(k)).filter(Boolean);
 	return [
-		{ header: 'Bugs', items: items.filter(m => m.isBug).map(m => ({ kind: 'issue', id: m.key, m })) },
-		{ header: 'Other', items: items.filter(m => !m.isBug).map(m => ({ kind: 'issue', id: m.key, m })) },
+		{ header: 'Bugs', role: 'i-bugs', desc: 'Agent-ready bugs a fix session could take', items: items.filter(m => m.isBug).map(m => ({ kind: 'issue', id: m.key, m })) },
+		{ header: 'Other', role: 'i-other', desc: 'Agent-ready features and tasks', items: items.filter(m => !m.isBug).map(m => ({ kind: 'issue', id: m.key, m })) },
 	];
 }
 
@@ -398,11 +399,9 @@ function render() {
 	if (!st) return;
 	const date = st.queueDate ? new Date(`${st.queueDate}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' }) : '';
 	$('heading').textContent = VIEW_TITLES[ui.tab];
-	$('subtitle').textContent = `${date ? `${date} · ` : ''}${VIEW_HINTS[ui.tab]} · ${st.hasIndex === false ? 'no issue index yet' : `index ${ago(st.refreshedAt)} old`}${st.notificationsError ? ` · notifications error: ${st.notificationsError}` : ''}`;
-	$('chip-unread').textContent = st.notifications.filter(n => !n.handled).length;
-	$('chip-notif-done').textContent = st.today.notificationsHandled;
-	$('chip-issues-done').textContent = st.today.issuesHandled;
-	$('chip-sessions').textContent = st.today.sessionsStarted;
+	$('heading').title = VIEW_HINTS[ui.tab];
+	$('top-meta').textContent = `${date}${date ? ' · ' : ''}${st.hasIndex === false ? 'no issue index yet' : `index updated ${ago(st.refreshedAt)} ago`}`;
+	$('subtitle').textContent = `${VIEW_HINTS[ui.tab]}${st.notificationsError ? ` · notifications error: ${st.notificationsError}` : ''}`;
 	$('count-notifications').textContent = st.notifications.filter(n => !n.handled).length;
 	$('count-queue').textContent = st.sections.reduce((a, s) => a + s.items.filter(i => !i.handled).length, 0);
 	$('count-cleanup').textContent = Object.values(st.cleanup).reduce((a, g) => a + g.items.filter(i => !i.handled).length, 0);
@@ -889,25 +888,77 @@ function rowHtml(item) {
 // Finished items leave their group and collect in one collapsed "Done" section at the bottom
 // (the open item stays in place until you move on, and bulk runs keep their rows for progress).
 const keepInPlace = i => (ui.selected && i.kind === ui.selected.kind && i.id === ui.selected.id) || ui.bulkRun?.ids.includes(i.id);
+// Section bands (all tabs): chevron, title, count on the right, a one-line description; every band collapses.
+function groupHeadHtml(g) {
+	const count = g.collapsible ? g.count : g.items.filter(i => !isHandled(i) && !clearableDone(i) && !i.w?.state).length;
+	const tools = `${g.items.some(clearableDone) ? `<button type="button" class="link-btn group-clear" data-clear-done="${esc(g.role)}" title="Remove the finished items in this group from My Work">Clear done</button>` : ''}${g.section ? `<span class="group-tools"><button type="button" class="row-pin" data-note-new="${esc(g.role)}" title="Add a note to ${esc(g.header)}" aria-label="Add a note to ${esc(g.header)}"><i class="codicon codicon-add" aria-hidden="true"></i></button><button type="button" class="row-pin" data-section-edit="${esc(g.role)}" title="Edit section" aria-label="Edit section ${esc(g.header)}"><i class="codicon codicon-gear" aria-hidden="true"></i></button></span>` : ''}`;
+	const toggle = g.role === 'handled' ? 'data-done-toggle' : `data-group-toggle="${esc(g.role)}"`;
+	return `<div class="band group-h"${g.drop ? ` data-drop-group="${esc(g.role)}"` : ''}>
+		<button type="button" class="band-toggle" ${toggle} aria-expanded="${!g.collapsed}"><i class="codicon codicon-chevron-right" aria-hidden="true"></i><span class="band-title">${esc(g.header)}</span></button>
+		${tools ? `<span class="band-tools">${tools}</span>` : ''}<span class="band-n">${count || ''}</span>
+	</div>${g.desc ? `<p class="band-desc">${esc(g.desc.charAt(0).toUpperCase() + g.desc.slice(1))}</p>` : ''}`;
+}
+function emptyGroupHtml(g) {
+	return g.role === 'priorities' ? '<div class="cd empty-group" data-drop-group="priorities">Your own ordered list, kept locally (milestones on GitHub are untouched). Paste <b>#123</b> or an issue link into the chat below, or use <b>Add to my priorities</b> on any issue.</div>'
+		: g.section ? `<div class="cd empty-group" data-drop-group="${esc(g.role)}">Empty. Add a note with <b>+</b>${g.section.linkPattern ? ', paste a matching link into the chat box below' : ''}, or drag issues and sessions here.</div>`
+			: `<div class="cd empty-group"${g.drop ? ` data-drop-group="${esc(g.role)}"` : ''}>Nothing planned yet. Use <b>Plan for…</b> on an issue or drop a session here.</div>`;
+}
 function renderList() {
 	ui.foldedIssues = new Map(); // session id -> issue keys it stands for (same work)
 	ui.foldedDone = new Set(); // sessions whose issues are all closed
-	const all = listGroups().map(foldIssues).filter(g => g.items.length || g.keepEmpty);
+	const folded = new Set(ui.state?.settings?.collapsedGroups || []);
+	const all = listGroups().map(foldIssues).map(g => (g.header && g.role && g.collapsed === undefined ? { ...g, collapsed: folded.has(g.role) } : g)).filter(g => g.items.length || g.keepEmpty);
 	const done = all.flatMap(g => g.items.filter(i => isHandled(i) && !keepInPlace(i)));
 	const doneSet = new Set(done);
 	const groups = all.map(g => ({ ...g, items: g.items.filter(i => !doneSet.has(i)) })).filter(g => g.items.length || g.keepEmpty);
 	$('list').classList.toggle('picking', ui.picked.size > 0 || !!ui.notifFilter);
-	const doneHtml = done.length
-		? `<button type="button" class="group-h done-toggle" data-done-toggle aria-expanded="${!!ui.showDone}"><i class="codicon codicon-chevron-right" aria-hidden="true"></i>Done<span class="group-n">${done.length}</span></button>${ui.showDone ? done.map(rowHtml).join('') : ''}`
-		: '';
+	const doneHtml = done.length ? `${groupHeadHtml({ header: 'Done', role: 'handled', desc: 'Handled in this batch', collapsible: true, count: done.length, collapsed: !ui.showDone, items: [] })}${ui.showDone ? done.map(rowHtml).join('') : ''}` : '';
+	renderSummary(all, done);
 	$('list').innerHTML = groups.length || done.length
-		? groups.map(g => `${g.collapsible ? `<button type="button" class="group-h done-toggle" data-group-toggle="${esc(g.role)}" aria-expanded="${!g.collapsed}"><i class="codicon codicon-chevron-right" aria-hidden="true"></i>${esc(g.header)}<span class="group-n">${g.count}</span></button>` : g.header ? `<div class="group-h${g.toggle ? ' can-toggle' : ''}"${g.drop ? ` data-drop-group="${esc(g.role)}"` : ''}>${g.toggle ? `<button type="button" class="group-toggle" data-group-toggle="${esc(g.role)}" aria-expanded="${!g.collapsed}"><i class="codicon codicon-chevron-right" aria-hidden="true"></i>${esc(g.header)}</button>` : esc(g.header)}<span class="group-n">${g.items.filter(i => !isHandled(i) && !clearableDone(i) && !i.w?.state).length || ''}</span>${g.items.some(clearableDone) ? `<button type="button" class="link-btn group-clear" data-clear-done="${esc(g.role)}" title="Remove the finished items in this group from My Work">Clear done</button>` : ''}${g.section ? `<span class="group-tools"><button type="button" class="row-pin" data-note-new="${esc(g.role)}" title="Add a note to ${esc(g.header)}" aria-label="Add a note to ${esc(g.header)}"><i class="codicon codicon-add" aria-hidden="true"></i></button><button type="button" class="row-pin" data-section-edit="${esc(g.role)}" title="Edit section" aria-label="Edit section ${esc(g.header)}"><i class="codicon codicon-gear" aria-hidden="true"></i></button></span>` : ''}</div>` : ''}${g.collapsed ? '' : g.items.length ? groupItemsHtml(g) : g.role === 'priorities' ? '<div class="cd empty-group" data-drop-group="priorities">Your own ordered list, kept locally (milestones on GitHub are untouched). Paste <b>#123</b> or an issue link into the chat below, or use <b>Add to my priorities</b> on any issue.</div>' : g.section ? `<div class="cd empty-group" data-drop-group="${esc(g.role)}">Empty. Add a note with <b>+</b>${g.section.linkPattern ? ', paste a matching link into the chat box below' : ''}, or drag issues and sessions here.</div>` : `<div class="cd empty-group"${g.drop ? ` data-drop-group="${esc(g.role)}"` : ''}>Nothing planned yet. Use <b>Plan for…</b> on an issue or drop a session here.</div>`}`).join('')
+		? groups.map(g => `${g.header ? groupHeadHtml(g) : ''}${g.collapsed ? '' : g.items.length ? groupItemsHtml(g) : g.keepEmpty ? emptyGroupHtml(g) : ''}`).join('')
 			+ (groups.length ? '' : '<div class="empty"><i class="codicon codicon-check-all" aria-hidden="true"></i>All done in this batch</div>') + doneHtml
 		: ui.state?.indexing?.state === 'running' && ['queue', 'cleanup', 'implement'].includes(ui.tab) && (ui.state.indexing.firstRun || !ui.state.hasIndex)
 			? '<div class="empty cd">My Work and Notifications already work while the index is built.</div>'
 		: ui.state && !ui.state.hasIndex && ['queue', 'cleanup', 'implement'].includes(ui.tab)
 			? '<div class="empty"><i class="codicon codicon-info" aria-hidden="true"></i><b>No issue index yet</b><br>This view is built from your local issue index. Ask the chat to <i>set up My Work</i> (my-work-setup skill) to build it; My Work and Notifications work without it.</div>'
 			: '<div class="empty"><i class="codicon codicon-check-all" aria-hidden="true"></i>Nothing here</div>';
+}
+// The header's summary line and segmented progress bar, for the view in front of you.
+function renderSummary(groups, handled) {
+	const st = ui.state;
+	if (!st) return;
+	const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
+	let parts = [], segs = [];
+	if (ui.tab === 'work') {
+		const cur = ui.work?.data?.milestones?.find(m => m.role === 'current');
+		const g = groups.find(x => x.role === 'current');
+		if (cur && g) {
+			const by = { progress: 0, todo: 0, done: (g.closed || []).length };
+			for (const i of g.items) by[workStage(i)]++;
+			const total = by.progress + by.todo + by.done;
+			const days = cur.due ? Math.ceil((Date.parse(cur.due) - Date.now()) / 864e5) : null;
+			parts = [cur.title, `${by.done} of ${total} done`, `${pct(by.done, total)}%`, `${by.progress} in progress`, `${by.todo} to do`, ...(days !== null ? [days >= 0 ? `due in ${days} day${days === 1 ? '' : 's'}` : `${-days} days overdue`] : [])];
+			segs = [['done', by.done], ['progress', by.progress], ['todo', by.todo]];
+		}
+	} else if (ui.tab === 'notifications') {
+		const unread = st.notifications.filter(n => !n.handled);
+		const needs = unread.filter(n => groupOf(n) === 'action').length;
+		const doneToday = st.today.notificationsHandled;
+		parts = [`${unread.length} unread`, `${needs} need you`, `${doneToday} done today`];
+		segs = [['done', doneToday], ['attention', needs], ['todo', unread.length - needs]];
+	} else {
+		const items = ui.tab === 'queue' ? st.sections.flatMap(x => x.items) : ui.tab === 'cleanup' ? Object.values(st.cleanup).flatMap(x => x.items) : st.implement.items;
+		const keys = new Map(items.map(i => [i.key, i]));
+		const handledN = [...keys.values()].filter(i => i.handled).length;
+		const total = keys.size;
+		const noun = { queue: 'issues', cleanup: 'proposals', implement: 'agent-ready issues' }[ui.tab];
+		parts = [`${handledN} of ${total} ${noun} handled`, `${pct(handledN, total)}%`, ...(ui.tab === 'implement' ? [`${st.implement.bugs} bugs`] : []), `${st.today.sessionsStarted} session${st.today.sessionsStarted === 1 ? '' : 's'} started today`];
+		segs = [['done', handledN], ['todo', total - handledN]];
+	}
+	$('subtitle').textContent = `${parts.join(' · ') || VIEW_HINTS[ui.tab]}${st.notificationsError ? ` · notifications error: ${st.notificationsError}` : ''}`;
+	const total = segs.reduce((a, [, n]) => a + n, 0);
+	$('top-progress').innerHTML = total ? segs.filter(([, n]) => n > 0).map(([k, n]) => `<span class="seg-${k}" style="flex-grow:${n}"></span>`).join('') : '';
+	$('top-progress').setAttribute('aria-label', parts.join(', '));
 }
 
 // Density: compact spacing on small panels (or always/never), and a one-pane layout when narrow,
