@@ -203,6 +203,22 @@ export function issueRulesPrompt({ items, recompute = false }) {
 	].join('\n');
 }
 
+export function reviewSessionPrompt({ key, title, url }) {
+	const num = key.split('#')[1];
+	const repo = key.split('#')[0];
+	const skill = config().reviewSkill;
+	return [
+		`Panel request: start a review session for pull request ${key} ${q(title)} (${url}). The user clicked Start review session in the My Work panel; this confirms creating the session. It does not approve posting a review, comments, approvals or any other change on GitHub.`,
+		UNTRUSTED,
+		`Use the local clone of ${repo} (${repoHint(repo)}); if there is none, say so with replyToIssue for ${key} instead of guessing.`,
+		`Call create_session (omit relationship, so it is nested under this My Work session) with that workspace, worktree true, and title "Review #${num}: <short title>" (keep "#${num}" so the panel links the session to the PR). Pass a prompt that tells it to:`,
+		`- check out the pull request in its worktree (\`gh pr checkout ${num} --repo ${repo}\`), read the description, the linked issue, every review thread and the CI status;`,
+		`- review the change thoroughly${skill ? ` using the ${skill} skill` : ''}: correctness, edge cases, tests, performance, security, accessibility and consistency with the surrounding code; build it and run the most relevant tests when that is practical;`,
+		'- report findings ordered by severity with file:line references and suggested fixes, then a recommendation (approve, request changes, or comment), and draft the review comments it would post;',
+		'- never submit a review, approve, comment, push or change GitHub without the user\'s explicit approval in that session.',
+		`Then call the canvas action refresh, and reply with replyToIssue for ${key} including the session link.`,
+	].join('\n');
+}
 export function workSessionPrompt({ key, title, url, milestone }) {
 	const num = key.split('#')[1];
 	return [

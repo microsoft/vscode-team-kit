@@ -1526,9 +1526,11 @@ function recommendations(key) {
 		recs.push({ icon: 'law', text: `${fact ? `${fact} — ` : ''}${APPROVE_LABEL[p.group].toLowerCase()}?`, why, actions: [{ kind: 'act', label: APPROVE_LABEL[p.group], act: 'apply', key, group: p.group, primary: true }, ask('Double-check', `Double-check Sweeper's "${APPROVE_LABEL[p.group]}" proposal for this issue against the live issue and latest comments (and the fix commit or duplicate if any), then tell me whether to approve, with choices.`)] });
 	}
 	if (g.isPr) {
-		if (n?.reason === 'review_requested') recs.push({ icon: 'eye', text: 'Your review is requested.', why: g.pr ? `${g.pr.changedFiles} files, +${g.pr.additions} −${g.pr.deletions}` : '', actions: [link('Open PR', g.url), ask('Summarize', 'Summarize this PR: what it changes, risks, and what I should focus on in the review.', true)] });
+		// Someone else's PR: a review session (its own worktree) is the main step; one already running opens instead.
+		const review = () => { const live = liveSession(key); return live ? { kind: 'act', label: 'Open review session', act: 'open-session', link: live.link, primary: true } : { kind: 'act', label: 'Start review session', act: 'review-session', key, primary: true }; };
+		if (n?.reason === 'review_requested') recs.push({ icon: 'eye', text: 'Your review is requested.', why: g.pr ? `${g.pr.changedFiles} files, +${g.pr.additions} −${g.pr.deletions}` : '', actions: [review(), ask('Summarize', 'Summarize this PR: what it changes, risks, and what I should focus on in the review.'), link('Open PR', g.url)] });
 		else if (g.author.login === me) recs.push({ icon: 'git-pull-request', text: g.pr?.draft ? 'Your draft PR — finish it or mark it ready.' : 'Your PR — check reviews and CI.', actions: [ask('Check status', 'Check the review comments and CI status of my PR and tell me what is blocking it.', true)] });
-		else recs.push({ icon: 'eye', text: `${g.assignees.includes(me) ? 'Assigned to you' : 'PR'} by @${g.author.login}${g.pr?.draft ? ' (draft)' : ''} — review it.`, why: g.pr ? `${g.pr.changedFiles} files, +${g.pr.additions} −${g.pr.deletions}` : '', actions: [link('Open PR', g.url), ask('Summarize', 'Summarize this PR: what it changes, whether it is ready, risks, and what I should check in the review.', true)] });
+		else recs.push({ icon: 'eye', text: `${g.assignees.includes(me) ? 'Assigned to you' : 'PR'} by @${g.author.login}${g.pr?.draft ? ' (draft)' : ''} — review it.`, why: g.pr ? `${g.pr.changedFiles} files, +${g.pr.additions} −${g.pr.deletions}` : '', actions: [review(), ask('Summarize', 'Summarize this PR: what it changes, whether it is ready, risks, and what I should check in the review.'), link('Open PR', g.url)] });
 	}
 	if (n?.triage?.group === 'route') {
 		recs.push({ icon: 'person', text: n.triage.routeTo?.length ? `Route to ${n.triage.routeTo.map(l => '@' + l).join(', ')}.` : 'Unassign yourself.', why: n.triage.rule || '', actions: [act('Route', 'route-one', true)] });
@@ -1592,7 +1594,7 @@ function recoHtml(key) {
 	const btn = (a, first) => {
 		const cls = `btn sm${a.primary && first ? ' primary' : ''}`;
 		if (a.kind === 'link') return `<a class="${cls}" href="${esc(safeUrl(a.url))}" target="_blank" rel="noopener">${esc(a.label)}</a>`;
-		if (a.kind === 'act') return `<button type="button" class="${cls}" data-act="${esc(a.act)}"${a.key ? ` data-key="${esc(a.key)}"` : ''}${a.group ? ` data-group="${esc(a.group)}"` : ''}>${esc(a.label)}</button>`;
+		if (a.kind === 'act') return `<button type="button" class="${cls}" data-act="${esc(a.act)}"${a.key ? ` data-key="${esc(a.key)}"` : ''}${a.group ? ` data-group="${esc(a.group)}"` : ''}${a.link ? ` data-link="${esc(a.link)}"` : ''}>${esc(a.label)}</button>`;
 		return `<button type="button" class="${cls}" data-reco-ask="${esc(a.text)}" data-key="${esc(key)}"${a.track ? ` data-track="${esc(a.track)}"` : ''} title="Asks the chat: ${esc(a.text)}"><i class="codicon codicon-comment-discussion" aria-hidden="true"></i>${esc(a.label)}</button>`;
 	};
 	return `<div class="reco">
@@ -1963,8 +1965,11 @@ async function renderIssueInto(el, key, fetchDetail, nested, silent = false, opt
 	if (opts.work) {
 		// My Work: the work session is the main action; planning moves are in the menu.
 		const live = liveSession(key);
-		primary = live ? { act: 'open-session', link: live.link, label: 'Open session', icon: 'comment-discussion' } : { act: 'work-session', key, label: 'Start session', icon: 'rocket' };
-		menu = [...(live ? [{ act: 'work-session-new', key, label: 'Start another session' }] : []), ...workMenu(key, opts)];
+		const g = ui.gh?.[key]?.data;
+		const reviewPr = g?.isPr && g.author?.login !== ui.state.me;
+		primary = live ? { act: 'open-session', link: live.link, label: reviewPr ? 'Open review session' : 'Open session', icon: 'comment-discussion' }
+			: reviewPr ? { act: 'review-session', key, label: 'Start review session', icon: 'eye' } : { act: 'work-session', key, label: 'Start session', icon: 'rocket' };
+		menu = [...(live ? [reviewPr ? { act: 'review-session', key, label: 'Start another review session' } : { act: 'work-session-new', key, label: 'Start another session' }] : []), ...workMenu(key, opts)];
 	} else if (!nested && ui.work?.data) {
 		menu = [...menu, ...planMenu(key, sel.detail?.milestone), { act: 'link-pick', key, label: 'Link a session…' }];
 	}
@@ -1972,7 +1977,7 @@ async function renderIssueInto(el, key, fetchDetail, nested, silent = false, opt
 	if (!nested) {
 		const live = liveSession(key);
 		const closed = ui.gh?.[key]?.data?.state === 'closed' || issue.state === 'closed' || issue.state === 'CLOSED';
-		const starts = new Set(['implement', 'work-session']);
+		const starts = new Set(['implement', 'work-session', 'review-session']);
 		if (live) {
 			primary = { act: 'open-session', link: live.link, label: 'Open session', icon: 'comment-discussion' };
 			if (!closed && !menu.some(m => m.act === 'work-session-new')) menu = [{ act: opts.work ? 'work-session-new' : 'implement', key, label: 'Start another session' }, ...menu];
@@ -2540,6 +2545,10 @@ async function act(button) {
 			ui.resentAt ??= {};
 			ui.resentAt[key] = new Date().toISOString();
 			msg = fresh ? 'Resent to a new chat' : 'Sent again to the same chat';
+			move = false;
+		} else if (act === 'review-session') {
+			await api('/api/review-session', { key, title: ui.gh?.[key]?.data?.title || ui.selected?.detail?.issue?.title || '' });
+			msg = `Asked the chat to start a review session for ${shortKey(key)}`;
 			move = false;
 		} else if (act === 'work-session' || act === 'work-session-new') {
 			const w = ui.work?.data?.milestones.flatMap(m => m.items.map(i => ({ ...i, milestone: m.title }))).find(i => i.key === key);

@@ -2,6 +2,7 @@
 
 ## 1.0.9 (2026-11-02)
 
+- **Start review session:** for a pull request awaiting your review, or anyone else's PR, the main recommendation and main button start a review session. It is nested under My Work with its own worktree of the PR, and reviews it (with your `reviewSkill` if configured), drafting the review comments. It never posts anything without your approval. The PR shows in My Work with its session, and **Open review session** opens it.
 - Issue chats dismiss the issue's notification themselves once an action you approved addresses it (e.g. they posted the requested comment and added `info-needed`), so you don't have to dismiss it by hand. `dismissNotifications` also accepts `issues` (owner/repo#N) for this.
 - **Investigating:** asking to reproduce or investigate an issue from anywhere in the panel (the Reproduce recommendation, the Investigate buttons) puts it in a new **Investigating** section in My Work. The item shows **Reproducing…** / **Investigating…** until the chat reports back, then **Reproduced**, **Not reproduced**, **Partly reproduced** or **Findings ready** (hover for the one-line summary). It is an ordinary section you can rename, reorder or delete.
 - Starting a fix or implementation session from anywhere (an issue, a notification, Implement) now puts the issue in My Work: in the current group (local only; its GitHub milestone is unchanged), moving it out of Investigating. Issues already planned, or in one of your own sections, stay where they are.

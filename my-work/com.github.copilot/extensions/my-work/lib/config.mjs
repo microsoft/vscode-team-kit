@@ -34,6 +34,8 @@ export const DEFAULTS = Object.freeze({
 	dataDir: '~/.agents/data/my-work',
 	// Skill fix sessions use for bugs, e.g. a personal "fix-vscode-bug" skill; empty = none.
 	fixSkill: '',
+	// Skill review sessions use for pull requests, e.g. a personal code review skill; empty = none.
+	reviewSkill: '',
 });
 
 let cache = { mtimeMs: -1, value: DEFAULTS };

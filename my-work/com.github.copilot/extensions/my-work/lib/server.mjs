@@ -6,7 +6,7 @@ import path from 'node:path';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import * as data from './data.mjs';
-import { spawnJudgeRequest, implementPrompt, createIssueChatPrompt, forwardToIssueChatPrompt, forwardToMyWorkSessionPrompt, startIssueSessionMessage, notificationIssueActionPrompt, notificationTriagePrompt, issueRulesPrompt, browseQueryPrompt, workSessionPrompt, noteSessionPrompt, createMyWorkChatPrompt, forwardToMyWorkChatPrompt, describeSessionMessage } from './prompts.mjs';
+import { spawnJudgeRequest, implementPrompt, createIssueChatPrompt, forwardToIssueChatPrompt, forwardToMyWorkSessionPrompt, startIssueSessionMessage, notificationIssueActionPrompt, notificationTriagePrompt, issueRulesPrompt, browseQueryPrompt, workSessionPrompt, reviewSessionPrompt, noteSessionPrompt, createMyWorkChatPrompt, forwardToMyWorkChatPrompt, describeSessionMessage } from './prompts.mjs';
 import { getVsCodeDensity, getVsCodeTheme, watchVsCodeDensity, watchVsCodeTheme } from './vscodeTheme.mjs';
 import { getMyWork, moveToMilestone, issueDetails, closingIssues, workSource, sourceQuery, myLogin, doneState } from './work.mjs';
 import { config } from './config.mjs';
@@ -702,6 +702,16 @@ export class TriageServer {
 				if (!note) throw Object.assign(new Error('That note is not in My Work'), { status: 404 });
 				await this.sendToChat(noteSessionPrompt({ section: await getSection(note.section) || { name: note.section, instructions: '' }, note }));
 				result = { sent: true, id: note.id };
+				break;
+			}
+			case '/api/review-session': {
+				if (!this.sendToChat) throw Object.assign(new Error('This canvas is not attached to a chat'), { status: 409 });
+				if (!KEY_RE.test(body.key || '')) throw bad('invalid key');
+				const [repo, num] = body.key.split('#');
+				await this.sendToMyWorkSession(reviewSessionPrompt({ key: body.key, title: String(body.title || '').slice(0, 300), url: `https://github.com/${repo}/pull/${num}` }));
+				// The PR shows in My Work (current group, local) with its review session.
+				await trackFix(body.key);
+				result = { sent: true, key: body.key };
 				break;
 			}
 			case '/api/work-session': {

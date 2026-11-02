@@ -380,6 +380,15 @@ test('issue chats dismiss notifications by issue once an approved action address
 	assert.match(prompt, /without asking/);
 });
 
+test('a review session checks out the PR in its own worktree and posts nothing without approval', () => {
+	const p = prompts.reviewSessionPrompt({ key: 'octo/app#77', title: 'Add caching', url: 'https://github.com/octo/app/pull/77' });
+	assert.match(p, /title "Review #77: <short title>"/);
+	assert.match(p, /worktree true/);
+	assert.match(p, /gh pr checkout 77 --repo octo\/app/);
+	assert.match(p, /never submit a review, approve, comment, push or change GitHub without the user's explicit approval/);
+	assert.match(p, /omit relationship, so it is nested under this My Work session/);
+});
+
 test('any session can get a summary from the My Work chat', async () => {
 	const { TriageRuntime } = await import(new URL('lib/runtime.mjs', ext));
 	const runtime = new TriageRuntime({ log: () => { }, sendToChat: async () => { } });
