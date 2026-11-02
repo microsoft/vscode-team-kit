@@ -717,7 +717,13 @@ export async function logStart(key) {
 	await logActivity({ kind: 'issue', key, action: 'start-session' });
 }
 
-export async function dismissNotification({ id, unsubscribe }) {
+// Listeners told which issue / PR a dismissed notification was about (e.g. to archive its finished discussion chat).
+const dismissListeners = new Set();
+export function onNotificationDismissed(fn) { dismissListeners.add(fn); return () => dismissListeners.delete(fn); }
+
+/** keepChat: the dismissal starts work in the issue's chat (a reproduce, an investigation, a review), so leave the chat be. */
+export async function dismissNotification({ id, unsubscribe, keepChat = false }) {
+	const issueKey = notifCache.data?.find(n => n.id === id)?.issueKey || null;
 	if (unsubscribe) {
 		await run('gh', ['api', '--method', 'DELETE', `/notifications/threads/${id}/subscription`]);
 	}
@@ -727,6 +733,7 @@ export async function dismissNotification({ id, unsubscribe }) {
 		notifCache.data = notifCache.data.filter(n => n.id !== id);
 	}
 	await logActivity({ kind: 'notification', id, action: unsubscribe ? 'done' : 'dismiss' });
+	if (issueKey && !keepChat) for (const fn of dismissListeners) { try { fn(issueKey); } catch { /* a listener must not break dismissing */ } }
 	return { id, dismissed: true, unsubscribed: !!unsubscribe };
 }
 

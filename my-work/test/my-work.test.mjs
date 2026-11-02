@@ -378,8 +378,22 @@ test('issue chats dismiss notifications by issue once an approved action address
 	const prompt = prompts.createIssueChatPrompt({ key: 'octo/app#42', url: 'https://github.com/octo/app/issues/42', title: 'Crash', text: 'hi' });
 	assert.match(prompt, /dismissNotifications \{"issues": \["octo\/app#42"\]\}/);
 	assert.match(prompt, /without asking/);
-	assert.match(prompt, /Panel request: archive the chat for octo\/app#42/, 'a finished discussion chat asks the My Work session to archive it');
-	assert.match(prompt, /not been turned into its work session/);
+
+	// Dismissing a notification archives its issue's discussion chat (via the My Work session); work sessions stay.
+	const sent = [];
+	runtime.instances.set('t', { server: { sendToChat: async () => { }, sendToMyWorkSession: async p => sent.push(p) } });
+	await workSessions.setIssueChat('octo/app#50', 'agent-host-session://ahp-session/s1?chat=c50');
+	await workSessions.setIssueChat('octo/app#51', 'agent-host-session://ahp-session/s1?chat=c51', 'session');
+	runtime.pendingArchive.add('octo/app#50').add('octo/app#51').add('octo/app#52');
+	const targets = await runtime.archiveFinishedChats();
+	assert.deepEqual(targets.map(t => t.key), ['octo/app#50'], 'only the discussion chat; not the work session or an issue without a chat');
+	assert.match(sent[0], /archive finished issue chats/);
+	assert.match(sent[0], /octo\/app#50: agent-host-session:\/\/ahp-session\/s1\?chat=c50/);
+	assert.match(sent[0], /not waiting for the user's answer or approval/);
+	await workSessions.setIssueChat('octo/app#50', null);
+	await workSessions.setIssueChat('octo/app#51', null);
+	runtime.instances.delete('t');
+	runtime.unwatchDismiss();
 });
 
 test('a review session checks out the PR in its own worktree and posts nothing without approval', () => {

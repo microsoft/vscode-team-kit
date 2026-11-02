@@ -1,9 +1,10 @@
 import { getMyWork, cleanRefine } from './work.mjs';
 import { listSections, listNotes, saveNote, sectionForLink, isGroup } from './sections.mjs';
-import { listPinned, pinSession, unpinSessions, parseSessionRef, getMyWorkChat, setMyWorkChat, setIssueChat, MY_WORK_DIR, setSessionBucket, setSessionSummary, pinIssue, setIssueBucket, recordSessionSummary, setInvestigationResult, INVESTIGATION_RESULTS, linkSessionIssue } from './workSessions.mjs';
+import { listPinned, pinSession, unpinSessions, parseSessionRef, getMyWorkChat, setMyWorkChat, setIssueChat, MY_WORK_DIR, setSessionBucket, setSessionSummary, pinIssue, setIssueBucket, recordSessionSummary, setInvestigationResult, INVESTIGATION_RESULTS, linkSessionIssue, listIssueChats, listPinnedIssues } from './workSessions.mjs';
 import { watch as fsWatch, mkdirSync } from 'node:fs';
 import { sessionsById, recentSessions } from './sessions.mjs';
 import { TriageServer } from './server.mjs';
+import { archiveIssueChatsPrompt } from './prompts.mjs';
 import * as data from './data.mjs';
 import { config, PRINCIPLES } from './config.mjs';
 
@@ -284,6 +285,26 @@ export class TriageRuntime {
 		this.log = log;
 		this.sendToChat = sendToChat;
 		this.instances = new Map();
+		// A dismissed notification means its issue's discussion chat is done: archive it (batched, via the My Work session).
+		this.pendingArchive = new Set();
+		this.unwatchDismiss = data.onNotificationDismissed(key => {
+			this.pendingArchive.add(key);
+			clearTimeout(this.archiveTimer);
+			this.archiveTimer = setTimeout(() => this.archiveFinishedChats().catch(error => this.log?.(`archive chats: ${error.message}`)), 4000);
+		});
+	}
+
+	async archiveFinishedChats() {
+		const keys = [...this.pendingArchive];
+		this.pendingArchive.clear();
+		const server = [...this.instances.values()][0]?.server;
+		if (!keys.length || !server?.sendToChat) return [];
+		const chats = await listIssueChats();
+		// A reproduce or investigation still running in the chat keeps it.
+		const running = new Set((await listPinnedIssues().catch(() => [])).filter(p => p.investigation && !p.investigation.result).map(p => p.key));
+		const targets = keys.filter(k => chats[k]?.link && (chats[k].stage || 'discuss') === 'discuss' && !running.has(k)).map(k => ({ key: k, link: chats[k].link }));
+		if (targets.length) await server.sendToMyWorkSession(archiveIssueChatsPrompt(targets));
+		return targets;
 	}
 
 	async open(instanceId) {

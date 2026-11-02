@@ -538,7 +538,7 @@ export class TriageServer {
 					const item = { issueKey: body.key, title: detail?.issue.title || body.key, htmlUrl: detail?.issue.url || `https://github.com/${repo}/issues/${num}` };
 					await this.sendToChat(notificationIssueActionPrompt({ action: 'investigate', notification: item }));
 					await trackInvestigation(body.key, 'investigate');
-					for (const id of await data.notificationIdsForIssues([body.key])) await data.dismissNotification({ id }).catch(() => { });
+					for (const id of await data.notificationIdsForIssues([body.key])) await data.dismissNotification({ id, keepChat: true }).catch(() => { });
 					result = { sent: true, kind: body.kind, key: body.key };
 					break;
 				}
@@ -552,7 +552,7 @@ export class TriageServer {
 					const prompt = notificationIssueActionPrompt({ action, notification });
 					await (action === 'start' ? this.sendToMyWorkSession(prompt) : this.sendToChat(prompt));
 					await (action === 'start' ? trackFix(notification.issueKey) : trackInvestigation(notification.issueKey, 'investigate'));
-					if (action === 'investigate') await data.dismissNotification({ id: notification.id }).catch(() => { });
+					if (action === 'investigate') await data.dismissNotification({ id: notification.id, keepChat: true }).catch(() => { });
 					result = { sent: true, kind: body.kind, id: notification.id, key: notification.issueKey };
 					break;
 				}
@@ -716,7 +716,7 @@ export class TriageServer {
 				// Starting the review addresses the review request: its notifications are done.
 				const dismissed = [];
 				for (const id of await data.notificationIdsForIssues([body.key])) {
-					try { await data.dismissNotification({ id }); dismissed.push(id); } catch { /* keep going; the panel still shows it */ }
+					try { await data.dismissNotification({ id, keepChat: true }); dismissed.push(id); } catch { /* keep going; the panel still shows it */ }
 				}
 				result = { sent: true, key: body.key, dismissed };
 				break;
@@ -781,7 +781,7 @@ export class TriageServer {
 				if (body.track === 'reproduce' && !again) {
 					await trackInvestigation(body.key, 'reproduce');
 					// Asking for a reproduce attempt is acting on the notification: it is done.
-					for (const id of await data.notificationIdsForIssues([body.key])) await data.dismissNotification({ id }).catch(() => { });
+					for (const id of await data.notificationIdsForIssues([body.key])) await data.dismissNotification({ id, keepChat: true }).catch(() => { });
 				}
 				result = { key: body.key, entries: again ? await data.getThread(body.key) : await data.appendThread(body.key, 'user', text) };
 				break;
