@@ -416,6 +416,18 @@ test('review and fix sessions link themselves to their PR or issue', async () =>
 	assert.match(prompts.workSessionPrompt({ key: 'octo/app#78', title: 't', url: 'u' }), /"op": "linkSession"/);
 });
 
+test('fix and review sessions let the host create the worktree', () => {
+	const all = [
+		prompts.workSessionPrompt({ key: 'octo/app#1', title: 't', url: 'u' }),
+		prompts.reviewSessionPrompt({ key: 'octo/app#2', title: 't', url: 'u' }),
+		prompts.notificationIssueActionPrompt({ action: 'start', notification: { issueKey: 'octo/app#3', title: 't', htmlUrl: 'u' } }),
+		prompts.implementPrompt({ issue: { key: 'octo/app#4', title: 't', url: 'u', area: 'x' } }),
+		prompts.startIssueSessionMessage({ key: 'octo/app#5', url: 'u', title: 't' }),
+	];
+	for (const p of all) assert.match(p, /Never create a git worktree yourself|never run `git worktree add`/);
+	for (const p of all.slice(0, 4)) assert.match(p, /worktree true/);
+});
+
 test('an investigation runs in the repository clone, read-only', () => {
 	const ask = key => prompts.notificationIssueActionPrompt({ action: 'investigate', notification: { issueKey: key, title: 'Crash', htmlUrl: 'u' } });
 	assert.ok(ask('octo/app#5').includes(`workspace ${JSON.stringify(path.join(home, 'src', 'app'))}`), 'the local clone is the workspace');
