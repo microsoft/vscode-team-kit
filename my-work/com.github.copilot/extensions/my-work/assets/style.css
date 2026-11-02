@@ -1227,3 +1227,6 @@ body > * { min-width: 0; }
 .codicon-copy::before { content: "\ebcc"; }
 /* actions inside the search box use the normal icon colour (not the faint placeholder colour) */
 .find-view .find-search .act .codicon { color: var(--icon-fg, var(--fg)); font-size: 16px; }
+/* an action in progress: spinner on the clicked button, its own icon hidden */
+.working .act-spin { margin-right: 4px; }
+.working .act-spin ~ .codicon { display: none; }

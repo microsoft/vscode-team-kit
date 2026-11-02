@@ -2496,6 +2496,8 @@ async function loadWork(fresh = false) {
 function advance(before) {
 	const items = flatItems();
 	const same = i => i.kind === ui.selected?.kind && i.id === ui.selected?.id;
+	// Opened from outside the list (Browse, a linked issue): stay on it and show its new state.
+	if (!before?.some(same) && !items.some(same)) return;
 	let idx = items.findIndex(same);
 	if (idx < 0 && before) {
 		const later = before.slice(before.findIndex(same) + 1);
@@ -2521,6 +2523,10 @@ async function act(button) {
 	const id = ui.selected?.kind === 'notification' ? ui.selected.id : undefined;
 	ui.busy = true;
 	document.querySelectorAll('.title-actions .btn, .menu button, .toolbar .btn, [data-act="opinion"]').forEach(b => { b.disabled = true; });
+	// Progress on the button itself (the split button's main half when the action came from its menu).
+	const shown = button.closest('.menu') ? button.closest('.split')?.querySelector('.split-main') || button : button;
+	shown.classList.add('working');
+	shown.insertAdjacentHTML('afterbegin', '<i class="codicon codicon-loading spin act-spin" aria-hidden="true"></i>');
 	toast('Working…');
 	let move = true;
 	const before = flatItems();
@@ -2711,12 +2717,16 @@ async function act(button) {
 		}
 		toast(`✓ ${msg}`);
 		await load();
+		// The action changed it on GitHub: refetch so the details show the new state (closed, labels, assignees).
+		if (key && ui.gh?.[key]) loadGitHub(key, true);
 		if (move) advance(before);
 	} catch (error) {
 		toast(error.message, true);
 		document.querySelectorAll('.title-actions .btn, .menu button, .toolbar .btn, [data-act="opinion"]').forEach(b => { b.disabled = false; });
 	} finally {
 		ui.busy = false;
+		shown.classList.remove('working');
+		shown.querySelector('.act-spin')?.remove();
 	}
 }
 
