@@ -1590,7 +1590,15 @@ function recommendations(key) {
 	} else if (!g.isPr && isBug && hasSteps && !labels.includes('info-needed') && outcome?.decision !== 'fixing') {
 		recs.push({ icon: 'beaker', text: 'Has steps to reproduce — check whether it reproduces.', actions: [ask('Reproduce', REPRO_PROMPT, !recs.length, 'reproduce')] });
 	}
-	if (!g.isPr && !human.length && !labels.includes('info-needed') && !p.group) {
+	// Not triaged yet: no type label, no feature-area label, or no milestone. Offer to set them (the chat proposes, you approve).
+	const TYPE_LABELS = ['bug', 'feature-request', 'debt', 'question', 'polish', 'engineering', 'papercut :drop_of_blood:', 'under-discussion', 'perf', 'accessibility', 'ux', 'error-telemetry'];
+	const areaLabels = new Set((ui.state.areas || []).flatMap(a => a.labels || []));
+	const missing = [!labels.some(l => TYPE_LABELS.includes(l) || /^\*/.test(l)) && 'type', !labels.some(l => areaLabels.has(l)) && 'feature area', !g.milestone && 'milestone'].filter(Boolean);
+	const untriaged = !g.isPr && g.state === 'open' && !labels.includes('info-needed') && missing.length >= 2;
+	if (untriaged) {
+		recs.push({ icon: 'tag', text: `Not triaged yet: no ${missing.join(', no ')}.`, actions: [ask('Triage', `Triage this issue: check for duplicates first, then propose the type label (bug, feature-request, …), the feature-area label(s) (use my configured areas and the matching VS Code area label), and a milestone (Backlog for bugs, Backlog Candidates for feature requests, unless my rules say otherwise). Show me the exact labels and milestone and wait for my approval; then apply them, record the decision, and dismiss this issue's notification.`, !recs.length)] });
+	}
+	if (!untriaged && !g.isPr && !human.length && !labels.includes('info-needed') && !p.group) {
 		if (isFeature || (!isBug && /^(?:feature|add|support|allow|option)\b|would like/i.test(g.title + ' ' + text.slice(0, 400)))) {
 			recs.push({ icon: 'lightbulb', text: 'Feature request with no discussion yet.', actions: [ask('Backlog or close?', 'This is a feature request with no discussion. Check for duplicates and demand, then recommend keeping it (e.g. Backlog Candidates milestone) or closing it, with choices.', !recs.length)] });
 		} else if (!hasRepro) {
