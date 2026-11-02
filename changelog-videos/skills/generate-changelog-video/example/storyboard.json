@@ -1,0 +1,54 @@
+{
+	"pronounce": {},
+	"beats": [
+		{
+			"id": "intro",
+			"need": "digest",
+			"say": "Today's VS Code changelog: the top five changes from the last day.",
+			"cues": {},
+			"claims": []
+		},
+		{
+			"id": "c1",
+			"need": "digest",
+			"say": "One. When you're signed out, the Welcome page now offers Sign in to GitHub, instead of the Agents window invitation. A setting turns it off.",
+			"cues": {},
+			"claims": []
+		},
+		{
+			"id": "c2",
+			"need": "digest",
+			"say": "Two. In the Agents window, a session's first button is now New Nested Session, replacing Pin. One click starts a new chat inside it.",
+			"cues": {},
+			"claims": []
+		},
+		{
+			"id": "c3",
+			"need": "digest",
+			"say": "Three. Stable now shows the Agents window badge on the app icon by default. It counts the sessions waiting for your input.",
+			"cues": {},
+			"claims": []
+		},
+		{
+			"id": "c4",
+			"need": "digest",
+			"say": "Four. In Agent Host chats, slash fork now takes a prompt, sent in the fork right away, or a title, like Shorter tagline.",
+			"cues": {},
+			"claims": []
+		},
+		{
+			"id": "c5",
+			"need": "digest",
+			"say": "Five. VS Code links can now add a plugin marketplace, or install a plugin. VS Code asks first, and for installs, it warns that plugins can run code.",
+			"cues": {},
+			"claims": []
+		},
+		{
+			"id": "outro",
+			"need": "digest",
+			"say": "That's today's changelog. The full list is in the changelog channel.",
+			"cues": {},
+			"claims": []
+		}
+	]
+}

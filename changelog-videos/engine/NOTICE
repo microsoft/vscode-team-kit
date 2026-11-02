@@ -1,0 +1,30 @@
+changelog-videos engine
+=======================
+
+Third-party software and assets used by this engine. The setup and `prs doctor` install the packages from npm or
+PyPI, and download the models, on first use; none of them is stored in this repository except where noted.
+
+Bundled into rendered videos
+- Inter (typeface where Aptos and Segoe UI are missing), SIL Open Font License 1.1, via @fontsource/inter.
+- JetBrains Mono (code typeface), SIL Open Font License 1.1, via @fontsource/jetbrains-mono.
+- Fluent UI System Icons, MIT License, Microsoft Corporation: the icons the scenes draw are copied into
+  theme/icons.js.
+
+Used to make a video
+- esbuild (MIT), Playwright (Apache-2.0) with Chrome for Testing, FFmpeg (LGPL/GPL, via imageio-ffmpeg, BSD-2-Clause
+  wrapper).
+- faster-whisper (MIT) and the Whisper small.en model (MIT, OpenAI) for word timing.
+- Kokoro-82M (Apache-2.0, hexgrad) via kokoro-onnx (MIT), the offline narration voice.
+- MAI-Voice-2 through Azure AI Speech, when you configure your own Azure resource.
+- VS Code Insiders builds, downloaded from update.code.visualstudio.com by `prs digest new` into the cache, and VS Code
+  built from microsoft/vscode (MIT) in a release week, to record each change in the real app.
+
+Not distributed
+- Aptos is read in place from a local Microsoft Office installation when present; it is never copied into this
+  repository or its outputs. Without Office, videos use Segoe UI or Inter.
+
+Microsoft, the Microsoft logo, Visual Studio Code and VS Code are trademarks of Microsoft Corporation. The videos show
+the Microsoft logo; use them within the scope your organization allows.
+
+The skill's example (skills/generate-changelog-video/example/) is the changelog video of Oct 19, 2026: its files, and
+two review sheets with frames recorded in VS Code Insiders, with the account picture hidden.
