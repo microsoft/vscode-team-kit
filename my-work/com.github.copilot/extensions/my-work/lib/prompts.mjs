@@ -111,7 +111,7 @@ function issueChatInstructions({ key, url, title }) {
 		`The skill's helper script is \`${scriptCommand()}\` (use this exact path). After a decision the user approved is done on GitHub, record it: \`${scriptCommand()} record ${key} --decision <decision> --note "<short reason>"\`.`,
 		'Anything that changes GitHub (comments, labels, milestones, closing, pushes, pull requests) needs the user\'s explicit approval in this conversation first.',
 		`Answer every message in the panel too: before your first canvas action, call list_canvas_capabilities for canvasId "my-issues-triage" and open_canvas with canvasId "my-issues-triage", instanceId "issue-${num}", input {} (once per chat). Then call replyToIssue {"key": "${key}", "text": "<concise markdown, at most ~1500 characters>", "choices": [...]}. Whenever you ask the user to approve, choose or confirm, add 2-4 choices with the exact replies they would type, the recommended one as style "primary". Button clicks come back to you as the user's next message.`,
-		'To dismiss a notification, use the canvas action dismissNotifications {"ids": [...]}, not the GitHub API.',
+		`Once an action the user approved is done on GitHub and it addresses why the notification came in (for example you posted the requested comment and added info-needed, closed, routed or reassigned it, or submitted the review), dismiss its notification yourself without asking: call the canvas action dismissNotifications {"issues": ["${key}"]} (never the GitHub API) and say so in your reply. Don't when the action failed or the latest comments still hold someone else's unanswered ask of the user.`,
 	].join('\n');
 }
 

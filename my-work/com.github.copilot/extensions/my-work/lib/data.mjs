@@ -430,6 +430,11 @@ async function loadNotifications(force = false) {
 }
 
 // --- Public API ---
+/** Unread notification thread ids about these issues / PRs (owner/repo#N). */
+export async function notificationIdsForIssues(keys) {
+	const want = new Set(keys);
+	return ((await loadNotifications()).data || []).filter(n => n.issueKey && want.has(n.issueKey)).map(n => n.id);
+}
 export async function getTriage() { return readStore('triage', TRIAGE_FILE); }
 
 export async function setNotificationTriage(items) {

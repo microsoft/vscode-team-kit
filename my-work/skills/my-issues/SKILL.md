@@ -110,7 +110,7 @@ Canvas actions:
 - `focus {kind: notification|issue, id}`: select an item in the panel.
 - `refresh`: reload after the chat acted. `getSummary`: counts, current batches and batch size.
 - `setIssueRules {items:[{key, group: route|close|needs-info|keep, reason, rule?, routeTo?, closeAs?}]}`: the verdict of the user's inbox rules (the `rulesFile` in `my-work.config.json`, default `~/.copilot/github-inbox-rules.md`, shared with the github-inbox plugin) for issues in the Cleanup / Implement / Today views. Answer "Panel request: apply my inbox rules to these N issues" with one call after checking each issue live. Rules win over Sweeper. Only clear routing candidates are `route`; uncertain owners are `keep` with the doubt in the reason.
-- `dismissNotifications {ids, unsubscribe?}`: dismiss notifications and update the panel at once. Always use this instead of `gh api` on notification threads.
+- `dismissNotifications {ids | issues, unsubscribe?}`: dismiss notifications (by thread ids, or every unread one about the given `owner/repo#N` issues) and update the panel at once. Always use this instead of `gh api` on notification threads. Once an action the user approved is done on GitHub and it addresses why a notification came in (the requested comment and `info-needed` label, a close, a reroute, a review), dismiss that notification without asking and say so.
 - `getConfig`: built-in plus the user's **custom groups** (`{id, label, criteria, bulk}`); call it at the start of every triage chat. `defineGroup {id, label, criteria, bulk?, order?}` / `removeGroup {id}` manage custom groups.
 - `getMyWork` / `updateMyWork {op, ...}` / `setMyWorkChat {link}`: the My Work board (below).
 

@@ -214,9 +214,9 @@ export const actionDefinitions = [
 			type: 'object',
 			properties: {
 				ids: { type: 'array', minItems: 1, maxItems: 100, items: { type: 'string', pattern: '^\\d+$' }, description: 'Notification thread ids' },
+				issues: { type: 'array', minItems: 1, maxItems: 20, items: { type: 'string', pattern: '^[\\w.-]+/[\\w.-]+#\\d+$' }, description: 'Or: dismiss the unread notifications about these issues / PRs (owner/repo#N), e.g. from an issue chat that does not know the thread ids' },
 				unsubscribe: { type: 'boolean', description: 'Also unsubscribe from the thread (the panel\'s "Done & unsubscribe")' },
 			},
-			required: ['ids'],
 			additionalProperties: false,
 		},
 	},
@@ -440,7 +440,9 @@ export class TriageRuntime {
 			case 'dismissNotifications': {
 				const done = [];
 				const failed = [];
-				for (const id of input.ids) {
+				if (!input.ids?.length && !input.issues?.length) throw Object.assign(new Error('dismissNotifications needs ids or issues'), { code: 'bad_input' });
+				const ids = [...new Set([...(input.ids || []), ...(input.issues?.length ? await data.notificationIdsForIssues(input.issues) : [])])];
+				for (const id of ids) {
 					try { await data.dismissNotification({ id, unsubscribe: !!input.unsubscribe }); done.push(id); } catch (error) { failed.push({ id, error: error.message }); }
 				}
 				for (const inst of this.instances.values()) inst.server.push('changed', { by: 'agent' });

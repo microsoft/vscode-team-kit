@@ -371,6 +371,15 @@ test('reproduce and investigate requests go to Investigating; starting a fix mov
 	await sections.removeSection(own.id);
 });
 
+test('issue chats dismiss notifications by issue once an approved action addresses them', async () => {
+	const { TriageRuntime } = await import(new URL('lib/runtime.mjs', ext));
+	const runtime = new TriageRuntime({ log: () => { }, sendToChat: async () => { } });
+	await assert.rejects(runtime.invoke('x', 'dismissNotifications', {}), /needs ids or issues/);
+	const prompt = prompts.createIssueChatPrompt({ key: 'octo/app#42', url: 'https://github.com/octo/app/issues/42', title: 'Crash', text: 'hi' });
+	assert.match(prompt, /dismissNotifications \{"issues": \["octo\/app#42"\]\}/);
+	assert.match(prompt, /without asking/);
+});
+
 test('any session can get a summary from the My Work chat', async () => {
 	const { TriageRuntime } = await import(new URL('lib/runtime.mjs', ext));
 	const runtime = new TriageRuntime({ log: () => { }, sendToChat: async () => { } });
