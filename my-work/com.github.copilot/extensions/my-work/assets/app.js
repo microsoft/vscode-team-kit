@@ -2202,8 +2202,30 @@ async function applyFindFilter(text) {
 	catch (error) { ui.findAsking = null; renderDetail(false, true); toast(`Could not ask the chat: ${error.message}`, true); }
 }
 // Browse grouping: computed from the search results, no extra GitHub calls.
-const GROUP_BY = [['', 'No grouping'], ['reporter', 'Reporter: team / community'], ['milestone', 'Milestone'], ['age', 'Age'], ['interest', 'Interest (👍, comments)'], ['label', 'Label']];
+const GROUP_BY = [['', 'No grouping'], ['sweeper', 'Sweeper verdict'], ['reporter', 'Reporter: team / community'], ['milestone', 'Milestone'], ['age', 'Age'], ['interest', 'Interest (👍, comments)'], ['label', 'Label']];
 const TEAM_ASSOC = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
+// What Sweeper says about an issue you own: already fixed, duplicate, not planned, needs info (close proposals), or agent-ready.
+const SWEEPER_VERDICTS = [
+	['fixed', 'Already fixed', 'pass', 'ok'], ['duplicate', 'Duplicate', 'copy', 'sev'], ['reason', 'Not planned', 'circle-slash', ''],
+	['needs-info', 'Needs info', 'question', 'sev'], ['agent', 'Agent-ready', 'rocket', 'acc'],
+];
+function sweeperVerdict(key) {
+	ui.sweeperIndex ??= { at: null, map: new Map() };
+	if (ui.sweeperIndex.at !== ui.state) {
+		const map = new Map();
+		for (const [g, v] of Object.entries(ui.state.cleanup || {})) for (const i of v.items || []) if (!map.has(i.key)) map.set(i.key, { id: g, why: [i.summary, i.duplicateOf ? `Duplicate of ${i.duplicateOf}` : '', i.shippedIn ? `Shipped in ${i.shippedIn}` : '', i.confidence ? `confidence ${i.confidence}` : ''].filter(Boolean).join(' · ') });
+		for (const i of ui.state.implement?.items || []) if (!map.has(i.key)) map.set(i.key, { id: 'agent', why: `Sweeper: agent-ready${i.severity ? ` · ${i.severity}` : ''}${i.confidence ? ` · confidence ${i.confidence}` : ''}` });
+		ui.sweeperIndex = { at: ui.state, map };
+	}
+	const v = ui.sweeperIndex.map.get(key);
+	if (!v) return null;
+	const [, label, icon, cls] = SWEEPER_VERDICTS.find(x => x[0] === v.id);
+	return { ...v, label, icon, cls };
+}
+function sweeperTagHtml(key) {
+	const v = sweeperVerdict(key);
+	return v ? `<span class="tag ${v.cls}" title="${esc(`Sweeper: ${v.label}${v.why ? ` — ${v.why}` : ''}`)}"><i class="codicon codicon-${v.icon}" aria-hidden="true"></i>${esc(v.label)}</span>` : '';
+}
 function groupFindItems(items, by) {
 	if (!by) return null;
 	const order = [];
@@ -2214,7 +2236,11 @@ function groupFindItems(items, by) {
 	// Labels that say nothing new inside this list: the issue types and the chosen area's labels.
 	const generic = new Set(['bug', 'feature-request', ...((ui.state.areas || []).find(a => a.id === ui.findArea)?.labels || [])]);
 	for (const i of items) {
-		if (by === 'reporter') {
+		if (by === 'sweeper') {
+			const v = sweeperVerdict(i.key);
+			const at = v ? SWEEPER_VERDICTS.findIndex(x => x[0] === v.id) : SWEEPER_VERDICTS.length;
+			put(v ? v.label : 'No Sweeper verdict', i, at);
+		} else if (by === 'reporter') {
 			const bot = i.authorType === 'Bot' || /\[bot\]$/.test(i.author || '');
 			put(bot ? 'Bots' : TEAM_ASSOC.has(i.association) ? 'Team' : 'Community', i, bot ? 2 : TEAM_ASSOC.has(i.association) ? 0 : 1);
 		} else if (by === 'milestone') {
@@ -2271,7 +2297,7 @@ function renderFindWorkInto(el) {
 			<i class="codicon codicon-${icon} find-icon${isBug ? ' bug' : i.isPr ? ' pr' : ''}" aria-hidden="true" title="${i.isPr ? 'Pull request' : isBug ? 'Bug' : i.labels.includes('feature-request') ? 'Feature request' : 'Issue'}"></i>
 			<div class="find-main">
 				<button type="button" class="find-title" data-browse-open="${esc(i.key)}" title="Open ${esc(shortKey(i.key))} here">${esc(i.title)}</button>
-				<div class="find-meta"><span class="find-num">${esc(shortKey(i.key))}</span>${i.isPr ? `<span>@${esc(i.author)}</span>` : ''}${i.milestone ? `<span>${esc(i.milestone)}</span>` : ''}${chips}<span class="find-age">${esc(ago(i.updatedAt))}</span></div>
+				<div class="find-meta"><span class="find-num">${esc(shortKey(i.key))}</span>${i.isPr ? '' : sweeperTagHtml(i.key)}${i.isPr ? `<span>@${esc(i.author)}</span>` : ''}${i.milestone ? `<span>${esc(i.milestone)}</span>` : ''}${chips}<span class="find-age">${esc(ago(i.updatedAt))}</span></div>
 			</div>
 			<div class="find-add">${has ? '<span class="find-in"><i class="codicon codicon-pass-filled" aria-hidden="true"></i>In My Work</span>'
 				: `${add('current', `+ ${cur?.title || 'Current'}`, `Add to ${cur?.title || 'current'} (local)`)}${add('next', 'Next', `Add to ${nxt?.title || 'next'} (local)`)}${add('priorities', 'Priorities', 'Add to the end of My priorities')}`}</div>

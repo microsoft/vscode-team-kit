@@ -2,6 +2,7 @@
 
 ## 1.0.9 (2026-11-02)
 
+- **Sweeper in Browse:** each of your issues in Browse shows Sweeper's verdict as a tag (Already fixed, Duplicate, Not planned, Needs info, Agent-ready; hover for the reason, shipped version and confidence). **Group by → Sweeper verdict** sorts the list into those buckets, so you can clean up or hand off a whole area at once.
 - Fixed: dragging an item onto a group's In progress / To do / Done header did nothing. Those headers now accept the drop and move the item into that group.
 - **Investigate** starts its chat in the repository's local clone (your `repoPaths`), so it can search and read the code directly. It runs read-only, with no worktree, and never edits, switches branches or commits in your checkout. Without a clone it still starts with no workspace.
 - The shipped triage principles now include **H3** (dismiss a notification once an approved action addresses it) and **H4** (archive finished issue chats), so everyone gets these by default. Your own inbox rules can still override them. H1 (reassign) no longer waits for you to dismiss.

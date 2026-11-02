@@ -1224,3 +1224,4 @@ body > * { min-width: 0; }
 .find-tabs { border-bottom: 0; }
 .find-tabs .seg-btn { margin-bottom: 0; }
 .find-tabs .find-area { margin-bottom: 0; }
+.codicon-copy::before { content: "\ebcc"; }
