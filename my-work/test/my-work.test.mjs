@@ -389,6 +389,17 @@ test('a review session checks out the PR in its own worktree and posts nothing w
 	assert.match(p, /omit relationship, so it is nested under this My Work session/);
 });
 
+test('review and fix sessions link themselves to their PR or issue', async () => {
+	const { TriageRuntime } = await import(new URL('lib/runtime.mjs', ext));
+	const runtime = new TriageRuntime({ log: () => { }, sendToChat: async () => { } });
+	const link = 'agent-host-session://ahp-session/abababab-1111-2222-3333-444444444444';
+	await runtime.invoke('x', 'updateMyWork', { op: 'linkSession', session: link, issue: 'octo/app#77' });
+	assert.deepEqual((await workSessions.getSessionLinks())['abababab-1111-2222-3333-444444444444'], ['octo/app#77']);
+	await workSessions.linkSessionIssue('abababab-1111-2222-3333-444444444444', 'octo/app#77', false);
+	assert.match(prompts.reviewSessionPrompt({ key: 'octo/app#77', title: 't', url: 'u' }), /"op": "linkSession", "session": "<the new session link>", "issue": "octo\/app#77"/);
+	assert.match(prompts.workSessionPrompt({ key: 'octo/app#78', title: 't', url: 'u' }), /"op": "linkSession"/);
+});
+
 test('any session can get a summary from the My Work chat', async () => {
 	const { TriageRuntime } = await import(new URL('lib/runtime.mjs', ext));
 	const runtime = new TriageRuntime({ log: () => { }, sendToChat: async () => { } });

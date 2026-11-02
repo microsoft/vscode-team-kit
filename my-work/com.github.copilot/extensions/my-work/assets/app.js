@@ -685,6 +685,11 @@ function sessionsHtml(list, heading = 'Sessions') {
 	return `<section class="linked dcard sess-card"><div class="linked-head"><span class="section-label">${esc(heading)} · ${list.length}</span></div><ul class="sess-list">${rows}</ul></section>`;
 }
 // The issue's own chat (where the panel's messages about it go); stage "session" once it became the work session.
+// Someone else's pull request (from the URL or the loaded GitHub data): its session is a review session.
+function reviewsPr(key, url) {
+	const g = ui.gh?.[key]?.data;
+	return g ? !!g.isPr && g.author?.login !== g.me : /\/pull\/\d+/.test(url || '');
+}
 function issueChat(key) {
 	return ui.state?.issueChats?.[key] || null;
 }
@@ -746,7 +751,8 @@ function issueQuick(key, url, { removable = false, state = null } = {}) {
 		...(removable ? [{ act: 'issue-unpin', key, icon: 'check', label: 'Clear from My Work (done)' }] : []),
 	];
 	return [
-		live ? { act: 'open-session', link: live.link, icon: 'comment-discussion', label: 'Open session' } : { act: 'work-session', key, icon: 'rocket', label: 'Start session' },
+		live ? { act: 'open-session', link: live.link, icon: 'comment-discussion', label: reviewsPr(key, url) ? 'Open review session' : 'Open session' }
+			: reviewsPr(key, url) ? { act: 'review-session', key, icon: 'eye', label: 'Start review session' } : { act: 'work-session', key, icon: 'rocket', label: 'Start session' },
 		{ href: url || `https://github.com/${key.split('#')[0]}/issues/${key.split('#')[1]}`, icon: 'link-external', label: 'Open on GitHub' },
 		...(removable ? [{ act: 'issue-unpin', key, icon: 'close', label: 'Remove from My Work' }] : []),
 	];
@@ -1441,8 +1447,10 @@ async function loadGitHub(key, fresh = false) {
 		const data = await api(`/api/github?key=${encodeURIComponent(key)}${fresh ? '&fresh=1' : ''}`);
 		const wasClosed = prev?.data?.state === 'closed';
 		ui.gh[key] = { data, at: Date.now() };
-		// Live GitHub says it is closed (the index can lag): redraw the title actions, which offer no new session for a closed issue.
-		if (data.state === 'closed' && !wasClosed && ui.selected?.id === key) { renderDetail(false, true); return; }
+		// Live GitHub says it is closed (the index can lag), or it is someone else's PR: redraw the title actions, which offer
+		// no new session for a closed issue and a review session (not a fix session) for a PR to review.
+		const firstPr = data.isPr && !prev?.data?.isPr;
+		if (((data.state === 'closed' && !wasClosed) || firstPr) && ui.selected?.id === key) { renderDetail(false, true); return; }
 	} catch (error) {
 		ui.gh[key] = { ...prev, loading: false, error: prev?.data ? null : error.message };
 		if (prev?.data) toast(`GitHub refresh failed: ${error.message}`, true);
@@ -1874,8 +1882,9 @@ async function renderUnindexedInto(el, key, opts = {}) {
 	const url = g?.url || `https://github.com/${key.split('#')[0]}/issues/${key.split('#')[1]}`;
 	const meta = `<div class="meta"><a class="num-link" href="${esc(safeUrl(url))}" target="_blank" rel="noopener">${esc(shortKey(key))}</a><span class="sep">·</span><span>${g?.isPr ? 'Pull request' : 'Issue'}</span><span class="sep">·</span><span class="cd">not in your issue index</span></div>`;
 	const live = liveSession(key);
-	const primary = opts.work ? (live ? { act: 'open-session', link: live.link, label: 'Open session', icon: 'comment-discussion' } : { act: 'work-session', key, label: 'Start session', icon: 'rocket' }) : null;
-	const menu = opts.work ? [...(live ? [{ act: 'work-session-new', key, label: 'Start another session' }] : []), ...workMenu(key, opts)] : [];
+	const review = g?.isPr && g.author?.login !== g.me;
+	const primary = opts.work ? (live ? { act: 'open-session', link: live.link, label: review ? 'Open review session' : 'Open session', icon: 'comment-discussion' } : review ? { act: 'review-session', key, label: 'Start review session', icon: 'eye' } : { act: 'work-session', key, label: 'Start session', icon: 'rocket' }) : null;
+	const menu = opts.work ? [...(live ? [review ? { act: 'review-session', key, label: 'Start another review session' } : { act: 'work-session-new', key, label: 'Start another session' }] : []), ...workMenu(key, opts)] : [];
 	el.innerHTML = `<div class="detail-head">${titleBarHtml({ title: g?.title || key, url, meta, primary, menu })}</div>
 		<div class="detail-body">${linkPickerHtml(key)}${recoSlot(key)}${sessionsHtml(sessionsOf(key))}${ghSlot(key)}</div>
 		<div class="footer">${threadHtml(key, g?.title || '')}</div>`;
@@ -1966,7 +1975,7 @@ async function renderIssueInto(el, key, fetchDetail, nested, silent = false, opt
 		// My Work: the work session is the main action; planning moves are in the menu.
 		const live = liveSession(key);
 		const g = ui.gh?.[key]?.data;
-		const reviewPr = g?.isPr && g.author?.login !== ui.state.me;
+		const reviewPr = g?.isPr && g.author?.login !== g.me;
 		primary = live ? { act: 'open-session', link: live.link, label: reviewPr ? 'Open review session' : 'Open session', icon: 'comment-discussion' }
 			: reviewPr ? { act: 'review-session', key, label: 'Start review session', icon: 'eye' } : { act: 'work-session', key, label: 'Start session', icon: 'rocket' };
 		menu = [...(live ? [reviewPr ? { act: 'review-session', key, label: 'Start another review session' } : { act: 'work-session-new', key, label: 'Start another session' }] : []), ...workMenu(key, opts)];
@@ -1978,9 +1987,11 @@ async function renderIssueInto(el, key, fetchDetail, nested, silent = false, opt
 		const live = liveSession(key);
 		const closed = ui.gh?.[key]?.data?.state === 'closed' || issue.state === 'closed' || issue.state === 'CLOSED';
 		const starts = new Set(['implement', 'work-session', 'review-session']);
+		const gpr = ui.gh?.[key]?.data;
+		const reviewing = gpr?.isPr && gpr.author?.login !== gpr.me;
 		if (live) {
-			primary = { act: 'open-session', link: live.link, label: 'Open session', icon: 'comment-discussion' };
-			if (!closed && !menu.some(m => m.act === 'work-session-new')) menu = [{ act: opts.work ? 'work-session-new' : 'implement', key, label: 'Start another session' }, ...menu];
+			primary = { act: 'open-session', link: live.link, label: reviewing ? 'Open review session' : 'Open session', icon: 'comment-discussion' };
+			if (!closed && !menu.some(m => m.act === 'work-session-new' || m.act === 'review-session')) menu = [reviewing ? { act: 'review-session', key, label: 'Start another review session' } : { act: opts.work ? 'work-session-new' : 'implement', key, label: 'Start another session' }, ...menu];
 		} else if (closed && primary && starts.has(primary.act)) {
 			primary = null;
 		}
@@ -2547,9 +2558,10 @@ async function act(button) {
 			msg = fresh ? 'Resent to a new chat' : 'Sent again to the same chat';
 			move = false;
 		} else if (act === 'review-session') {
-			await api('/api/review-session', { key, title: ui.gh?.[key]?.data?.title || ui.selected?.detail?.issue?.title || '' });
-			msg = `Asked the chat to start a review session for ${shortKey(key)}`;
-			move = false;
+			const r = await api('/api/review-session', { key, title: ui.gh?.[key]?.data?.title || ui.selected?.detail?.issue?.title || '' });
+			msg = `Asked the chat to start a review session for ${shortKey(key)}${r.dismissed?.length ? ' · notification dismissed' : ''}`;
+			// From Notifications the review request is now done: go on to the next one.
+			move = ui.tab === 'notifications' && !!r.dismissed?.length;
 		} else if (act === 'work-session' || act === 'work-session-new') {
 			const w = ui.work?.data?.milestones.flatMap(m => m.items.map(i => ({ ...i, milestone: m.title }))).find(i => i.key === key);
 			const d = ui.selected?.detail?.issue?.key === key ? ui.selected.detail.issue : null;

@@ -711,7 +711,12 @@ export class TriageServer {
 				await this.sendToMyWorkSession(reviewSessionPrompt({ key: body.key, title: String(body.title || '').slice(0, 300), url: `https://github.com/${repo}/pull/${num}` }));
 				// The PR shows in My Work (current group, local) with its review session.
 				await trackFix(body.key);
-				result = { sent: true, key: body.key };
+				// Starting the review addresses the review request: its notifications are done.
+				const dismissed = [];
+				for (const id of await data.notificationIdsForIssues([body.key])) {
+					try { await data.dismissNotification({ id }); dismissed.push(id); } catch { /* keep going; the panel still shows it */ }
+				}
+				result = { sent: true, key: body.key, dismissed };
 				break;
 			}
 			case '/api/work-session': {

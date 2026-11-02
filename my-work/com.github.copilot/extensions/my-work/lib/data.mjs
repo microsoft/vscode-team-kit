@@ -2,8 +2,8 @@ import { execFile } from 'node:child_process';
 import { promises as fs, watch as fsWatch } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { sessionsFor } from './sessions.mjs';
-import { listIssueChats, getSessionSummaries } from './workSessions.mjs';
+import { sessionsFor, sessionsById } from './sessions.mjs';
+import { listIssueChats, getSessionSummaries, getSessionLinks } from './workSessions.mjs';
 import { COPILOT_HOME, BOARD, SCRIPT, config } from './config.mjs';
 
 export { BOARD, SCRIPT };
@@ -429,6 +429,18 @@ async function loadNotifications(force = false) {
 	return notifCache;
 }
 
+/** Sessions linked to an issue or PR explicitly (by hand, or by the review / fix session itself) show on it too, first. */
+export async function addLinkedSessions(sessions) {
+	const links = await getSessionLinks();
+	const byId = await sessionsById(Object.keys(links)).catch(() => ({}));
+	for (const [sid, keys] of Object.entries(links)) {
+		const z = byId[sid];
+		if (!z) continue;
+		for (const k of keys) { const list = sessions[k] ||= []; if (!list.some(x => x.id === sid)) list.unshift({ ...z, link: `agent-host-session://ahp-session/${sid}`, linked: true }); }
+	}
+	return sessions;
+}
+
 // --- Public API ---
 /** Unread notification thread ids about these issues / PRs (owner/repo#N). */
 export async function notificationIdsForIssues(keys) {
@@ -551,6 +563,7 @@ export async function getState({ forceNotifications = false } = {}) {
 	const issueChats = await listIssueChats();
 	const sessionSummaries = await getSessionSummaries();
 	const sessions = await sessionsFor([...new Set([...Object.keys(index.issues || {}), ...(notif.data || []).map(n => n.issueKey).filter(Boolean)])]).catch(() => ({}));
+	await addLinkedSessions(sessions);
 	const customGroups = await getCustomGroups();
 	const areas = await loadAreas();
 	const issues = index.issues || {};

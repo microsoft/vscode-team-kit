@@ -216,7 +216,7 @@ export function reviewSessionPrompt({ key, title, url }) {
 		`- review the change thoroughly${skill ? ` using the ${skill} skill` : ''}: correctness, edge cases, tests, performance, security, accessibility and consistency with the surrounding code; build it and run the most relevant tests when that is practical;`,
 		'- report findings ordered by severity with file:line references and suggested fixes, then a recommendation (approve, request changes, or comment), and draft the review comments it would post;',
 		'- never submit a review, approve, comment, push or change GitHub without the user\'s explicit approval in that session.',
-		`Then call the canvas action refresh, and reply with replyToIssue for ${key} including the session link.`,
+		`Right after create_session, call the canvas action updateMyWork {"op": "linkSession", "session": "<the new session link>", "issue": "${key}"} so the panel offers the session on this PR. Then call the canvas action refresh, and reply with replyToIssue for ${key} including the session link.`,
 	].join('\n');
 }
 export function workSessionPrompt({ key, title, url, milestone }) {
@@ -226,7 +226,7 @@ export function workSessionPrompt({ key, title, url, milestone }) {
 		UNTRUSTED,
 		`Fetch the live issue and its latest comments, decide bug vs feature, and use the matching local repository (${repoHint(key.split('#')[0])}; if none exists, say so with replyToIssue instead of guessing).`,
 		`Call create_session (omit relationship, so it is nested under this My Work session) with that workspace, worktree true, and title "Fix #${num}: <short title>" (or "Implement #${num}: …" for a feature) — keep "#${num}" in the title so the panel links the session to the issue. The prompt should include the issue URL, title, latest relevant comments, and: reproduce first for bugs${config().fixSkill ? ` (${config().fixSkill} skill)` : ''}, implement with tests, and do not push, open a PR, or comment on GitHub without asking the user.`,
-		`Then record ${key} as fixing (\`${scriptCommand()} record ${key} --decision fixing --note "<session link>"\`) if it is in the index, call the canvas action refresh, and reply with replyToIssue for ${key} including the session link.`,
+		`Right after create_session, call the canvas action updateMyWork {"op": "linkSession", "session": "<the new session link>", "issue": "${key}"} so the panel offers the session on this issue. Then record ${key} as fixing (\`${scriptCommand()} record ${key} --decision fixing --note "<session link>"\`) if it is in the index, call the canvas action refresh, and reply with replyToIssue for ${key} including the session link.`,
 	].join('\n');
 }
 

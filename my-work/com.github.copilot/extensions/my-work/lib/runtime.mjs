@@ -1,6 +1,6 @@
 import { getMyWork, cleanRefine } from './work.mjs';
 import { listSections, listNotes, saveNote, sectionForLink, isGroup } from './sections.mjs';
-import { listPinned, pinSession, unpinSessions, parseSessionRef, getMyWorkChat, setMyWorkChat, setIssueChat, MY_WORK_DIR, setSessionBucket, setSessionSummary, pinIssue, setIssueBucket, recordSessionSummary, setInvestigationResult, INVESTIGATION_RESULTS } from './workSessions.mjs';
+import { listPinned, pinSession, unpinSessions, parseSessionRef, getMyWorkChat, setMyWorkChat, setIssueChat, MY_WORK_DIR, setSessionBucket, setSessionSummary, pinIssue, setIssueBucket, recordSessionSummary, setInvestigationResult, INVESTIGATION_RESULTS, linkSessionIssue } from './workSessions.mjs';
 import { watch as fsWatch, mkdirSync } from 'node:fs';
 import { sessionsById, recentSessions } from './sessions.mjs';
 import { TriageServer } from './server.mjs';
@@ -180,11 +180,11 @@ export const actionDefinitions = [
 	},
 	{
 		name: 'updateMyWork',
-		description: 'Change the user\'s local My Work board (never GitHub). Ops: addIssue (key owner/repo#N, optional group: current (default) | next | priorities | a custom section id from getMyWork; local, GitHub milestone unchanged), pinSession / unpinSession (session: an agent-host-session:// link or id, optional note, optional group as for addIssue), moveSession (session, group), describeSession (session, summary, optional issue owner/repo#N to replace the session with that issue), addPriority (key, optional position "top"), movePriority (key, position "top" | "bottom" | "up" | "down" | 0-based index), removePriority (key), addNote (section: a custom section id, title, optional link, optional due YYYY-MM-DD, optional description; a link matching a section\'s link pattern picks that section and its reference), investigationResult (issue owner/repo#N, result reproduced | not-reproduced | partly | findings, summary: one line; call it when a reproduce attempt or investigation the user asked for from the panel is done, so My Work shows the result).',
+		description: 'Change the user\'s local My Work board (never GitHub). Ops: addIssue (key owner/repo#N, optional group: current (default) | next | priorities | a custom section id from getMyWork; local, GitHub milestone unchanged), pinSession / unpinSession (session: an agent-host-session:// link or id, optional note, optional group as for addIssue), moveSession (session, group), describeSession (session, summary, optional issue owner/repo#N to replace the session with that issue), addPriority (key, optional position "top"), movePriority (key, position "top" | "bottom" | "up" | "down" | 0-based index), removePriority (key), addNote (section: a custom section id, title, optional link, optional due YYYY-MM-DD, optional description; a link matching a section\'s link pattern picks that section and its reference), investigationResult (issue owner/repo#N, result reproduced | not-reproduced | partly | findings, summary: one line; call it when a reproduce attempt or investigation the user asked for from the panel is done, so My Work shows the result), linkSession (session: link or id, issue owner/repo#N: links a review or fix session to its PR / issue so the panel offers it there).',
 		inputSchema: {
 			type: 'object',
 			properties: {
-				op: { type: 'string', enum: ['addIssue', 'pinSession', 'unpinSession', 'moveSession', 'describeSession', 'addPriority', 'movePriority', 'removePriority', 'addNote', 'investigationResult'] },
+				op: { type: 'string', enum: ['addIssue', 'pinSession', 'unpinSession', 'moveSession', 'describeSession', 'addPriority', 'movePriority', 'removePriority', 'addNote', 'investigationResult', 'linkSession'] },
 				result: { type: 'string', enum: INVESTIGATION_RESULTS },
 				session: { type: 'string', maxLength: 300 },
 				note: { type: 'string', maxLength: 200 },
@@ -421,6 +421,9 @@ export class TriageRuntime {
 						if (result.bucket !== group) result = await setSessionBucket(id, group);
 						if (group === 'priorities') await data.updatePriorities({ op: 'add', key: `session:${id}` });
 					}
+				} else if (input.op === 'linkSession') {
+					const id = need(parseSessionRef(input.session), 'a session link or id');
+					result = { session: id, issues: await linkSessionIssue(id, need(input.issue, 'issue')) };
 				} else if (input.op === 'investigationResult') {
 					result = await setInvestigationResult(need(input.issue, 'issue'), need(input.result, 'result'), input.summary || '');
 				} else if (input.op === 'addNote') {
