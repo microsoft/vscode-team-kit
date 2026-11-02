@@ -2,6 +2,7 @@
 
 ## 1.0.9 (2026-11-02)
 
+- Fixed: the Group by, Recent filters and Refresh actions inside the Browse search box were drawn in the faint placeholder colour and looked disabled.
 - **Sweeper in Browse:** each of your issues in Browse shows Sweeper's verdict as a tag (Already fixed, Duplicate, Not planned, Needs info, Agent-ready; hover for the reason, shipped version and confidence). **Group by → Sweeper verdict** sorts the list into those buckets, so you can clean up or hand off a whole area at once.
 - Fixed: dragging an item onto a group's In progress / To do / Done header did nothing. Those headers now accept the drop and move the item into that group.
 - **Investigate** starts its chat in the repository's local clone (your `repoPaths`), so it can search and read the code directly. It runs read-only, with no worktree, and never edits, switches branches or commits in your checkout. Without a clone it still starts with no workspace.

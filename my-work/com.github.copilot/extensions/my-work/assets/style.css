@@ -1225,3 +1225,5 @@ body > * { min-width: 0; }
 .find-tabs .seg-btn { margin-bottom: 0; }
 .find-tabs .find-area { margin-bottom: 0; }
 .codicon-copy::before { content: "\ebcc"; }
+/* actions inside the search box use the normal icon colour (not the faint placeholder colour) */
+.find-view .find-search .act .codicon { color: var(--icon-fg, var(--fg)); font-size: 16px; }
