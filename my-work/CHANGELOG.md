@@ -2,6 +2,7 @@
 
 ## 1.0.8 (2026-10-29)
 
+- Fixed: one failed post to the triage chat made the daily run create a new "Daily triage" chat, and from then on use that one. The daily run now posts to your My Work session whenever the panel has one. A failed post is retried once if the chat still exists, and a new chat is created only when the old one was deleted or archived. Re-run my-work-setup, or update your indexer automation's step 3, to get the new wording.
 - Browse shows its Bugs / Features / All / Reviews tabs and the area dropdown above the search box.
 - The filter actions (Route, Auto-dismiss, Safe to dismiss, Re-check) sit right next to the area dropdown; Collapse All and Refresh stay on the right.
 - Fixed: the toolbar actions (Route, Auto-dismiss, Safe to dismiss, Re-check) vanished every 30 seconds and during Refresh, when the bar redrew its "Updated …" time.

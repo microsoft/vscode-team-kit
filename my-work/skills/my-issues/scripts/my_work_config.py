@@ -18,6 +18,7 @@ DEFAULTS = {
     "rulesFile": os.path.join(COPILOT_HOME, "github-inbox-rules.md"),
     "memoryFile": os.path.join(COPILOT_HOME, "github-inbox-memory.md"),
     "login": None,
+    "dataDir": "~/.agents/data/my-work",
 }
 
 
@@ -38,6 +39,7 @@ ORG = CFG["org"]
 PLAN_REPO = CFG["planRepo"]
 RULES_FILE = CFG["rulesFile"]
 MEMORY_FILE = CFG["memoryFile"]
+DATA_DIR = os.path.expanduser(CFG["dataDir"] or DEFAULTS["dataDir"])
 PRINCIPLES_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "triage-principles.md")
 SWEEPER_REPO = os.path.expanduser(CFG["sweeperRepo"] or "")
 # Sweeper only publishes records for microsoft/vscode.

@@ -242,6 +242,23 @@ test('the reused triage chat is titled My Work', () => {
 	assert.equal(String(out).trim(), 'My Work');
 });
 
+test('the daily run posts to the My Work session when the panel has one', () => {
+	const dataDir = mkdtempSync(path.join(os.tmpdir(), 'mw-data-'));
+	const cfgHome = mkdtempSync(path.join(os.tmpdir(), 'mw-home-'));
+	mkdirSync(path.join(cfgHome, 'project-boards'), { recursive: true });
+	writeFileSync(path.join(cfgHome, 'project-boards', 'my-work.config.json'), JSON.stringify({ dataDir }));
+	const env = { ...process.env, COPILOT_HOME: cfgHome, PYTHONDONTWRITEBYTECODE: '1' };
+	const run = () => String(execFileSync('python3', ['-c', 'import sys; sys.argv = ["x"]; import my_issues; print(my_issues.my_work_session())'], { cwd: scripts, env })).trim();
+	try {
+		assert.equal(run(), 'None');
+		writeFileSync(path.join(dataDir, 'chat.json'), JSON.stringify({ format: 'my-work/chat', version: 1, link: 'agent-host-session://ahp-session/aaaa-1?chat=bbbb-2' }));
+		assert.equal(run(), 'agent-host-session://ahp-session/aaaa-1', 'the session, not the nested chat');
+	} finally {
+		rmSync(dataDir, { recursive: true, force: true });
+		rmSync(cfgHome, { recursive: true, force: true });
+	}
+});
+
 test('Browse filters narrow the selected source via the chat', async () => {
 	const work = await import(new URL('lib/work.mjs', ext));
 	assert.equal(work.cleanRefine('author:alexdima   created:>=2026-10-01 '), 'author:alexdima created:>=2026-10-01');

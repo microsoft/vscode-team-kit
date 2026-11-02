@@ -8,7 +8,7 @@ import argparse, datetime, json, os, re, subprocess, sys, tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from my_work_config import (  # noqa: E402
-    BOARD, ORG, PLAN_REPO, RULES_FILE, MEMORY_FILE, PRINCIPLES_FILE, SWEEPER_REPO, SWEEPER_SCOPE, REPO_CLONE, has_sweeper, login as _gh_login,
+    BOARD, DATA_DIR, ORG, PLAN_REPO, RULES_FILE, MEMORY_FILE, PRINCIPLES_FILE, SWEEPER_REPO, SWEEPER_SCOPE, REPO_CLONE, has_sweeper, login as _gh_login,
 )
 
 INDEX = os.path.join(BOARD, "my-issues.json")
@@ -371,6 +371,17 @@ def new_day_message(date, refreshed_at, notifications):
     )
 
 
+def my_work_session():
+    """The session of the panel's "My Work chat" (its link without the ?chat= part), if the panel has one."""
+    try:
+        with open(os.path.join(DATA_DIR, "chat.json")) as f:
+            d = json.load(f)
+    except (OSError, ValueError):
+        return None
+    link = d.get("link") if isinstance(d, dict) and d.get("format") == "my-work/chat" else None
+    return link.split("?", 1)[0] if isinstance(link, str) and link.startswith("agent-host-session://") else None
+
+
 def cmd_queue(a, idx):
     manifest = load(MANIFEST, {})
     sections, actionable = build_queue(idx, manifest)
@@ -378,7 +389,8 @@ def cmd_queue(a, idx):
     refreshed_at = idx.get("refreshedAt")
     chats = load(TRIAGE_CHATS, {"schemaVersion": 1, "chats": {}})
     existing = chats["chats"].get(refreshed_at)
-    persistent = (chats.get("persistentChat") or {}).get("link")
+    # The My Work session (where the panel's "My Work chat" lives) wins, so the indexer and the panel never drift apart.
+    persistent = my_work_session() or (chats.get("persistentChat") or {}).get("link")
     notifications = unread_notifications()
     wanted = bool(actionable or notifications) and not existing
     result = {
