@@ -822,7 +822,7 @@ function groupItemsHtml(g) {
 	const doneTip = g.closed?.length ? `Closed in ${g.header.split(' · ')[0]} in the last 7 days (assigned to you), and finished items you added` : 'Finished items: clear them when you no longer need them';
 	return STAGES.filter(([id]) => by[id].length).map(([id, name, icon]) => {
 		const open = stageOpen(g.role, id);
-		return `<button type="button" class="stage-h stage-${id}" data-stage-toggle="${esc(`${g.role}:${id}`)}" aria-expanded="${open}"${id === 'done' ? ` title="${esc(doneTip)}"` : ''}><i class="codicon codicon-chevron-right" aria-hidden="true"></i><i class="codicon codicon-${icon} stage-icon" aria-hidden="true"></i>${name}<span class="group-n">${by[id].length}</span></button>${open ? `<div class="stage-body">${by[id].map(rowHtml).join('')}</div>` : ''}`;
+		return `<button type="button" class="stage-h stage-${id}" data-stage-toggle="${esc(`${g.role}:${id}`)}"${g.drop ? ` data-drop-group="${esc(g.role)}"` : ''} aria-expanded="${open}"${id === 'done' ? ` title="${esc(doneTip)}"` : ''}><i class="codicon codicon-chevron-right" aria-hidden="true"></i><i class="codicon codicon-${icon} stage-icon" aria-hidden="true"></i>${name}<span class="group-n">${by[id].length}</span></button>${open ? `<div class="stage-body">${by[id].map(rowHtml).join('')}</div>` : ''}`;
 	}).join('');
 }
 // How an item is named in a section's saved order.
