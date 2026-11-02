@@ -3,7 +3,7 @@ import { promises as fs, watch as fsWatch } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { sessionsFor, sessionsById } from './sessions.mjs';
-import { listIssueChats, getSessionSummaries, getSessionLinks } from './workSessions.mjs';
+import { listIssueChats, getSessionSummaries, getSessionLinks, listPinnedIssues } from './workSessions.mjs';
 import { COPILOT_HOME, BOARD, SCRIPT, config } from './config.mjs';
 
 export { BOARD, SCRIPT };
@@ -561,6 +561,8 @@ export async function getState({ forceNotifications = false } = {}) {
 	]);
 	const threads = await getThreads();
 	const issueChats = await listIssueChats();
+	// Reproduce / investigate requests and their results, so every view can show them (not only My Work).
+	const investigations = Object.fromEntries((await listPinnedIssues().catch(() => [])).filter(p => p.investigation).map(p => [p.key, p.investigation]));
 	const sessionSummaries = await getSessionSummaries();
 	const sessions = await sessionsFor([...new Set([...Object.keys(index.issues || {}), ...(notif.data || []).map(n => n.issueKey).filter(Boolean)])]).catch(() => ({}));
 	await addLinkedSessions(sessions);
@@ -647,7 +649,7 @@ export async function getState({ forceNotifications = false } = {}) {
 	}
 
 	return {
-		hasIndex, indexing: await loadIndexing(), refreshedAt: index.refreshedAt, counts: index.counts, queueDate: queue?.date ?? null, settings, batches, opinions, opinionPending, informedPending, threads, issueChats, sessionSummaries, me: await currentLogin().catch(() => null), customGroups, areas, sessions,
+		investigations, hasIndex, indexing: await loadIndexing(), refreshedAt: index.refreshedAt, counts: index.counts, queueDate: queue?.date ?? null, settings, batches, opinions, opinionPending, informedPending, threads, issueChats, sessionSummaries, me: await currentLogin().catch(() => null), customGroups, areas, sessions,
 		notifications, notificationsError: notif.error ?? null, notificationsFetchedAt: notif.at ? new Date(notif.at).toISOString() : null, untriaged, notifTriagePending, issueRules, issueRulesPending, sections, cleanup: cleanupGroups,
 		implement: { total: implement.total, bugs: implement.bugs, items: implementItems },
 		today: {

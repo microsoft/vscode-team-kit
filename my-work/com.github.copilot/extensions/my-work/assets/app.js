@@ -636,9 +636,10 @@ function renderBatchBar() {
 // ---- Agents window sessions working on an issue (matched by "#N" in their titles) ----
 function sessionsOf(key) {
 	const a = ui.state?.sessions?.[key] || [], b = ui.work?.data?.sessions?.[key] || [];
-	if (!b.length) return a;
+	// The My Work session matches every issue whose chat is nested in it; it is not that issue's session.
+	const host = new Set(Object.values(ui.state?.issueChats || {}).map(c => /\?chat=/.test(c?.link || '') ? c.link.split('?')[0].split('/').pop() : null).filter(Boolean));
 	const seen = new Set();
-	return [...b, ...a].filter(z => !seen.has(z.id) && seen.add(z.id));
+	return [...b, ...a].filter(z => !host.has(z.id) && !seen.has(z.id) && seen.add(z.id));
 }
 function sessTag(key) {
 	const list = sessionsOf(key).filter(s => !s.archived);
@@ -1578,7 +1579,15 @@ function recommendations(key) {
 	const hasSteps = /steps to reproduce|repro steps|^\s*1[.)]\s/im.test(text);
 	const hasRepro = hasSteps || /repro|user-attachments|\.(png|gif|mp4)/i.test(text);
 	// A bug with steps: the issue's own chat can try them and report whether it reproduces.
-	if (!g.isPr && isBug && hasSteps && !labels.includes('info-needed') && outcome?.decision !== 'fixing') {
+	// Already asked to reproduce or investigate: show where that stands instead of offering it again.
+	const inv = ui.state.investigations?.[key] || ui.work?.data?.pinnedIssues?.find(x => x.key === key)?.investigation;
+	if (!g.isPr && inv) {
+		const what = inv.kind === 'reproduce' ? 'reproduce' : 'investigate';
+		const res = { reproduced: 'Reproduced', 'not-reproduced': 'Did not reproduce', partly: 'Partly reproduced', findings: 'Investigation done' }[inv.result];
+		recs.push(inv.result
+			? { icon: inv.result === 'not-reproduced' ? 'circle-slash' : inv.result === 'findings' ? 'lightbulb' : 'bug', text: `${res}${inv.summary ? ` — ${inv.summary}` : '.'}`, why: inv.resultAt ? agoText(inv.resultAt) : '', actions: [] }
+			: { icon: 'loading', text: `You asked the chat to ${what} this; it reports back here.`, why: agoText(inv.at), actions: [] });
+	} else if (!g.isPr && isBug && hasSteps && !labels.includes('info-needed') && outcome?.decision !== 'fixing') {
 		recs.push({ icon: 'beaker', text: 'Has steps to reproduce — check whether it reproduces.', actions: [ask('Reproduce', REPRO_PROMPT, !recs.length, 'reproduce')] });
 	}
 	if (!g.isPr && !human.length && !labels.includes('info-needed') && !p.group) {
@@ -1621,7 +1630,7 @@ async function askAboutIssue(key, text, track) {
 	const g = ui.gh?.[key]?.data;
 	try {
 		await api('/api/message', { key, title: g?.title || '', text, ...(track ? { track } : {}) });
-		toast(track === 'reproduce' ? 'Asked the chat to reproduce it · tracked in My Work › Investigating' : 'Asked the chat · the reply appears in the conversation below');
+		toast(track === 'reproduce' ? 'Asked the chat to reproduce it · notification dismissed · tracked in My Work › Investigating' : 'Asked the chat · the reply appears in the conversation below');
 		if (ui.state.settings.chatCollapsed) setChatCollapsed(false);
 		await load();
 	} catch (error) { toast(error.message, true); }

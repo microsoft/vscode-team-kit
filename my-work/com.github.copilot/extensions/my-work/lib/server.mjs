@@ -538,6 +538,7 @@ export class TriageServer {
 					const item = { issueKey: body.key, title: detail?.issue.title || body.key, htmlUrl: detail?.issue.url || `https://github.com/${repo}/issues/${num}` };
 					await this.sendToChat(notificationIssueActionPrompt({ action: 'investigate', notification: item }));
 					await trackInvestigation(body.key, 'investigate');
+					for (const id of await data.notificationIdsForIssues([body.key])) await data.dismissNotification({ id }).catch(() => { });
 					result = { sent: true, kind: body.kind, key: body.key };
 					break;
 				}
@@ -551,6 +552,7 @@ export class TriageServer {
 					const prompt = notificationIssueActionPrompt({ action, notification });
 					await (action === 'start' ? this.sendToMyWorkSession(prompt) : this.sendToChat(prompt));
 					await (action === 'start' ? trackFix(notification.issueKey) : trackInvestigation(notification.issueKey, 'investigate'));
+					if (action === 'investigate') await data.dismissNotification({ id: notification.id }).catch(() => { });
 					result = { sent: true, kind: body.kind, id: notification.id, key: notification.issueKey };
 					break;
 				}
@@ -776,7 +778,11 @@ export class TriageServer {
 				if (chat) await this.sendToChat(forwardToIssueChatPrompt({ link: chat.link, key: body.key, text }));
 				else await this.sendToMyWorkSession(createIssueChatPrompt({ key: body.key, url: `https://github.com/${owner}/${repo}/issues/${number}`, title, text }));
 				// A reproduce request from the panel (e.g. the Reproduce recommendation) is tracked in the Investigating section.
-				if (body.track === 'reproduce' && !again) await trackInvestigation(body.key, 'reproduce');
+				if (body.track === 'reproduce' && !again) {
+					await trackInvestigation(body.key, 'reproduce');
+					// Asking for a reproduce attempt is acting on the notification: it is done.
+					for (const id of await data.notificationIdsForIssues([body.key])) await data.dismissNotification({ id }).catch(() => { });
+				}
 				result = { key: body.key, entries: again ? await data.getThread(body.key) : await data.appendThread(body.key, 'user', text) };
 				break;
 			}
