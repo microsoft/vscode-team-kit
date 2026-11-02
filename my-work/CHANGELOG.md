@@ -2,6 +2,7 @@
 
 ## 1.0.9 (2026-11-02)
 
+- Issue chats tidy up after themselves. Once one has done what you asked (reassigned, commented or labeled, closed) and dismissed the notification, the My Work session archives that chat. A later message about the issue starts a fresh chat; your conversation in the panel is kept. Work sessions are never archived this way.
 - **Triage** recommendation for open issues that lack two or more of a type label, a feature-area label and a milestone. The chat checks for duplicates, proposes the labels and milestone, applies them after you approve, and dismisses the notification.
 - Asking to reproduce or investigate dismisses the issue's notification at once. After that the issue no longer offers **Reproduce**: Recommended next shows that the chat is on it, then its result. The My Work session no longer appears under an issue's Sessions just because the issue's chat is nested in it.
 - **Start review session:** for a pull request awaiting your review, or anyone else's PR, the main recommendation and main button start a review session. It is nested under My Work with its own worktree of the PR, and reviews it (with your `reviewSkill` if configured), drafting the review comments. It never posts anything without your approval. Starting it dismisses the PR's notification right away. The session links itself to the PR, so the PR (in My Work, Today or Notifications) offers **Open review session**; fix sessions link themselves to their issue the same way (`updateMyWork` op `linkSession`).

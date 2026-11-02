@@ -378,6 +378,8 @@ test('issue chats dismiss notifications by issue once an approved action address
 	const prompt = prompts.createIssueChatPrompt({ key: 'octo/app#42', url: 'https://github.com/octo/app/issues/42', title: 'Crash', text: 'hi' });
 	assert.match(prompt, /dismissNotifications \{"issues": \["octo\/app#42"\]\}/);
 	assert.match(prompt, /without asking/);
+	assert.match(prompt, /Panel request: archive the chat for octo\/app#42/, 'a finished discussion chat asks the My Work session to archive it');
+	assert.match(prompt, /not been turned into its work session/);
 });
 
 test('a review session checks out the PR in its own worktree and posts nothing without approval', () => {
