@@ -2,6 +2,7 @@
 
 ## 1.0.9 (2026-11-02)
 
+- Fixed: a session working on an issue in My Work (e.g. "Fix #N") also showed under **Active sessions**. Active sessions now lists only sessions that My Work doesn't already show.
 - Fixed: an action on an issue opened from Browse (for example Close as duplicate) jumped to the first item in the list afterwards, often a session. The panel now stays on the issue and refreshes it from GitHub, so you see its new state. While an action runs, its button shows a spinner.
 - Fixed: the Group by, Recent filters and Refresh actions inside the Browse search box were drawn in the faint placeholder colour and looked disabled.
 - **Sweeper in Browse:** each of your issues in Browse shows Sweeper's verdict as a tag (Already fixed, Duplicate, Not planned, Needs info, Agent-ready; hover for the reason, shipped version and confidence). **Group by → Sweeper verdict** sorts the list into those buckets, so you can clean up or hand off a whole area at once.

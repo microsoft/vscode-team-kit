@@ -338,7 +338,7 @@ export class TriageServer {
 				return { ...p, session: z, status, fixes };
 			}));
 			const hidden = new Set(await getHiddenSessions());
-			const recent = (await recentSessions(40).catch(() => [])).filter(r => !pinned.some(p => p.id === r.id) && !hidden.has(r.id)).slice(0, 20);
+			const recentAll = await recentSessions(40).catch(() => []);
 			// Issues added locally (e.g. resolved from a session): details from GitHub; closed ones stay, marked, until cleared.
 			const pinIssues = await listPinnedIssues();
 			const det = await issueDetails(pinIssues.map(p => p.key), url.searchParams.get('fresh') === '1').catch(() => ({}));
@@ -363,6 +363,10 @@ export class TriageServer {
 				const list = sessions[p.key] ||= [];
 				if (!list.some(x => x.id === sid)) list.unshift({ ...z, link: `agent-host-session://ahp-session/${sid}` });
 			}
+			// Active sessions lists only what My Work doesn't show yet: not pinned, not hidden, and not a session of an issue in My Work.
+			const shownKeys = new Set([...keys, ...pinnedIssues.map(p => p.key), ...(work.priorityKeys || [])]);
+			const onIssues = new Set(Object.entries(sessions).filter(([k]) => shownKeys.has(k)).flatMap(([, list]) => list.map(z => z.id)));
+			const recent = recentAll.filter(r => !pinned.some(p => p.id === r.id) && !hidden.has(r.id) && !onIssues.has(r.id)).slice(0, 20);
 			this.json(res, 200, { ...work, sections, notes, pinnedSessions, pinnedIssues, recentSessions: recent, myWorkChat: await getMyWorkChat(), sessionSummaries: await getSessionSummaries(), sessionLinks, noteSessions: await sessionsMentioning(notes.map(n => n.ref || n.title)).catch(() => ({})), sessions });
 			return;
 		}
