@@ -2,6 +2,7 @@
 
 ## 1.0.9 (2026-11-02)
 
+- **Investigate** starts its chat in the repository's local clone (your `repoPaths`), so it can search and read the code directly. It runs read-only, with no worktree, and never edits, switches branches or commits in your checkout. Without a clone it still starts with no workspace.
 - The shipped triage principles now include **H3** (dismiss a notification once an approved action addresses it) and **H4** (archive finished issue chats), so everyone gets these by default. Your own inbox rules can still override them. H1 (reassign) no longer waits for you to dismiss.
 - Issue chats tidy up after themselves. When an issue's notification is dismissed, by you in the panel or by the chat once it has done what you asked, the My Work session archives that issue's discussion chat. Chats that are busy or waiting for you are kept, as are work sessions and running reproduce or investigate chats. A later message about the issue starts a fresh chat; your conversation in the panel is kept. This doesn't depend on the chat's own instructions, so chats created earlier are cleaned up too.
 - **Triage** recommendation for open issues that lack two or more of a type label, a feature-area label and a milestone. The chat checks for duplicates, proposes the labels and milestone, applies them after you approve, and dismisses the notification.

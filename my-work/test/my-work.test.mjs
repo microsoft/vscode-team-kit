@@ -416,6 +416,14 @@ test('review and fix sessions link themselves to their PR or issue', async () =>
 	assert.match(prompts.workSessionPrompt({ key: 'octo/app#78', title: 't', url: 'u' }), /"op": "linkSession"/);
 });
 
+test('an investigation runs in the repository clone, read-only', () => {
+	const ask = key => prompts.notificationIssueActionPrompt({ action: 'investigate', notification: { issueKey: key, title: 'Crash', htmlUrl: 'u' } });
+	assert.ok(ask('octo/app#5').includes(`workspace ${JSON.stringify(path.join(home, 'src', 'app'))}`), 'the local clone is the workspace');
+	assert.match(ask('octo/app#5'), /no worktree/);
+	assert.match(ask('octo/app#5'), /Do not edit files, switch branches or commit there/);
+	assert.match(ask('octo/missing#5'), /no local clone of octo\/missing, so omit workspace and worktree/);
+});
+
 test('any session can get a summary from the My Work chat', async () => {
 	const { TriageRuntime } = await import(new URL('lib/runtime.mjs', ext));
 	const runtime = new TriageRuntime({ log: () => { }, sendToChat: async () => { } });

@@ -1,4 +1,4 @@
-import { config, repoHint, rulesHint, scriptCommand } from './config.mjs';
+import { config, repoHint, repoPath, expandHome, rulesHint, scriptCommand } from './config.mjs';
 
 function fixSkillHint() {
 	return config().fixSkill ? ` (use the ${config().fixSkill} skill for bugs)` : '';
@@ -66,17 +66,22 @@ export function notificationIssueActionPrompt({ action, notification }) {
 	}
 	const issueNumber = key.split('#')[1];
 	const investigationTitle = `Investigate #${issueNumber}: ${plainTitle(notification.title)}`;
+	const repo = key.split('#')[0];
+	// The investigator works in the repository's local clone (read-only), so its tools, search and git see the code.
+	const clone = repoPath(repo) ? expandHome(repoPath(repo)) : null;
 	const investigationPrompt = [
 		`Investigate ${key} ${title} (${url}) from the daily triage panel.`,
 		UNTRUSTED,
-		`This is a read-only investigation. Fetch the live issue and its latest comments, use local my-issues index context when available, and inspect the matching repository read-only by absolute path (${repoHint()}).`,
+		`This is a read-only investigation. Fetch the live issue and its latest comments, use local my-issues index context when available, and inspect ${clone ? 'the repository in your workspace' : `the matching repository read-only (${repoHint(repo)})`}. Do not edit files, switch branches or commit there: it is the user's own checkout.`,
 		'Report the problem and reproduction status, likely scope/root cause, a concrete fix or implementation approach, important risks or blockers, and whether the issue appears ready for a work session.',
 		'Do not change GitHub, record an outcome, start a fix or implementation session, mark the notification handled, or dismiss it.',
 		`When the investigation is complete, list the capabilities for the my-issues-triage canvas, open it with instanceId "triage-investigation-${issueNumber}" and input null, call the canvas action updateMyWork {"op": "investigationResult", "issue": "${key}", "result": "findings", "summary": "<one line: what you found>"} (use "reproduced", "not-reproduced" or "partly" instead of "findings" if you tried to reproduce it), then call replyToIssue for ${key} with concise markdown findings. Include these choices: a primary "Start fix / implementation session" reply "start a fix or implementation session", plus "Defer" reply "defer" and "Keep open" reply "keep open".`,
 	].join('\n');
 	return [
 		'Panel request: start a nested investigation chat. Do only this, then continue with whatever you were doing; do not wait for the investigation to finish:',
-		`Call create_session with title ${JSON.stringify(investigationTitle)} and the prompt between the markers below, passed VERBATIM. Omit relationship so the new chat is nested under this triage session. Omit workspace and worktree because the investigator reads the matching repository read-only by absolute path.`,
+		clone
+			? `Call create_session with title ${JSON.stringify(investigationTitle)}, workspace ${JSON.stringify(clone)} (the local clone of ${repo}), no worktree (the investigation only reads it), and the prompt between the markers below, passed VERBATIM. Omit relationship so the new chat is nested under this triage session.`
+			: `Call create_session with title ${JSON.stringify(investigationTitle)} and the prompt between the markers below, passed VERBATIM. Omit relationship so the new chat is nested under this triage session. There is no local clone of ${repo}, so omit workspace and worktree.`,
 		`After create_session succeeds, call the my-issues-triage canvas action replyToIssue for ${key} with concise markdown containing the new chat link and saying the investigation is running independently. Do not add decision choices, mark or dismiss the notification, or wait for the child chat.`,
 		`If create_session fails, do not retry. Call replyToIssue for ${key} with the error and say the investigation chat could not be started, then continue.`,
 		'<<<INVESTIGATION_PROMPT',
