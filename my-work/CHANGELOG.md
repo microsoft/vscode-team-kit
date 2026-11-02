@@ -2,6 +2,7 @@
 
 ## 1.0.9 (2026-11-02)
 
+- The shipped triage principles now include **H3** (dismiss a notification once an approved action addresses it) and **H4** (archive finished issue chats), so everyone gets these by default. Your own inbox rules can still override them. H1 (reassign) no longer waits for you to dismiss.
 - Issue chats tidy up after themselves. Once one has done what you asked (reassigned, commented or labeled, closed) and dismissed the notification, the My Work session archives that chat. A later message about the issue starts a fresh chat; your conversation in the panel is kept. Work sessions are never archived this way.
 - **Triage** recommendation for open issues that lack two or more of a type label, a feature-area label and a milestone. The chat checks for duplicates, proposes the labels and milestone, applies them after you approve, and dismisses the notification.
 - Asking to reproduce or investigate dismisses the issue's notification at once. After that the issue no longer offers **Reproduce**: Recommended next shows that the chat is on it, then its result. The My Work session no longer appears under an issue's Sessions just because the issue's chat is nested in it.

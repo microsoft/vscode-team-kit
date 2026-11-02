@@ -33,5 +33,7 @@ Each applies only after reading the latest comments; any exception keeps the not
 
 ## Handling
 
-- **H1. Reassign:** "assign to X" / "it's X's issue" means add X, remove the user, and record `routed`. Dismiss the notification only when the user says so.
+- **H1. Reassign:** "assign to X" / "it's X's issue" means add X, remove the user, and record `routed`. Then dismiss the notification (H3).
 - **H2. Not my area, no owner:** remove the user, leave (or add) `triage-needed` for the team's triage rotation, and record `routed`.
+- **H3. Dismiss once addressed:** when an action the user approved is done on GitHub and it addresses why the notification came in (the requested comment and `info-needed` label, a reassignment, a close, a submitted review, starting a review or a reproduce attempt), dismiss that notification without asking, and say so. Keep it if the action failed or only partly happened, or if the latest comments still hold someone else's unanswered ask of the user.
+- **H4. Archive finished issue chats:** an issue's own chat that has done what was asked and dismissed the notification has served its purpose. It asks the My Work session to archive it, and a later message about the issue starts a fresh chat. Work sessions (fix, implement, review) are never archived this way.
