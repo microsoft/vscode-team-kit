@@ -4,6 +4,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { dataDir } from './config.mjs';
+import { getSection, listSections, saveSection } from './sections.mjs';
 
 const FILE = path.join(dataDir(), 'sessions.json');
 const FORMAT = 'my-work/pinned-sessions';
@@ -77,6 +78,45 @@ export async function markSummaryRequested(id) {
 	const items = await read();
 	const item = items.find(i => i.id === id);
 	if (item) { item.summaryRequestedAt = new Date().toISOString(); await write(items); }
+}
+
+// Reproduce / investigate requests made from the panel land in the user's "Investigating" section (created on first use;
+// an ordinary section they can rename, reorder or delete), with the chat's result on the item.
+export const INVESTIGATING = 'investigating';
+export const INVESTIGATION_RESULTS = ['reproduced', 'not-reproduced', 'partly', 'findings'];
+async function investigatingSection() {
+	return (await getSection(INVESTIGATING)) || saveSection({ name: 'Investigating' });
+}
+export async function trackInvestigation(key, kind) {
+	const section = await investigatingSection();
+	const own = new Set((await listSections()).map(x => x.id));
+	const items = await read();
+	let item = items.find(i => i.key === key);
+	if (!item) { item = { key, bucket: section.id, sessions: [], addedAt: new Date().toISOString() }; items.push(item); }
+	// Moves it out of current / next / priorities, but an issue the user put in one of their own sections stays there.
+	else if (!own.has(item.bucket)) item.bucket = section.id;
+	item.investigation = { kind: kind === 'reproduce' ? 'reproduce' : 'investigate', at: new Date().toISOString() };
+	await write(items);
+	return item;
+}
+export async function setInvestigationResult(key, result, summary = '') {
+	if (!INVESTIGATION_RESULTS.includes(result)) throw Object.assign(new Error(`result must be one of ${INVESTIGATION_RESULTS.join(', ')}`), { code: 'bad_input', status: 400 });
+	const items = await read();
+	let item = items.find(i => i.key === key);
+	if (!item) { item = { key, bucket: (await investigatingSection()).id, sessions: [], addedAt: new Date().toISOString() }; items.push(item); }
+	item.investigation = { kind: item.investigation?.kind || (result === 'findings' ? 'investigate' : 'reproduce'), at: item.investigation?.at || new Date().toISOString(), result, summary: String(summary).slice(0, 500), resultAt: new Date().toISOString() };
+	await write(items);
+	return item;
+}
+/** Starting a fix puts the issue in My Work: in the current group (local only) unless it is already there; an investigated issue moves out of Investigating. */
+export async function trackFix(key) {
+	const items = await read();
+	let item = items.find(i => i.key === key);
+	if (!item) { item = { key, bucket: 'current', sessions: [], addedAt: new Date().toISOString() }; items.push(item); }
+	else if (item.bucket === INVESTIGATING) item.bucket = 'current';
+	else return item;
+	await write(items);
+	return item;
 }
 
 export const BUCKETS = ['current', 'next', 'priorities'];

@@ -13,7 +13,7 @@ import { config } from './config.mjs';
 import { saveImage, imagePaths, MAX_IMAGE_BYTES } from './attachments.mjs';
 import { listSections, saveSection, setSectionOrder, moveSection, removeSection, listNotes, getNote, saveNote, removeNote, getSection, isGroup } from './sections.mjs';
 import { sessionsFor, sessionsMentioning, sessionsById, recentSessions, issueCandidates, sessionTranscript } from './sessions.mjs';
-import { listPinned, pinSession, unpinSessions, parseSessionRef, getMyWorkChat, getHiddenSessions, setSessionHidden, setSessionBucket, BUCKETS, moveBucket, listPinnedIssues, pinIssue, setIssueBucket, unpinIssues, markSummaryRequested, markSessionSummaryRequested, getSessionLinks, linkSessionIssue, getSessionSummaries, getIssueChat, setIssueChat, setMyWorkChat } from './workSessions.mjs';
+import { listPinned, pinSession, unpinSessions, parseSessionRef, getMyWorkChat, getHiddenSessions, setSessionHidden, setSessionBucket, BUCKETS, moveBucket, listPinnedIssues, pinIssue, setIssueBucket, unpinIssues, markSummaryRequested, markSessionSummaryRequested, getSessionLinks, linkSessionIssue, getSessionSummaries, getIssueChat, setIssueChat, setMyWorkChat, trackInvestigation, trackFix } from './workSessions.mjs';
 
 const ASSETS = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'assets');
 // Scripts, styles and data come only from this server; images and videos only from GitHub's own hosts
@@ -537,6 +537,7 @@ export class TriageServer {
 					const detail = await data.getIssueDetail(body.key).catch(() => null);
 					const item = { issueKey: body.key, title: detail?.issue.title || body.key, htmlUrl: detail?.issue.url || `https://github.com/${repo}/issues/${num}` };
 					await this.sendToChat(notificationIssueActionPrompt({ action: 'investigate', notification: item }));
+					await trackInvestigation(body.key, 'investigate');
 					result = { sent: true, kind: body.kind, key: body.key };
 					break;
 				}
@@ -549,6 +550,7 @@ export class TriageServer {
 					const action = body.kind === 'notification-start' ? 'start' : 'investigate';
 					const prompt = notificationIssueActionPrompt({ action, notification });
 					await (action === 'start' ? this.sendToMyWorkSession(prompt) : this.sendToChat(prompt));
+					await (action === 'start' ? trackFix(notification.issueKey) : trackInvestigation(notification.issueKey, 'investigate'));
 					result = { sent: true, kind: body.kind, id: notification.id, key: notification.issueKey };
 					break;
 				}
@@ -556,6 +558,7 @@ export class TriageServer {
 					if (!KEY_RE.test(body.key || '')) throw bad('invalid key');
 					await this.sendToMyWorkSession(implementPrompt(await data.getIssueDetail(body.key)));
 					await data.logStart(body.key);
+					await trackFix(body.key);
 					result = { sent: true, kind: body.kind, key: body.key };
 					break;
 				}
@@ -714,6 +717,7 @@ export class TriageServer {
 					await this.sendToMyWorkSession(workSessionPrompt(issue));
 					result = { sent: true, key: body.key, via: 'new-session' };
 				}
+				await trackFix(body.key);
 				break;
 			}
 			case '/api/open': {
@@ -756,6 +760,8 @@ export class TriageServer {
 				const chat = await getIssueChat(body.key);
 				if (chat) await this.sendToChat(forwardToIssueChatPrompt({ link: chat.link, key: body.key, text }));
 				else await this.sendToMyWorkSession(createIssueChatPrompt({ key: body.key, url: `https://github.com/${owner}/${repo}/issues/${number}`, title, text }));
+				// A reproduce request from the panel (e.g. the Reproduce recommendation) is tracked in the Investigating section.
+				if (body.track === 'reproduce' && !again) await trackInvestigation(body.key, 'reproduce');
 				result = { key: body.key, entries: again ? await data.getThread(body.key) : await data.appendThread(body.key, 'user', text) };
 				break;
 			}

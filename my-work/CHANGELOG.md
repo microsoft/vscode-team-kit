@@ -1,10 +1,15 @@
 # Changelog
 
-## 1.0.8 (2026-10-29)
+## 1.0.9 (2026-11-02)
 
+- **Investigating:** asking to reproduce or investigate an issue from anywhere in the panel (the Reproduce recommendation, the Investigate buttons) puts it in a new **Investigating** section in My Work. The item shows **Reproducing…** / **Investigating…** until the chat reports back, then **Reproduced**, **Not reproduced**, **Partly reproduced** or **Findings ready** (hover for the one-line summary). It is an ordinary section you can rename, reorder or delete.
+- Starting a fix or implementation session from anywhere (an issue, a notification, Implement) now puts the issue in My Work: in the current group (local only; its GitHub milestone is unchanged), moving it out of Investigating. Issues already planned, or in one of your own sections, stay where they are.
 - Fixed: one failed post to the triage chat made the daily run create a new "Daily triage" chat, and from then on use that one. The daily run now posts to your My Work session whenever the panel has one. A failed post is retried once if the chat still exists, and a new chat is created only when the old one was deleted or archived. Re-run my-work-setup, or update your indexer automation's step 3, to get the new wording.
 - Browse shows its Bugs / Features / All / Reviews tabs and the area dropdown above the search box.
 - The filter actions (Route, Auto-dismiss, Safe to dismiss, Re-check) sit right next to the area dropdown; Collapse All and Refresh stay on the right.
+
+## 1.0.8 (2026-10-29)
+
 - Fixed: the toolbar actions (Route, Auto-dismiss, Safe to dismiss, Re-check) vanished every 30 seconds and during Refresh, when the bar redrew its "Updated …" time.
 
 ## 1.0.7 (2026-10-28)

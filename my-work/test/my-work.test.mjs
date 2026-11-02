@@ -346,6 +346,31 @@ test('discussing an issue uses its own chat, and Start session turns that chat i
 	}
 });
 
+test('reproduce and investigate requests go to Investigating; starting a fix moves the issue to Current', async () => {
+	const key = 'octo/app#901';
+	let item = await workSessions.trackInvestigation(key, 'reproduce');
+	assert.equal(item.bucket, workSessions.INVESTIGATING);
+	assert.equal(item.investigation.kind, 'reproduce');
+	assert.ok(await sections.getSection(workSessions.INVESTIGATING), 'the section is created on first use');
+	item = await workSessions.setInvestigationResult(key, 'reproduced', 'Crashes on save with the steps given.');
+	assert.equal(item.investigation.result, 'reproduced');
+	assert.equal(item.investigation.kind, 'reproduce', 'the request kind is kept');
+	await assert.rejects(workSessions.setInvestigationResult(key, 'maybe'), /result must be/);
+	item = await workSessions.trackFix(key);
+	assert.equal(item.bucket, 'current', 'starting a fix moves it out of Investigating');
+	assert.equal(item.investigation.result, 'reproduced', 'the result stays visible');
+
+	// An issue that is not in My Work yet lands in Current when a fix starts; one in your own section stays there.
+	assert.equal((await workSessions.trackFix('octo/app#902')).bucket, 'current');
+	await workSessions.setIssueBucket('octo/app#903', workSessions.INVESTIGATING);
+	const own = await sections.saveSection({ name: 'Customer' });
+	await workSessions.setIssueBucket('octo/app#904', own.id);
+	assert.equal((await workSessions.trackInvestigation('octo/app#904', 'investigate')).bucket, own.id);
+	assert.equal((await workSessions.trackFix('octo/app#904')).bucket, own.id);
+	await workSessions.unpinIssues([key, 'octo/app#902', 'octo/app#903', 'octo/app#904']);
+	await sections.removeSection(own.id);
+});
+
 test('any session can get a summary from the My Work chat', async () => {
 	const { TriageRuntime } = await import(new URL('lib/runtime.mjs', ext));
 	const runtime = new TriageRuntime({ log: () => { }, sendToChat: async () => { } });

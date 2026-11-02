@@ -754,8 +754,23 @@ function issueQuick(key, url, { removable = false, state = null } = {}) {
 
 // My Work groups split into In progress, To do and a collapsed Done (closed or merged issues, finished sessions,
 // plus milestone issues closed this week). Sub-headers only show when a group has more than one kind.
+// Status of a reproduce / investigate request made from the panel: running, or the chat's result.
+const INVESTIGATION_TAGS = {
+	reproduced: ['sev', 'bug', 'Reproduced'], 'not-reproduced': ['', 'circle-slash', 'Not reproduced'],
+	partly: ['sev', 'warning', 'Partly reproduced'], findings: ['ok', 'lightbulb', 'Findings ready'],
+};
+function investigationTag(inv) {
+	if (!inv) return '';
+	if (!inv.result) {
+		const what = inv.kind === 'reproduce' ? 'Reproducing' : 'Investigating';
+		return `<span class="tag acc" title="${esc(`Asked ${agoText(inv.at)}; the chat reports the result here`)}"><i class="codicon codicon-loading spin" aria-hidden="true"></i>${what}…</span>`;
+	}
+	const [cls, icon, label] = INVESTIGATION_TAGS[inv.result] || ['', 'info', inv.result];
+	return `<span class="tag ${cls}" title="${esc(inv.summary || label)}"><i class="codicon codicon-${icon}" aria-hidden="true"></i>${label}</span>`;
+}
 function workStage(i) {
-	if (i.kind === 'work') return i.w.state ? 'done' : liveSession(i.w.key) || i.w.outcome?.decision === 'fixing' ? 'progress' : 'todo';
+	// A reproduce / investigate request is in progress until the chat reports back; with a result it waits on you (To do).
+	if (i.kind === 'work') return i.w.state ? 'done' : liveSession(i.w.key) || i.w.outcome?.decision === 'fixing' || (i.w.investigation && !i.w.investigation.result) ? 'progress' : 'todo';
 	if (i.kind === 'pinsess') return i.p.status || ui.foldedDone?.has(i.p.id) ? 'done' : 'progress';
 	if (i.kind === 'note') return !i.n.draft && (ui.work?.data?.noteSessions?.[i.n.ref || i.n.title] || []).some(z => !z.archived) ? 'progress' : 'todo';
 	return 'todo';
@@ -849,7 +864,7 @@ function rowHtml(item) {
 		const prio = item.milestone?.role === 'priorities';
 		const local = !!w.local;
 		return withQuick(`<button type="button" class="${cls}${w.state ? ' is-done' : w.isBug ? ' dot-action' : ''}${prio || local ? ' prio-row' : ''}" data-kind="work" data-id="${esc(w.key)}" data-group="${esc(item.group || '')}"${item.secRef ? ` data-sec-item="${esc(item.secRef)}"` : ''} aria-current="${!!current}"${prio ? ` draggable="true" data-prio="${esc(w.key)}" data-pin-issue="${esc(w.key)}" title="Drag to reorder or into current / next; Alt+↑/↓ moves the selected issue"` : local ? ` draggable="true" data-pin-issue="${esc(w.key)}" title="Added locally (GitHub milestone unchanged). Drag to another group."` : ''}>${prio || local ? '<span class="row-grip" aria-hidden="true" title="Drag to move"><i class="codicon codicon-gripper"></i></span>' : ''}
-			<span class="row-title" title="${esc(w.title)}">${prio ? `<span class="prio-rank">${w.rank}</span>` : ''}${esc(w.title)}</span><span class="row-meta"><span>${esc(shortKey(w.key))}</span>${w.isBug ? '<span>bug</span>' : ''}${prio && w.milestone ? `<span>${esc(w.milestone)}</span>` : ''}${local ? '<span class="tag" title="Added to My Work locally; its GitHub milestone is unchanged">local</span>' : ''}${doneTag(w.state, '', w.stateReason)}${w.state ? '' : sessTag(w.key)}</span>
+			<span class="row-title" title="${esc(w.title)}">${prio ? `<span class="prio-rank">${w.rank}</span>` : ''}${esc(w.title)}</span><span class="row-meta"><span>${esc(shortKey(w.key))}</span>${w.isBug ? '<span>bug</span>' : ''}${prio && w.milestone ? `<span>${esc(w.milestone)}</span>` : ''}${local && !w.investigation ? '<span class="tag" title="Added to My Work locally; its GitHub milestone is unchanged">local</span>' : ''}${w.state ? '' : investigationTag(w.investigation)}${doneTag(w.state, '', w.stateReason)}${w.state ? '' : sessTag(w.key)}</span>
 		</button>`, issueQuick(w.key, w.url, { removable: local || prio, state: w.state }));
 	}
 	if (item.kind === 'workhome') {
@@ -1458,6 +1473,7 @@ const REPRO_PROMPT = [
 	'Read the issue and its latest comments for the steps, version and OS. Use the local clone of the repository and run it the way the repository supports (for example a dev build); follow the steps exactly, on the latest code.',
 	'Do not change code, and do not comment, label or otherwise change GitHub.',
 	'Report back with: Reproduced (yes / no / partly), what you did and saw (with screenshots or logs if you have them), any difference from the report (version, OS, settings), and the next step you recommend (fix session, ask the reporter for info, or close).',
+	'Before you reply, record the result in My Work with the my-issues-triage canvas action updateMyWork {"op": "investigationResult", "issue": "<this issue owner/repo#N>", "result": "reproduced" | "not-reproduced" | "partly", "summary": "<one line>"}.',
 ].join(' ');
 // Rule-based suggestions from the live GitHub state, the chat's triage, Sweeper and recorded outcomes.
 // Actions either reuse a panel action (data-act) or ask the chat (which still needs approval for GitHub changes).
@@ -1478,7 +1494,7 @@ function recommendations(key) {
 	const newSinceMe = lastHuman && lastHuman.author.login !== me && (!myLast || lastHuman.createdAt > myLast.createdAt);
 	const ref = k => (k.startsWith('microsoft/vscode#') ? '#' + k.split('#')[1] : k);
 	const recs = [];
-	const ask = (label, text, primary) => ({ kind: 'ask', label, text, primary });
+	const ask = (label, text, primary, track) => ({ kind: 'ask', label, text, primary, track });
 	const act = (label, a, primary) => ({ kind: 'act', label, act: a, key: n ? undefined : key, primary });
 	const link = (label, url) => ({ kind: 'link', label, url });
 
@@ -1553,7 +1569,7 @@ function recommendations(key) {
 	const hasRepro = hasSteps || /repro|user-attachments|\.(png|gif|mp4)/i.test(text);
 	// A bug with steps: the issue's own chat can try them and report whether it reproduces.
 	if (!g.isPr && isBug && hasSteps && !labels.includes('info-needed') && outcome?.decision !== 'fixing') {
-		recs.push({ icon: 'beaker', text: 'Has steps to reproduce — check whether it reproduces.', actions: [ask('Reproduce', REPRO_PROMPT, !recs.length)] });
+		recs.push({ icon: 'beaker', text: 'Has steps to reproduce — check whether it reproduces.', actions: [ask('Reproduce', REPRO_PROMPT, !recs.length, 'reproduce')] });
 	}
 	if (!g.isPr && !human.length && !labels.includes('info-needed') && !p.group) {
 		if (isFeature || (!isBug && /^(?:feature|add|support|allow|option)\b|would like/i.test(g.title + ' ' + text.slice(0, 400)))) {
@@ -1577,7 +1593,7 @@ function recoHtml(key) {
 		const cls = `btn sm${a.primary && first ? ' primary' : ''}`;
 		if (a.kind === 'link') return `<a class="${cls}" href="${esc(safeUrl(a.url))}" target="_blank" rel="noopener">${esc(a.label)}</a>`;
 		if (a.kind === 'act') return `<button type="button" class="${cls}" data-act="${esc(a.act)}"${a.key ? ` data-key="${esc(a.key)}"` : ''}${a.group ? ` data-group="${esc(a.group)}"` : ''}>${esc(a.label)}</button>`;
-		return `<button type="button" class="${cls}" data-reco-ask="${esc(a.text)}" data-key="${esc(key)}" title="Asks the chat: ${esc(a.text)}"><i class="codicon codicon-comment-discussion" aria-hidden="true"></i>${esc(a.label)}</button>`;
+		return `<button type="button" class="${cls}" data-reco-ask="${esc(a.text)}" data-key="${esc(key)}"${a.track ? ` data-track="${esc(a.track)}"` : ''} title="Asks the chat: ${esc(a.text)}"><i class="codicon codicon-comment-discussion" aria-hidden="true"></i>${esc(a.label)}</button>`;
 	};
 	return `<div class="reco">
 		<div class="reco-h"><span class="section-label">Recommended next</span><button type="button" class="link-btn" data-reco-ask="What should I do next with this ${g.data.isPr ? 'PR' : 'issue'}? Look at the latest comments, linked PRs and my inbox rules, and reply with your recommendation and choices." data-key="${esc(key)}"><i class="codicon codicon-sparkle" aria-hidden="true"></i>Ask the chat</button></div>
@@ -1591,11 +1607,11 @@ function recoHtml(key) {
 function recoSlot(key) {
 	return `<div class="reco-slot" data-key="${esc(key)}"></div>`;
 }
-async function askAboutIssue(key, text) {
+async function askAboutIssue(key, text, track) {
 	const g = ui.gh?.[key]?.data;
 	try {
-		await api('/api/message', { key, title: g?.title || '', text });
-		toast('Asked the chat · the reply appears in the conversation below');
+		await api('/api/message', { key, title: g?.title || '', text, ...(track ? { track } : {}) });
+		toast(track === 'reproduce' ? 'Asked the chat to reproduce it · tracked in My Work › Investigating' : 'Asked the chat · the reply appears in the conversation below');
 		if (ui.state.settings.chatCollapsed) setChatCollapsed(false);
 		await load();
 	} catch (error) { toast(error.message, true); }
@@ -3373,7 +3389,7 @@ $('detail').addEventListener('click', e => {
 	if (e.target.closest('.menu [data-act]')) closeMenus();
 	if (e.target.closest('[data-act="toggle-chat"]')) { setChatCollapsed(!ui.state.settings.chatCollapsed); return; }
 	const recoAsk = e.target.closest('[data-reco-ask]');
-	if (recoAsk) { recoAsk.disabled = true; askAboutIssue(recoAsk.dataset.key, recoAsk.dataset.recoAsk); return; }
+	if (recoAsk) { recoAsk.disabled = true; askAboutIssue(recoAsk.dataset.key, recoAsk.dataset.recoAsk, recoAsk.dataset.track); return; }
 	const ghReload = e.target.closest('[data-gh-reload]');
 	if (ghReload) { loadGitHub(ghReload.dataset.ghReload, true); return; }
 	const ghExpand = e.target.closest('[data-gh-expand]');
