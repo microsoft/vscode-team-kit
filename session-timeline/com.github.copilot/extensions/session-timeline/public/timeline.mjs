@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Corporation. Licensed under the MIT license.
 
-import { categories, selectEvents, sectionOutlines } from '/model.mjs';
+import { categories, selectEvents, sectionOutlines, sortTools } from '/model.mjs';
 
 const $ = id => document.getElementById(id);
 let snapshot;
@@ -18,6 +18,7 @@ let pendingRender = false;
 let finding = false;
 let jumpAfterFind = false;
 let findAnchor;
+let indexedEvents = [];
 const findWorker = new Worker('/find-worker.mjs', { type: 'module' });
 let view = { query: '', categories: [...categories], expanded: [], follow: false, announcements: true };
 const headerObserver = new ResizeObserver(() => updateStickyHeaders());
@@ -95,7 +96,7 @@ function help() {
 		'Inspect the current session without sending a model request.',
 		'Tab and Shift+Tab move between controls and event summaries.',
 		'Enter or Space on an event summary expands its readable details and raw SDK records.',
-		'Find highlights details without filtering the tree. Enter/Shift+Enter or Next/Previous navigate matches, including collapsed details.',
+		'Find searches Current tools and timeline details, including request Tools cards, without filtering the tree. Enter/Shift+Enter or Next/Previous navigate matches, opening collapsed sections and tool metadata.',
 		'Category filters select matches; dimmed context labels identify retained ancestors.',
 		'Parent and current event headers stack at the top while scrolling. Requests highlights the current user turn.',
 		'Section outlines jump directly to readable details; raw tool JSON is available only inside expanded cards.',
@@ -104,6 +105,7 @@ function help() {
 		'Escape closes this dialog and restores focus.',
 		'Disable Announce updates to silence routine status announcements.',
 		'Export events downloads SDK history, which may include sensitive prompts and tool output.',
+		'Current tools beside the event counts expands the live main-agent catalog below the status line. Activate it again to collapse the catalog. It includes deferred tools and their schemas. Find includes this catalog regardless of event category filters; text view and export cover history only.',
 	].join('\n\n'));
 }
 
@@ -153,6 +155,10 @@ function updateFind() {
 	$('find-next').disabled = $('find-prev').disabled = finding || matches.length === 0;
 }
 
+function indexFind() {
+	findWorker.postMessage({ type: 'index', events: indexedEvents, tools: sortTools(snapshot.tools ?? []) });
+}
+
 function scheduleFind(jump = false) {
 	clearTimeout(findTimer);
 	const id = ++findVersion;
@@ -169,6 +175,10 @@ function scheduleFind(jump = false) {
 		matchIndex = -1;
 		finding = false;
 		jumpAfterFind = false;
+		document.querySelector('mark.current-match')?.classList.remove('current-match');
+		if (snapshot) {
+			renderTools();
+		}
 		updateFind();
 		return;
 	}
@@ -183,10 +193,11 @@ findWorker.onmessage = ({ data }) => {
 		return;
 	}
 	findQuery = data.query;
+	renderTools();
 	matches = data.matches;
 	finding = false;
 	$('find-count').setAttribute('aria-busy', 'false');
-	matchIndex = findAnchor ? matches.findIndex(match => match.id === findAnchor.id && match.section === findAnchor.section && match.occurrence === findAnchor.occurrence) : -1;
+	matchIndex = findAnchor ? matches.findIndex(match => match.target === findAnchor.target && match.id === findAnchor.id && match.section === findAnchor.section && match.occurrence === findAnchor.occurrence) : -1;
 	const jump = jumpAfterFind;
 	jumpAfterFind = false;
 	if (jump && matches.length) {
@@ -220,6 +231,26 @@ function moveMatch(direction) {
 
 function showMatch(scroll) {
 	const match = matches[matchIndex];
+	document.querySelector('mark.current-match')?.classList.remove('current-match');
+	if (match.target === 'current-tools') {
+		const details = [...$('tools-content').children].find(node => node.dataset.toolName === match.id);
+		const mark = details?.querySelectorAll('mark')[match.occurrence];
+		if (!mark) {
+			showError(new Error('The selected tool Find match is no longer available. Try finding again.'));
+			return;
+		}
+		$('tools-panel').hidden = false;
+		$('tools').setAttribute('aria-expanded', 'true');
+		details.open = true;
+		mark.classList.add('current-match');
+		updateFind();
+		updateStickyHeaders();
+		if (scroll) {
+			const panel = $('tools-panel');
+			panel.scrollTop += mark.getBoundingClientRect().top - panel.getBoundingClientRect().top - 12;
+		}
+		return;
+	}
 	const details = $(`details-${encodeURIComponent(match.id)}`);
 	const toggle = details.parentElement.querySelector(':scope > .event-header .event-toggle');
 	// Populate only the visited card rather than all matching records on every keystroke.
@@ -230,7 +261,6 @@ function showMatch(scroll) {
 		showError(new Error('The selected Find match is no longer available. Try finding again.'));
 		return;
 	}
-	$('events').querySelector('mark.current-match')?.classList.remove('current-match');
 	mark.classList.add('current-match');
 	details.hidden = false;
 	toggle.setAttribute('aria-expanded', 'true');
@@ -347,7 +377,8 @@ function render() {
 				if (content.childNodes.length) {
 					return;
 				}
-				const navigation = element('div', 'controls');
+				const navigation = element('nav', 'controls');
+				navigation.setAttribute('aria-label', `${event.title} detail sections`);
 				for (const [index, section] of [...event.sections, { label: 'Raw SDK records', content: JSON.stringify(event.rawRecords, null, 2) }].entries()) {
 					const heading = element('h3', '', section.label);
 					heading.id = `section-${eventKey}-${index}`;
@@ -424,7 +455,8 @@ function render() {
 	$('announcements').checked = view.announcements;
 	$('collapse').disabled = view.expanded.length === 0;
 	$('status').setAttribute('aria-live', view.announcements ? 'polite' : 'off');
-	findWorker.postMessage({ type: 'index', events });
+	indexedEvents = events;
+	indexFind();
 	scheduleFind();
 	updateStickyHeaders();
 	if (focusedId) {
@@ -435,6 +467,36 @@ function render() {
 	} else {
 		window.scrollTo(0, scrollY);
 	}
+}
+
+function renderTools() {
+	const tools = snapshot.tools === null ? null : sortTools(snapshot.tools);
+	$('tools-error').hidden = !snapshot.toolsError;
+	$('tools-error').textContent = snapshot.toolsError;
+	$('tools-updated').textContent = snapshot.toolsUpdatedAt ? `Retrieved ${new Date(snapshot.toolsUpdatedAt).toLocaleString()}` : '';
+	if (tools === null) {
+		$('tools-summary').textContent = 'Current tools (unavailable)';
+		$('tools-content').textContent = snapshot.toolsError ? '' : 'Tools have not been initialized yet.';
+		return;
+	}
+	const deferred = tools.filter(tool => tool.deferLoading).length;
+	$('tools-summary').textContent = `Current tools (${tools.length} total, ${deferred} deferred)`;
+	const expanded = new Set([...$('tools-content').querySelectorAll('details[open]')].map(node => node.dataset.toolName));
+	const fragment = document.createDocumentFragment();
+	for (const tool of tools) {
+		const details = element('details');
+		details.dataset.toolName = tool.name;
+		details.open = expanded.has(tool.name);
+		details.append(
+			element('summary', '', `${tool.name}${tool.deferLoading ? ' (deferred)' : ''}`),
+			element('pre', '', JSON.stringify(tool, null, 2)),
+		);
+		fragment.append(details);
+	}
+	if (!tools.length) {
+		fragment.append(element('p', '', 'The current tool catalog is empty.'));
+	}
+	$('tools-content').replaceChildren(fragment);
 }
 
 for (const category of categories) {
@@ -491,6 +553,12 @@ $('collapse').addEventListener('click', () => {
 });
 $('help').addEventListener('click', help);
 $('text').addEventListener('click', textView);
+$('tools').addEventListener('click', () => {
+	const expanded = $('tools-panel').hidden;
+	$('tools-panel').hidden = !expanded;
+	$('tools').setAttribute('aria-expanded', String(expanded));
+	updateStickyHeaders();
+});
 $('dialog').addEventListener('close', () => {
 	if (document.activeElement === document.body || $('dialog').contains(document.activeElement)) {
 		restoreFocus?.focus();
@@ -507,7 +575,12 @@ async function poll() {
 		const response = await request(`/api/state?revision=${encodeURIComponent(revision)}`);
 		const finding = ['search', 'find-next', 'find-prev'].includes(document.activeElement?.id);
 		if (response.status !== 204) {
-			snapshot = await response.json();
+			const next = await response.json();
+			const toolsChanged = !snapshot || next.toolsUpdatedAt !== snapshot.toolsUpdatedAt || next.toolsError !== snapshot.toolsError;
+			snapshot = next;
+			if (toolsChanged) {
+				renderTools();
+			}
 			revision = snapshot.revision;
 			if (!editing) {
 				const query = view.query;
@@ -516,10 +589,14 @@ async function poll() {
 					view = { ...view, query };
 				}
 			}
-			$('error').hidden = !snapshot.error;
-			$('error').textContent = snapshot.error;
+			$('error').hidden = !snapshot.error && !snapshot.persistenceError;
+			$('error').textContent = [snapshot.error, snapshot.persistenceError].filter(Boolean).join('\n');
 			if (finding) {
 				pendingRender = true;
+				if (toolsChanged) {
+					indexFind();
+					scheduleFind();
+				}
 			} else {
 				pendingRender = false;
 				render();
