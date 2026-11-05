@@ -189,6 +189,28 @@ print(json.dumps(out))
 	}
 });
 
+test('the indexer treats an issue whose old URL redirects to another repository as transferred', () => {
+	const py = `
+import json, sys
+sys.argv = ['x']
+sys.path.insert(0, ${JSON.stringify(scripts)})
+import refresh_my_issues as r
+api = 'https://api.github.com/repos/'
+print(json.dumps([
+    r.moved_elsewhere({'repository_url': api + 'microsoft/vscode-internalbacklog', 'number': 10605}, 'microsoft/vscode', 329321),
+    r.moved_elsewhere({'repository_url': api + 'microsoft/vscode', 'number': 10605}, 'microsoft/vscode', 329321),
+    r.moved_elsewhere({'repository_url': api + 'Microsoft/VSCode', 'number': 329321}, 'microsoft/vscode', 329321),
+]))
+`;
+	const fresh = mkdtempSync(path.join(os.tmpdir(), 'my-work-moved-'));
+	try {
+		const out = JSON.parse(String(execFileSync('python3', ['-c', py], { env: { ...process.env, COPILOT_HOME: fresh, PYTHONDONTWRITEBYTECODE: '1' } })));
+		assert.deepEqual(out, [true, true, false]);
+	} finally {
+		rmSync(fresh, { recursive: true, force: true });
+	}
+});
+
 test('panel server rejects other hosts and API calls without the token', async () => {
 	const http = await import('node:http');
 	const { TriageServer } = await import(new URL('lib/server.mjs', ext));

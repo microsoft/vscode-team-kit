@@ -38,6 +38,13 @@ def now_iso():
 
 
 START_NOW = now_iso()
+
+
+def moved_elsewhere(full, repo, number):
+    """GitHub redirects a transferred issue's old URL to the new issue, so a fetch can succeed for an
+    issue that no longer lives at repo#number."""
+    actual_repo = (full.get("repository_url") or "").split("/repos/")[-1]
+    return (actual_repo or repo).lower() != repo.lower() or full.get("number", number) != number
 NOW = START_NOW  # refreshed to END_NOW right before publish
 TODAY = datetime.date.today().isoformat()
 
@@ -635,7 +642,7 @@ def main():
         rec = issues[k]
         repo, number = rec["repository"], rec["number"]
         full, err = missing_full[(repo, number)]
-        if full is None:
+        if full is None or moved_elsewhere(full, repo, number):
             deleted_or_transferred.append(k)
             continue
         assignee_logins = [a["login"] for a in full.get("assignees", [])]
