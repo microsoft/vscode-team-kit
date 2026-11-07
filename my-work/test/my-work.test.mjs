@@ -225,12 +225,38 @@ test('panel server rejects other hosts and API calls without the token', async (
 		assert.equal((await get('/api/work')).status, 403, 'reads need the token');
 		assert.equal((await get('/api/events')).status, 403, 'events need the token');
 		assert.equal((await get('/api/vscode-theme', { 'x-triage-token': server.token })).status, 200);
+		assert.equal((await get('/api/chat-background/image')).status, 403, 'the chat background needs the token');
 		const page = await get('/');
 		assert.equal(page.status, 200);
-		assert.match(page.csp, /img-src 'self' data: https:\/\/github\.com/);
+		assert.match(page.csp, /img-src 'self' data: blob: https:\/\/github\.com/);
 		assert.doesNotMatch(page.csp, /img-src[^;]*\*(?!\.githubusercontent)/, 'no wildcard image hosts');
 	} finally {
 		await server.stop();
+	}
+});
+
+test('the chat background resolves to the configured image for the theme, and only that file is servable', async () => {
+	const bg = await import(new URL('lib/chatBackground.mjs', ext));
+	const userDir = mkdtempSync(path.join(os.tmpdir(), 'my-work-bg-'));
+	try {
+		const image = path.join(userDir, 'dark.svg');
+		writeFileSync(image, '<svg xmlns="http://www.w3.org/2000/svg"/>');
+		writeFileSync(path.join(userDir, 'settings.json'), `{
+			// comments and trailing commas, like a real settings.json
+			"chat.agentSessions.preferredDarkBackgroundImage": ${JSON.stringify(image)},
+			"chat.agentSessions.preferredDarkBackgroundImageLayout": "top",
+		}`);
+		const dark = await bg.readChatBackground(userDir, false, 'vs-dark');
+		assert.equal(dark.kind, 'image');
+		assert.match(dark.url, /^\/api\/chat-background\/image\?v=/);
+		assert.equal(dark.position, 'center top');
+		assert.equal(bg.chatBackgroundFile('image').file, image);
+		assert.equal(bg.chatBackgroundFile('font'), undefined);
+		assert.equal(await bg.readChatBackground(userDir, false, 'vs'), null, 'no light image configured');
+		assert.equal(bg.chatBackgroundFile('image'), undefined, 'nothing servable when there is no background');
+		assert.equal(await bg.readChatBackground(userDir, false, 'hc-black'), null, 'none in high contrast');
+	} finally {
+		rmSync(userDir, { recursive: true, force: true });
 	}
 });
 

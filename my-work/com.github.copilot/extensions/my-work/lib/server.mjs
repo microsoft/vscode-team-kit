@@ -7,7 +7,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import * as data from './data.mjs';
 import { spawnJudgeRequest, implementPrompt, createIssueChatPrompt, forwardToIssueChatPrompt, forwardToMyWorkSessionPrompt, startIssueSessionMessage, notificationIssueActionPrompt, notificationTriagePrompt, issueRulesPrompt, browseQueryPrompt, workSessionPrompt, reviewSessionPrompt, noteSessionPrompt, createMyWorkChatPrompt, forwardToMyWorkChatPrompt, describeSessionMessage } from './prompts.mjs';
-import { getVsCodeDensity, getVsCodeTheme, watchVsCodeDensity, watchVsCodeTheme } from './vscodeTheme.mjs';
+import { chatBackgroundFile, getVsCodeDensity, getVsCodeTheme, watchVsCodeDensity, watchVsCodeTheme } from './vscodeTheme.mjs';
 import { getMyWork, moveToMilestone, issueDetails, closingIssues, workSource, sourceQuery, myLogin, doneState } from './work.mjs';
 import { config } from './config.mjs';
 import { saveImage, imagePaths, MAX_IMAGE_BYTES } from './attachments.mjs';
@@ -17,11 +17,11 @@ import { listPinned, pinSession, unpinSessions, parseSessionRef, getMyWorkChat, 
 
 const ASSETS = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'assets');
 // Scripts, styles and data come only from this server; images and videos only from GitHub's own hosts
-// (user attachments redirect to GitHub's S3 bucket).
+// (user attachments redirect to GitHub's S3 bucket). `blob:` images are the drawn codicon chat background.
 const GITHUB_MEDIA = 'https://github.com https://*.githubusercontent.com https://github-production-user-asset-6210df.s3.amazonaws.com';
 const CSP = [
 	"default-src 'none'", "script-src 'self'", "style-src 'self' 'unsafe-inline'", "font-src 'self'", "connect-src 'self'",
-	`img-src 'self' data: ${GITHUB_MEDIA}`, `media-src 'self' ${GITHUB_MEDIA}`, "base-uri 'none'", "form-action 'none'",
+	`img-src 'self' data: blob: ${GITHUB_MEDIA}`, `media-src 'self' ${GITHUB_MEDIA}`, "base-uri 'none'", "form-action 'none'",
 ].join('; ');
 const ASSET_TYPES = { 'app.js': 'text/javascript; charset=utf-8', 'style.css': 'text/css; charset=utf-8', 'codicon.ttf': 'font/ttf' };
 // The icon font is not bundled (no binaries in the plugin); it is served from the VS Code installation.
@@ -306,6 +306,18 @@ export class TriageServer {
 			this.json(res, 200, { theme: await getVsCodeTheme(), density: await getVsCodeDensity() });
 			return;
 		}
+		// Only the file VS Code's chat background setting points at right now, never a path from the request.
+		// Sandboxed so an SVG opened directly cannot script this page's origin.
+		const backgroundRoute = req.method === 'GET' && /^\/api\/chat-background\/(image|reduced|font)$/.exec(url.pathname);
+		if (backgroundRoute) {
+			await getVsCodeTheme();
+			const target = chatBackgroundFile(backgroundRoute[1]);
+			const body = target && await fs.readFile(target.file).catch(() => null);
+			if (!body) throw Object.assign(new Error('not found'), { status: 404 });
+			res.writeHead(200, { 'content-type': target.type, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox" });
+			res.end(body);
+			return;
+		}
 		if (route === 'GET /api/work-source') {
 			const { source, labels } = await this.browseSource(url.searchParams.get('source'), url.searchParams.get('area'));
 			this.json(res, 200, { source, items: await workSource(source, { labels, refine: url.searchParams.get('refine') || '', fresh: url.searchParams.get('fresh') === '1' }) });
@@ -433,6 +445,10 @@ export class TriageServer {
 				if (body.theme !== undefined) {
 					if (!THEMES.has(body.theme)) throw bad('invalid theme');
 					patch.theme = body.theme;
+				}
+				if (body.chatBackground !== undefined) {
+					if (typeof body.chatBackground !== 'boolean') throw bad('chatBackground must be boolean');
+					patch.chatBackground = body.chatBackground;
 				}
 				if (body.chatHeight !== undefined) {
 					if (!Number.isInteger(body.chatHeight) || body.chatHeight < 48 || body.chatHeight > 2000) throw bad('chatHeight must be 48-2000');

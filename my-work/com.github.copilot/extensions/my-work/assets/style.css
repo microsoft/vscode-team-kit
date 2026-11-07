@@ -1230,3 +1230,26 @@ body > * { min-width: 0; }
 /* an action in progress: spinner on the clicked button, its own icon hidden */
 .working .act-spin { margin-right: 4px; }
 .working .act-spin ~ .codicon { display: none; }
+
+/*
+ * The Agents window chat background (applyChatBackground): fixed to the viewport at full strength, as the chat paints
+ * it. The page, list and detail let it through; bars, cards, inputs and the chat dock stay opaque.
+ */
+:root.has-chat-background { --chat-bg-current: var(--chat-bg-image, none); }
+@media (prefers-reduced-motion: reduce) {
+	:root.has-chat-background { --chat-bg-current: var(--chat-bg-reduced-motion-image, none); }
+}
+:root.has-chat-background {
+	background-color: var(--bg);
+	background-image: var(--chat-bg-current);
+	background-repeat: var(--chat-bg-repeat, repeat);
+	background-size: var(--chat-bg-size, auto);
+	background-position: var(--chat-bg-position, left top);
+	background-attachment: fixed;
+}
+:root.has-chat-background body,
+:root.has-chat-background .list,
+:root.has-chat-background .detail { background: transparent; }
+.chat-bg-probe { position: absolute; visibility: hidden; }
+fieldset.needs-vscode-theme { opacity: .45; pointer-events: none; }
+fieldset.needs-vscode-theme legend::after { content: " · VS Code theme only"; font-weight: 400; }

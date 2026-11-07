@@ -6,6 +6,9 @@ import { DatabaseSync } from 'node:sqlite';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { readChatBackground } from './chatBackground.mjs';
+
+export { chatBackgroundFile } from './chatBackground.mjs';
 
 const PRODUCT_DIRS = {
 	'com.microsoft.VSCodeInsiders': 'Code - Insiders',
@@ -28,9 +31,9 @@ function userDirs() {
 
 // Agents profile first (where canvases live), then the default profile.
 function candidateDbs() {
-	return userDirs().flatMap(u => [
-		path.join(u, 'profiles', 'builtin', 'agents', 'globalStorage', 'state.vscdb'),
-		path.join(u, 'globalStorage', 'state.vscdb'),
+	return userDirs().flatMap(userDir => [
+		{ file: path.join(userDir, 'profiles', 'builtin', 'agents', 'globalStorage', 'state.vscdb'), userDir, agents: true },
+		{ file: path.join(userDir, 'globalStorage', 'state.vscdb'), userDir, agents: false },
 	]);
 }
 
@@ -118,23 +121,32 @@ function toTokens(data) {
 	return { name: data.settingsId || data.label || base, base, dark, highContrast: hc, tokens };
 }
 
-let cache = { key: '', value: null };
-export async function getVsCodeTheme() {
-	for (const file of candidateDbs()) {
+let cache = { key: '', value: null, candidate: null };
+async function readTheme() {
+	for (const candidate of candidateDbs()) {
+		const { file } = candidate;
 		const stat = await fs.stat(file).catch(() => null);
 		if (!stat) continue;
 		const key = `${file}:${stat.mtimeMs}`;
-		if (cache.key === key) return cache.value;
+		if (cache.key === key) return cache;
 		try {
 			const data = readThemeRow(file);
 			if (!data) continue;
-			cache = { key, value: { ...toTokens(data), source: file.includes(`${path.sep}agents${path.sep}`) ? 'Agents window' : 'Default profile' } };
-			return cache.value;
+			cache = { key, candidate, value: { ...toTokens(data), source: candidate.agents ? 'Agents window' : 'Default profile' } };
+			return cache;
 		} catch {
 			// The database can be briefly locked while VS Code writes; try the next one / next poll.
 		}
 	}
 	return null;
+}
+
+/** The theme, with the chat background of the same profile (`background`, null when none) for the page to paint. */
+export async function getVsCodeTheme() {
+	const found = await readTheme();
+	if (!found) return null;
+	const background = await readChatBackground(found.candidate.userDir, found.candidate.agents, found.value.base).catch(() => null);
+	return { ...found.value, background };
 }
 
 // Calls onChange when the theme changes (VS Code writes the profile database shortly after a theme switch).
@@ -146,7 +158,7 @@ export function watchVsCodeTheme(onChange, intervalMs = 2000) {
 		busy = true;
 		try {
 			const t = await getVsCodeTheme();
-			const sig = t ? JSON.stringify(t.tokens) : '';
+			const sig = t ? JSON.stringify([t.tokens, t.background]) : '';
 			if (last !== null && sig !== last) onChange(t);
 			last = sig;
 		} finally {

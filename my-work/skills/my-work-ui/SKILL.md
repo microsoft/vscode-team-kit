@@ -12,6 +12,7 @@ Code: `com.github.copilot/extensions/my-work/assets/` (`app.js`, `style.css`, `i
 ## 1. VS Code look
 
 - **Colours come from the VS Code theme.** `lib/vscodeTheme.mjs` maps the host theme into CSS variables. Use these variables and never hard-coded colours. Each has a fallback for the panel's own Light and Dark themes, for example `var(--section-bg, transparent)`.
+- **The chat background shows through.** With the VS Code theme, the panel paints the Agents window chat background (`chat.agentSessions.preferred{Light,Dark}BackgroundImage[Layout]`, resolved by `lib/chatBackground.mjs`) behind the page, list and detail, live-updating; the Chat background setting turns it off. Keep those containers transparent; bars, cards, inputs and the chat dock stay opaque so text stays readable.
 
   | Element | Variables | VS Code tokens |
   |---|---|---|

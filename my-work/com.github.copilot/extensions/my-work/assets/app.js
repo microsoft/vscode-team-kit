@@ -144,20 +144,169 @@ async function applyVsCodeTheme(theme) {
 	}
 	ui.vscodeTheme = theme;
 	for (const prop of [...root.style]) if (prop.startsWith('--')) root.style.removeProperty(prop);
-	if ((ui.state?.settings.theme || 'vscode') !== 'vscode') return;
-	if (!theme) { root.dataset.theme = 'system'; return; }
+	if ((ui.state?.settings.theme || 'vscode') !== 'vscode') { applyChatBackground(null); return; }
+	if (!theme) { root.dataset.theme = 'system'; applyChatBackground(null); return; }
 	root.dataset.theme = 'vscode';
 	root.style.colorScheme = theme.dark ? 'dark' : 'light';
 	for (const [k, v] of Object.entries(theme.tokens)) if (v) root.style.setProperty(k, v);
 	const hint = $('vscode-theme-name');
 	if (hint) hint.textContent = `${theme.name} · ${theme.source}`;
+	applyChatBackground(ui.state?.settings.chatBackground !== false && !theme.highContrast ? theme.background : null);
+	const bgHint = $('chat-bg-hint');
+	if (bgHint) bgHint.textContent = theme.highContrast ? 'Not shown in high contrast themes.' : theme.background ? '' : 'No chat background is set in VS Code.';
 }
+
+// ---------- chat background ----------
+// The Agents window chat background (chat.agentSessions.preferred{Light,Dark}BackgroundImage[Layout]), painted behind
+// the panel the way the chat paints it: full strength, fixed to the viewport, in the configured layout. The server
+// resolves it for the current theme (none when unset or in high contrast) and serves only that file.
+let chatBackground = null;
+let codiconBackground;
+const CHAT_BG_VARS = ['--chat-bg-image', '--chat-bg-reduced-motion-image', '--chat-bg-repeat', '--chat-bg-size', '--chat-bg-position'];
+const withToken = url => `${url}${url.includes('?') ? '&' : '?'}t=${encodeURIComponent(TOKEN)}`;
+
+function applyChatBackground(background) {
+	const root = document.documentElement;
+	const css = url => `url("${withToken(String(url)).replace(/["\\\n]/g, '')}")`;
+	chatBackground = background?.kind === 'image' || background?.kind === 'codicons' ? background : null;
+	root.classList.toggle('has-chat-background', !!chatBackground);
+	if (chatBackground?.kind === 'image') {
+		root.style.setProperty('--chat-bg-image', css(chatBackground.url));
+		root.style.setProperty('--chat-bg-reduced-motion-image', css(chatBackground.reducedMotionUrl ?? chatBackground.url));
+		root.style.setProperty('--chat-bg-repeat', chatBackground.repeat);
+		root.style.setProperty('--chat-bg-size', chatBackground.size);
+		root.style.setProperty('--chat-bg-position', chatBackground.position);
+	} else if (!chatBackground) {
+		for (const key of CHAT_BG_VARS) root.style.removeProperty(key);
+	}
+	if (chatBackground?.kind === 'codicons') {
+		if (codiconBackground) setCodiconVars();
+		renderCodiconBackground();
+	} else if (codiconBackground) {
+		URL.revokeObjectURL(codiconBackground.url);
+		codiconBackground = undefined;
+	}
+}
+
+function setCodiconVars() {
+	const root = document.documentElement;
+	root.style.setProperty('--chat-bg-image', `url("${codiconBackground.url}")`);
+	root.style.setProperty('--chat-bg-reduced-motion-image', `url("${codiconBackground.url}")`);
+	root.style.setProperty('--chat-bg-repeat', 'no-repeat');
+	root.style.setProperty('--chat-bg-size', `${codiconBackground.width}px ${codiconBackground.height}px`);
+	root.style.setProperty('--chat-bg-position', 'left top');
+}
+
+// A port of VS Code's decorative codicon background (chatBackgroundRenderer.ts): the same seeded grid, glyphs, depths,
+// colours and fade toward the content, drawn once into an image of the viewport's size.
+const CODICON_CELL = 80;
+// [codepoint, compact codepoint (far depth) or 0], in VS Code's order.
+const CODICON_GLYPHS = [
+	[0xec10, 0xec95], [0xeb05, 0], [0xeaf8, 0xec8d], [0xeb44, 0xec9d], [0xea85, 0xecbb], [0xeac4, 0], [0xeae6, 0], [0xea61, 0xecb3],
+	[0xea79, 0xeca1], [0xec15, 0], [0xea8c, 0], [0xeb5b, 0], [0xeb91, 0], [0xec6f, 0xec8e], [0xeaa4, 0xecef], [0xeaa2, 0],
+	[0xea6b, 0xecac], [0xebaa, 0xecbf], [0xeace, 0], [0xea6d, 0xecb8], [0xeb01, 0], [0xeaf2, 0], [0xeaf9, 0], [0xeb11, 0],
+	[0xeb2a, 0], [0xeb2b, 0], [0xeb2d, 0], [0xeb31, 0], [0xeb34, 0], [0xeb3a, 0xec91], [0xea62, 0xec93], [0xeb53, 0xec94],
+	[0xeb59, 0], [0xeb6d, 0], [0xebcf, 0], [0xea86, 0], [0xec67, 0xecc0], [0xec20, 0], [0xeaaf, 0], [0xeabe, 0],
+	[0xeb68, 0], [0xebd5, 0], [0xebd2, 0], [0xeb29, 0], [0xeb50, 0], [0xebe2, 0], [0xec0d, 0], [0xeb58, 0],
+];
+// far, middle, near: font size and share of the foreground colour.
+const CODICON_DEPTHS = [{ size: 12, share: 10, blur: 0.6 }, { size: 16, share: 18, blur: 0 }, { size: 16, share: 28, blur: 0 }];
+
+function hashCodiconCell(row, column, salt) {
+	let value = Math.imul(row + 1, 73856093) ^ Math.imul(column + 1, 19349663) ^ Math.imul(salt + 1, 83492791);
+	value = Math.imul(value ^ (value >>> 13), 1540483477);
+	return (value ^ (value >>> 15)) >>> 0;
+}
+
+let codiconRender = 0;
+let codiconFont;
+async function renderCodiconBackground() {
+	const background = chatBackground;
+	const render = ++codiconRender;
+	const width = Math.max(1, window.innerWidth);
+	const height = Math.max(1, window.innerHeight);
+	const probe = document.body.appendChild(document.createElement('span'));
+	probe.className = 'chat-bg-probe';
+	const colors = CODICON_DEPTHS.map(depth => {
+		probe.style.color = `color-mix(in srgb, var(--fg) ${depth.share}%, transparent)`;
+		return getComputedStyle(probe).color;
+	});
+	probe.remove();
+	const key = JSON.stringify([background.fontUrl, width, height, devicePixelRatio, colors]);
+	if (codiconBackground?.key === key) return;
+	try {
+		if (codiconFont?.url !== background.fontUrl) {
+			const face = await new FontFace('chat-bg-codicon', `url("${withToken(background.fontUrl)}")`).load();
+			if (codiconFont) document.fonts.delete(codiconFont.face);
+			document.fonts.add(face);
+			codiconFont = { url: background.fontUrl, face };
+		}
+	} catch {
+		return;
+	}
+	const scale = devicePixelRatio || 1;
+	const canvas = document.createElement('canvas');
+	canvas.width = Math.ceil(width * scale);
+	canvas.height = Math.ceil(height * scale);
+	const ctx = canvas.getContext('2d');
+	ctx.scale(scale, scale);
+	ctx.textAlign = 'center';
+	ctx.textBaseline = 'middle';
+	const columns = Math.ceil(width / CODICON_CELL);
+	const rows = Math.ceil(height / CODICON_CELL);
+	const cells = [[], [], []];
+	for (let row = 0; row < rows; row++) {
+		for (let column = 0; column < columns; column++) {
+			if (hashCodiconCell(row, column, 0) % 9 === 0) continue;
+			const left = (column + 0.5 + ((hashCodiconCell(row, column, 2) % 71) - 35) / 100) * CODICON_CELL;
+			const top = (row + 0.5 + ((hashCodiconCell(row, column, 3) % 65) - 32) / 100) * CODICON_CELL;
+			const depthHash = hashCodiconCell(row, column, 6) % 10;
+			const depth = depthHash < 5 ? 0 : depthHash < 9 ? 1 : 2;
+			const distance = Math.min(1, Math.hypot((left / width - 0.5) * 2, (top / height - 0.45) * 2));
+			const [glyph, compact] = CODICON_GLYPHS[hashCodiconCell(row, column, 1) % CODICON_GLYPHS.length];
+			cells[depth].push({
+				left, top,
+				rotation: (hashCodiconCell(row, column, 4) % 71) - 35,
+				opacity: (0.65 + (hashCodiconCell(row, column, 5) % 36) / 100) * (0.35 + 0.65 * distance),
+				text: String.fromCodePoint(depth === 0 && compact ? compact : glyph),
+			});
+		}
+	}
+	cells.forEach((list, depth) => {
+		ctx.font = `${CODICON_DEPTHS[depth].size}px chat-bg-codicon`;
+		ctx.fillStyle = colors[depth];
+		ctx.filter = CODICON_DEPTHS[depth].blur ? `blur(${CODICON_DEPTHS[depth].blur}px)` : 'none';
+		for (const cell of list) {
+			ctx.save();
+			ctx.translate(cell.left, cell.top);
+			ctx.rotate(cell.rotation * Math.PI / 180);
+			ctx.globalAlpha = Math.min(1, cell.opacity);
+			ctx.fillText(cell.text, 0, 0);
+			ctx.restore();
+		}
+	});
+	const blob = await new Promise(resolve => canvas.toBlob(resolve));
+	if (!blob || render !== codiconRender || chatBackground !== background) return;
+	if (codiconBackground) URL.revokeObjectURL(codiconBackground.url);
+	codiconBackground = { key, url: URL.createObjectURL(blob), width, height };
+	setCodiconVars();
+}
+
+let codiconResize;
+window.addEventListener('resize', () => {
+	if (chatBackground?.kind === 'codicons') {
+		cancelAnimationFrame(codiconResize);
+		codiconResize = requestAnimationFrame(() => renderCodiconBackground());
+	}
+});
 function applyTheme(settings) {
 	const theme = settings.theme || 'vscode';
 	document.documentElement.dataset.theme = theme === 'vscode' ? (ui.vscodeTheme ? 'vscode' : 'system') : theme;
 	if (theme === 'vscode') applyVsCodeTheme(ui.vscodeTheme ?? undefined);
-	else { for (const prop of [...document.documentElement.style]) if (prop.startsWith('--')) document.documentElement.style.removeProperty(prop); document.documentElement.style.colorScheme = ''; }
+	else { for (const prop of [...document.documentElement.style]) if (prop.startsWith('--')) document.documentElement.style.removeProperty(prop); document.documentElement.style.colorScheme = ''; applyChatBackground(null); }
 	document.getElementById('accent-seg')?.closest('fieldset')?.classList.toggle('disabled-by-theme', theme === 'vscode');
+	$('chat-bg-field')?.classList.toggle('needs-vscode-theme', theme !== 'vscode');
+	for (const b of document.querySelectorAll('#chat-bg-seg button')) b.setAttribute('aria-pressed', String((b.dataset.chatBg === 'on') === (settings.chatBackground !== false)));
 	if (theme !== 'vscode' && $('vscode-theme-name')) $('vscode-theme-name').textContent = '';
 	document.documentElement.dataset.accent = settings.accent || 'blue';
 	for (const b of document.querySelectorAll('#theme-seg button')) b.setAttribute('aria-pressed', String(b.dataset.theme === theme));
@@ -3581,6 +3730,10 @@ $('theme-seg').addEventListener('click', e => {
 $('link-seg').addEventListener('click', e => {
 	const b = e.target.closest('button[data-link]');
 	if (b) saveSettings({ linkTarget: b.dataset.link });
+});
+$('chat-bg-seg').addEventListener('click', e => {
+	const b = e.target.closest('button[data-chat-bg]');
+	if (b) saveSettings({ chatBackground: b.dataset.chatBg === 'on' });
 });
 $('density-seg').addEventListener('click', e => {
 	const b = e.target.closest('button[data-density]');

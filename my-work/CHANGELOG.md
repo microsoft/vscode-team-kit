@@ -2,6 +2,8 @@
 
 ## 1.0.9 (2026-11-02)
 
+- New **Chat background** setting (Settings > Appearance, on by default): with the VS Code theme, the panel paints the same background as the Agents window chat (`chat.agentSessions.preferredLightBackgroundImage` / `preferredDarkBackgroundImage` and their layouts, including the built-in koi and codicon backgrounds) behind the list and details, and follows changes live. It is off in high contrast themes, like the chat.
+
 - Fixed: the weekly full refresh of the issue index failed validation (`inventoryCountsReconcile`) and published nothing when an assigned issue had been transferred to another repository. GitHub redirects the old URL to the new issue, so the indexer kept the old record as still assigned. It now marks such issues as transferred.
 - Every fix, implement and review session request now says explicitly that the host creates the worktree (`worktree: true` / isolation). The agent must never run `git worktree add` itself or pass a worktree folder as the workspace. One request (Start fix session from a notification) only said "with an isolated worktree", which left that open.
 - Fixed: a session working on an issue in My Work (e.g. "Fix #N") also showed under **Active sessions**. Active sessions now lists only sessions that My Work doesn't already show.

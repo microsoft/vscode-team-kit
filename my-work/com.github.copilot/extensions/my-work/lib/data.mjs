@@ -25,7 +25,7 @@ const ISSUE_RULES_FILE = path.join(DATA_DIR, 'issue-rules.json');
 const PRIORITIES_FILE = path.join(DATA_DIR, 'priorities.json');
 export const THREADS_DIR = path.join(DATA_DIR, 'threads');
 export const OPINIONS_DIR = path.join(BOARD, 'my-issue-opinions');
-export const DEFAULT_SETTINGS = { batchSize: 10, popularThreshold: 5, theme: 'vscode', accent: 'blue', linkTarget: 'vscode', chatHeight: 160, chatCollapsed: false, density: 'auto', listHeight: 40, listWidth: 38, areaFilter: '' };
+export const DEFAULT_SETTINGS = { batchSize: 10, popularThreshold: 5, theme: 'vscode', chatBackground: true, accent: 'blue', linkTarget: 'vscode', chatHeight: 160, chatCollapsed: false, density: 'auto', listHeight: 40, listWidth: 38, areaFilter: '' };
 
 const FORMATS = {
 	triage: { format: 'my-issues-triage/notification-triage', version: 1, key: 'items', empty: () => ({}) },
@@ -230,6 +230,7 @@ export async function setSettings(patch) {
 	if (patch.popularThreshold !== undefined) next.popularThreshold = patch.popularThreshold;
 	if (patch.theme !== undefined) next.theme = patch.theme;
 	if (patch.accent !== undefined) next.accent = patch.accent;
+	if (patch.chatBackground !== undefined) next.chatBackground = patch.chatBackground;
 	if (patch.linkTarget !== undefined) next.linkTarget = patch.linkTarget;
 	if (patch.chatHeight !== undefined) next.chatHeight = patch.chatHeight;
 	if (patch.chatCollapsed !== undefined) next.chatCollapsed = patch.chatCollapsed;
