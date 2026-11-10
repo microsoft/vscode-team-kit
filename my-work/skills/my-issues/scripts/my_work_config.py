@@ -14,10 +14,14 @@ DEFAULTS = {
     "org": "microsoft",
     "planRepo": "microsoft/vscode",
     "repoPaths": {"microsoft/vscode": "~/work/vscode"},
+    # Optional local clone of the Sweeper state repo: a faster, offline source for review records.
     "sweeperRepo": "~/work/vscodesweeper-state",
+    # The Sweeper's published state repo (index and records); empty turns Sweeper data off.
+    "sweeperStateRepo": "egamma/vscodesweeper-state",
     "rulesFile": os.path.join(COPILOT_HOME, "github-inbox-rules.md"),
     "memoryFile": os.path.join(COPILOT_HOME, "github-inbox-memory.md"),
     "login": None,
+    "dataDir": "~/.agents/data/my-work",
 }
 
 
@@ -38,9 +42,11 @@ ORG = CFG["org"]
 PLAN_REPO = CFG["planRepo"]
 RULES_FILE = CFG["rulesFile"]
 MEMORY_FILE = CFG["memoryFile"]
+DATA_DIR = os.path.expanduser(CFG["dataDir"] or DEFAULTS["dataDir"])
 PRINCIPLES_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "triage-principles.md")
 SWEEPER_REPO = os.path.expanduser(CFG["sweeperRepo"] or "")
-# Sweeper only publishes records for microsoft/vscode.
+SWEEPER_STATE_REPO = CFG.get("sweeperStateRepo") or ""
+# The index and records used here are microsoft/vscode's.
 SWEEPER_SCOPE = "microsoft/vscode"
 _clone = CFG["repoPaths"].get(PLAN_REPO)
 # Missing defaults are ignored, so judges are told to ask instead of reading a path that isn't there.
@@ -64,4 +70,9 @@ def login():
 
 
 def has_sweeper():
+    """Sweeper data is on unless sweeperStateRepo is emptied; it is read through the gh CLI."""
+    return bool(SWEEPER_STATE_REPO)
+
+
+def has_sweeper_clone():
     return bool(SWEEPER_REPO) and os.path.isdir(os.path.join(SWEEPER_REPO, ".git"))

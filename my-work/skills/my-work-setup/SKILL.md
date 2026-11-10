@@ -23,7 +23,7 @@ Check each and tell the user what is missing:
 
 **Repository clone (never clone it for the user).** First look it up: run `python3 "<scripts>/my_issues.py" find-clones --repo <planRepo>` (default `microsoft/vscode`). It reads the Agents window's session store read-only, resolves worktrees to their main clone, checks each folder's git remote, and lists matching clones with how many sessions used them. Then confirm with the user: "Your sessions use `~/work/vscode` for microsoft/vscode — use that?" If several match, offer them as choices (most used first); if none match, ask where their clone is. Record the confirmed path in `repoPaths` (step 2). Run `find-clones` without `--repo` to suggest paths for other repositories they work on too. If they have no clone, leave it out (configured paths that don't exist are ignored): fix and investigation sessions then ask where the repository is instead of guessing.
 
-**Sweeper clone.** Check `git -C ~/work/vscodesweeper-state rev-parse origin/state`. If it's missing, explain that it powers the Cleanup proposals and the Implement view (without it everything else works), and offer to clone it. Only after the user agrees, run `git clone --single-branch --branch state https://github.com/egamma/vscodesweeper-state ~/work/vscodesweeper-state` (public, read-only use; the indexer only fetches it), or into a path they choose and record it as `sweeperRepo`.
+**Sweeper.** Nothing to set up: the indexer reads Sweeper's published index for microsoft/vscode (`sweeperStateRepo`, default `egamma/vscodesweeper-state`) with the signed-in `gh`, and the review records it needs one at a time. It powers the Cleanup proposals, the Implement view and Sweeper tags. A local clone of the state branch is optional and only makes record reads faster and offline; if the user already has one, record its path as `sweeperRepo`. Don't suggest cloning it.
 
 ## 2. Configuration (`<board>/my-work.config.json`)
 
@@ -34,11 +34,13 @@ All fields are optional. Ask only about values that differ from the defaults, th
   "org": "microsoft",
   "planRepo": "microsoft/vscode",
   "repoPaths": { "microsoft/vscode": "~/work/vscode" },
+  "sweeperStateRepo": "egamma/vscodesweeper-state",
   "sweeperRepo": "~/work/vscodesweeper-state",
   "rulesFile": "~/.copilot/github-inbox-rules.md",
   "memoryFile": "~/.copilot/github-inbox-memory.md",
   "dataDir": "~/.agents/data/my-work",
   "fixSkill": "",
+  "reviewSkill": "",
   "login": null
 }
 ```
@@ -48,6 +50,7 @@ All fields are optional. Ask only about values that differ from the defaults, th
 - `repoPaths`: local clones used for fix sessions and read-only investigations.
 - `rulesFile` and `memoryFile`: the user's inbox rules and memory, shared with the github-inbox plugin. Rules are numbered "from now on" instructions (auto-dismiss, routing, triage); memory holds facts such as people's GitHub logins, area owners and the user's team. If github-inbox stores them with VS Code's memory tool (`/memories/github-inbox-*.md`) instead of `~/.copilot/`, offer to copy them to `~/.copilot/` so My Work can read them. If there are none, offer starter files: rules with sections **Auto-dismiss rules**, **Routing** (who owns which areas, with GitHub logins) and **Triage**; memory with **Team and owners** and **Preferences**. The bundled [triage principles](../my-issues/triage-principles.md) apply either way.
 - `fixSkill`: a skill fix sessions should use for bugs (for example a personal `fix-vscode-bug` skill). Check which skills the user has and suggest one; leave it empty if there is none. Without it, sessions are told to reproduce first and add a regression test.
+- `reviewSkill`: a skill review sessions should use for pull requests (for example a personal code review skill). Leave it empty if there is none; review sessions then review with their own checklist.
 - Custom sections (for example MSRC for security cases) are created in the panel with **+ Section**, not in the config. A section's instructions say how sessions from it are set up (for example which private repository, branch or skill to use); they stay in the local data folder, never in a shared repository. An older `msrc.fixWorkflow` setting is moved into an "MSRC" section automatically.
 
 ## 3. Feature areas (optional)
@@ -73,7 +76,7 @@ Read [references/indexer-automation.md](references/indexer-automation.md), repla
 ## Troubleshooting
 
 - **Today / Cleanup / Implement say "No issue index yet"**: run step 5.
-- **Empty Cleanup and Implement**: no Sweeper clone (step 1), or no microsoft/vscode issues.
+- **Empty Cleanup and Implement**: Sweeper unreachable (`gh auth status`, and the refresh manifest's `failures`), `sweeperStateRepo` emptied, or no microsoft/vscode issues.
 - **Notifications error**: run `gh auth status`; the token needs the `notifications` scope (`gh auth refresh -s notifications`).
 - **Start session cannot find the repository**: add it to `repoPaths`.
 - **Sessions don't link to issues**: keep `#N` in session titles. Session data comes from the Agents window's internal storage and can change between builds.

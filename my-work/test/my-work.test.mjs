@@ -40,10 +40,86 @@ test('config overlays the user file on the defaults', () => {
 });
 
 test('Python and JS configs share their defaults', () => {
-	const out = execFileSync('python3', ['-c', 'import json, my_work_config as c; print(json.dumps({k: c.DEFAULTS[k] for k in ["org", "planRepo", "repoPaths", "sweeperRepo", "rulesFile", "memoryFile"]}))'], { cwd: scripts, env: { ...process.env, COPILOT_HOME: home, PYTHONDONTWRITEBYTECODE: '1' } });
+	const out = execFileSync('python3', ['-c', 'import json, my_work_config as c; print(json.dumps({k: c.DEFAULTS[k] for k in ["org", "planRepo", "repoPaths", "sweeperRepo", "sweeperStateRepo", "rulesFile", "memoryFile"]}))'], { cwd: scripts, env: { ...process.env, COPILOT_HOME: home, PYTHONDONTWRITEBYTECODE: '1' } });
 	const py = JSON.parse(String(out));
 	for (const key of Object.keys(py)) {
 		assert.deepEqual(py[key], config.DEFAULTS[key], key);
+	}
+});
+
+test('Sweeper rows map onto the stored record, and records are reused only for the same review', () => {
+	const py = `
+import json, os, sys
+sys.argv = ['x']
+sys.path.insert(0, ${JSON.stringify(scripts)})
+import sweeper_source as s
+s.SWEEPER_STATE_REPO = ''
+row = {'number': 7, 'triageAction': 'propose-close', 'closeReason': 'duplicate', 'canonical': '5', 'verifyVerdict': 'confirmed',
+       'reviewedAt': '2026-11-01T00:00:00.000Z', 'agentReadiness': 'implement', 'lane': 'bugs', 'valueRaw': 2.5, 'comments': 3,
+       'proposedComment': 'x', 'severity': 'none', 'linkedPr': 'https://github.com/o/r/pull/1'}
+mapped = s.sweeper_from_row(row, 'sha1')
+keep = s.sweeper_from_row({'number': 8, 'reviewedAt': 'r'}, 'sha1')
+rec = '---\\nreviewedAt: "2026-11-01T00:00:00.000Z"\\nbreadth: niche\\n---\\n## Summary\\nSame bug.\\n- **Fixed by:** \`abcdef1\` shipped in 1.145.0\\n'
+os.makedirs(s.RECORDS_CACHE, exist_ok=True)
+open(os.path.join(s.RECORDS_CACHE, '7.md'), 'w').write(rec)
+print(json.dumps({
+    'mapped': mapped, 'keep': keep['triageAction'], 'ready': s.ready_to_implement(mapped),
+    'same': list(s.record_texts([7], {7: '2026-11-01T00:00:00.000Z'})),
+    'newer': list(s.record_texts([7], {7: '2026-11-02T00:00:00.000Z'})),
+    'extras': s.record_extras(rec), 'sections': s.record_sections(rec),
+}))
+`;
+	const fresh = mkdtempSync(path.join(os.tmpdir(), 'my-work-sweeper-'));
+	try {
+		const out = JSON.parse(String(execFileSync('python3', ['-c', py], { env: { ...process.env, COPILOT_HOME: fresh, PYTHONDONTWRITEBYTECODE: '1' } })));
+		assert.equal(out.mapped.duplicateOf, 5);
+		assert.equal(out.mapped.verifyVerdict, 'confirmed');
+		assert.equal(out.mapped.commentCount, 3);
+		assert.equal(out.mapped.autoFixable, true);
+		assert.equal(out.mapped.hasProposedComment, true);
+		assert.equal('severity' in out.mapped, false, '"none" is dropped');
+		assert.equal('proposedComment' in out.mapped, false, 'the comment text is not stored in the index');
+		assert.equal(out.keep, 'keep-open', 'an absent triageAction is keep-open');
+		assert.equal(out.ready, false, 'an issue with an open PR is not ready to implement');
+		assert.deepEqual(out.same, [7], 'a cached record of the same review is reused');
+		assert.deepEqual(out.newer, [], 'a re-reviewed issue is not answered from the old record');
+		assert.deepEqual(out.extras, { fixedByCommit: 'abcdef1', shippedIn: '1.145.0', breadth: 'niche', priority: null });
+		assert.equal(out.sections.Summary, 'Same bug.\n- **Fixed by:** `abcdef1` shipped in 1.145.0');
+	} finally {
+		rmSync(fresh, { recursive: true, force: true });
+	}
+});
+
+test('Today lists reporter replies, and Implement skips taken issues and ranks bugs by Sweeper value', () => {
+	const py = `
+import json, sys
+sys.argv = ['x']
+sys.path.insert(0, ${JSON.stringify(scripts)})
+import my_issues as m
+def issue(n, **sw):
+    return {'repository': 'o/r', 'number': n, 'url': 'u', 'title': f't{n}', 'state': 'open', 'labels': [], 'updatedAt': '2026-11-01',
+            'primaryFeatureArea': 'others', 'sweeper': sw}
+idx = {'issues': {
+    'o/r#1': issue(1, infoAnsweredAt='2026-11-02T00:00:00Z', agentReadiness='implement', itemType='bug', valueRaw=1),
+    'o/r#2': issue(2, agentReadiness='implement', itemType='bug', valueRaw=3),
+    'o/r#3': issue(3, agentReadiness='implement', itemType='bug', valueRaw=9, linkedPr='https://github.com/o/r/pull/9'),
+    'o/r#4': issue(4, agentReadiness='implement', itemType='feature-request', valueRaw=50),
+}}
+sections, _ = m.build_queue(idx, {})
+class A: readiness = ['implement']; limit = 10
+import io, contextlib
+buf = io.StringIO()
+with contextlib.redirect_stdout(buf):
+    m.cmd_implement(A, idx)
+print(json.dumps({'replied': next(s['keys'] for s in sections if s['id'] == 'replied'), 'implement': [i['key'] for i in json.loads(buf.getvalue())['items']]}))
+`;
+	const fresh = mkdtempSync(path.join(os.tmpdir(), 'my-work-queue-'));
+	try {
+		const out = JSON.parse(String(execFileSync('python3', ['-c', py], { env: { ...process.env, COPILOT_HOME: fresh, PYTHONDONTWRITEBYTECODE: '1' } })));
+		assert.deepEqual(out.replied, ['o/r#1']);
+		assert.deepEqual(out.implement, ['o/r#2', 'o/r#1', 'o/r#4']);
+	} finally {
+		rmSync(fresh, { recursive: true, force: true });
 	}
 });
 
@@ -189,6 +265,28 @@ print(json.dumps(out))
 	}
 });
 
+test('the indexer treats an issue whose old URL redirects to another repository as transferred', () => {
+	const py = `
+import json, sys
+sys.argv = ['x']
+sys.path.insert(0, ${JSON.stringify(scripts)})
+import refresh_my_issues as r
+api = 'https://api.github.com/repos/'
+print(json.dumps([
+    r.moved_elsewhere({'repository_url': api + 'microsoft/vscode-internalbacklog', 'number': 10605}, 'microsoft/vscode', 329321),
+    r.moved_elsewhere({'repository_url': api + 'microsoft/vscode', 'number': 10605}, 'microsoft/vscode', 329321),
+    r.moved_elsewhere({'repository_url': api + 'Microsoft/VSCode', 'number': 329321}, 'microsoft/vscode', 329321),
+]))
+`;
+	const fresh = mkdtempSync(path.join(os.tmpdir(), 'my-work-moved-'));
+	try {
+		const out = JSON.parse(String(execFileSync('python3', ['-c', py], { env: { ...process.env, COPILOT_HOME: fresh, PYTHONDONTWRITEBYTECODE: '1' } })));
+		assert.deepEqual(out, [true, true, false]);
+	} finally {
+		rmSync(fresh, { recursive: true, force: true });
+	}
+});
+
 test('panel server rejects other hosts and API calls without the token', async () => {
 	const http = await import('node:http');
 	const { TriageServer } = await import(new URL('lib/server.mjs', ext));
@@ -203,12 +301,38 @@ test('panel server rejects other hosts and API calls without the token', async (
 		assert.equal((await get('/api/work')).status, 403, 'reads need the token');
 		assert.equal((await get('/api/events')).status, 403, 'events need the token');
 		assert.equal((await get('/api/vscode-theme', { 'x-triage-token': server.token })).status, 200);
+		assert.equal((await get('/api/chat-background/image')).status, 403, 'the chat background needs the token');
 		const page = await get('/');
 		assert.equal(page.status, 200);
-		assert.match(page.csp, /img-src 'self' data: https:\/\/github\.com/);
+		assert.match(page.csp, /img-src 'self' data: blob: https:\/\/github\.com/);
 		assert.doesNotMatch(page.csp, /img-src[^;]*\*(?!\.githubusercontent)/, 'no wildcard image hosts');
 	} finally {
 		await server.stop();
+	}
+});
+
+test('the chat background resolves to the configured image for the theme, and only that file is servable', async () => {
+	const bg = await import(new URL('lib/chatBackground.mjs', ext));
+	const userDir = mkdtempSync(path.join(os.tmpdir(), 'my-work-bg-'));
+	try {
+		const image = path.join(userDir, 'dark.svg');
+		writeFileSync(image, '<svg xmlns="http://www.w3.org/2000/svg"/>');
+		writeFileSync(path.join(userDir, 'settings.json'), `{
+			// comments and trailing commas, like a real settings.json
+			"chat.agentSessions.preferredDarkBackgroundImage": ${JSON.stringify(image)},
+			"chat.agentSessions.preferredDarkBackgroundImageLayout": "top",
+		}`);
+		const dark = await bg.readChatBackground(userDir, false, 'vs-dark');
+		assert.equal(dark.kind, 'image');
+		assert.match(dark.url, /^\/api\/chat-background\/image\?v=/);
+		assert.equal(dark.position, 'center top');
+		assert.equal(bg.chatBackgroundFile('image').file, image);
+		assert.equal(bg.chatBackgroundFile('font'), undefined);
+		assert.equal(await bg.readChatBackground(userDir, false, 'vs'), null, 'no light image configured');
+		assert.equal(bg.chatBackgroundFile('image'), undefined, 'nothing servable when there is no background');
+		assert.equal(await bg.readChatBackground(userDir, false, 'hc-black'), null, 'none in high contrast');
+	} finally {
+		rmSync(userDir, { recursive: true, force: true });
 	}
 });
 
@@ -240,6 +364,23 @@ test('the plugin ships no binary files', async () => {
 test('the reused triage chat is titled My Work', () => {
 	const out = execFileSync('python3', ['-c', 'import sys; sys.argv = ["x"]; import my_issues; print(my_issues.TRIAGE_CHAT_TITLE)'], { cwd: scripts, env: { ...process.env, COPILOT_HOME: home, PYTHONDONTWRITEBYTECODE: '1' } });
 	assert.equal(String(out).trim(), 'My Work');
+});
+
+test('the daily run posts to the My Work session when the panel has one', () => {
+	const dataDir = mkdtempSync(path.join(os.tmpdir(), 'mw-data-'));
+	const cfgHome = mkdtempSync(path.join(os.tmpdir(), 'mw-home-'));
+	mkdirSync(path.join(cfgHome, 'project-boards'), { recursive: true });
+	writeFileSync(path.join(cfgHome, 'project-boards', 'my-work.config.json'), JSON.stringify({ dataDir }));
+	const env = { ...process.env, COPILOT_HOME: cfgHome, PYTHONDONTWRITEBYTECODE: '1' };
+	const run = () => String(execFileSync('python3', ['-c', 'import sys; sys.argv = ["x"]; import my_issues; print(my_issues.my_work_session())'], { cwd: scripts, env })).trim();
+	try {
+		assert.equal(run(), 'None');
+		writeFileSync(path.join(dataDir, 'chat.json'), JSON.stringify({ format: 'my-work/chat', version: 1, link: 'agent-host-session://ahp-session/aaaa-1?chat=bbbb-2' }));
+		assert.equal(run(), 'agent-host-session://ahp-session/aaaa-1', 'the session, not the nested chat');
+	} finally {
+		rmSync(dataDir, { recursive: true, force: true });
+		rmSync(cfgHome, { recursive: true, force: true });
+	}
 });
 
 test('Browse filters narrow the selected source via the chat', async () => {
@@ -327,6 +468,96 @@ test('discussing an issue uses its own chat, and Start session turns that chat i
 	} finally {
 		await server.stop();
 	}
+});
+
+test('reproduce and investigate requests go to Investigating; starting a fix moves the issue to Current', async () => {
+	const key = 'octo/app#901';
+	let item = await workSessions.trackInvestigation(key, 'reproduce');
+	assert.equal(item.bucket, workSessions.INVESTIGATING);
+	assert.equal(item.investigation.kind, 'reproduce');
+	assert.ok(await sections.getSection(workSessions.INVESTIGATING), 'the section is created on first use');
+	item = await workSessions.setInvestigationResult(key, 'reproduced', 'Crashes on save with the steps given.');
+	assert.equal(item.investigation.result, 'reproduced');
+	assert.equal(item.investigation.kind, 'reproduce', 'the request kind is kept');
+	await assert.rejects(workSessions.setInvestigationResult(key, 'maybe'), /result must be/);
+	item = await workSessions.trackFix(key);
+	assert.equal(item.bucket, 'current', 'starting a fix moves it out of Investigating');
+	assert.equal(item.investigation.result, 'reproduced', 'the result stays visible');
+
+	// An issue that is not in My Work yet lands in Current when a fix starts; one in your own section stays there.
+	assert.equal((await workSessions.trackFix('octo/app#902')).bucket, 'current');
+	await workSessions.setIssueBucket('octo/app#903', workSessions.INVESTIGATING);
+	const own = await sections.saveSection({ name: 'Customer' });
+	await workSessions.setIssueBucket('octo/app#904', own.id);
+	assert.equal((await workSessions.trackInvestigation('octo/app#904', 'investigate')).bucket, own.id);
+	assert.equal((await workSessions.trackFix('octo/app#904')).bucket, own.id);
+	await workSessions.unpinIssues([key, 'octo/app#902', 'octo/app#903', 'octo/app#904']);
+	await sections.removeSection(own.id);
+});
+
+test('issue chats dismiss notifications by issue once an approved action addresses them', async () => {
+	const { TriageRuntime } = await import(new URL('lib/runtime.mjs', ext));
+	const runtime = new TriageRuntime({ log: () => { }, sendToChat: async () => { } });
+	await assert.rejects(runtime.invoke('x', 'dismissNotifications', {}), /needs ids or issues/);
+	const prompt = prompts.createIssueChatPrompt({ key: 'octo/app#42', url: 'https://github.com/octo/app/issues/42', title: 'Crash', text: 'hi' });
+	assert.match(prompt, /dismissNotifications \{"issues": \["octo\/app#42"\]\}/);
+	assert.match(prompt, /without asking/);
+
+	// Dismissing a notification archives its issue's discussion chat (via the My Work session); work sessions stay.
+	const sent = [];
+	runtime.instances.set('t', { server: { sendToChat: async () => { }, sendToMyWorkSession: async p => sent.push(p) } });
+	await workSessions.setIssueChat('octo/app#50', 'agent-host-session://ahp-session/s1?chat=c50');
+	await workSessions.setIssueChat('octo/app#51', 'agent-host-session://ahp-session/s1?chat=c51', 'session');
+	runtime.pendingArchive.add('octo/app#50').add('octo/app#51').add('octo/app#52');
+	const targets = await runtime.archiveFinishedChats();
+	assert.deepEqual(targets.map(t => t.key), ['octo/app#50'], 'only the discussion chat; not the work session or an issue without a chat');
+	assert.match(sent[0], /archive finished issue chats/);
+	assert.match(sent[0], /octo\/app#50: agent-host-session:\/\/ahp-session\/s1\?chat=c50/);
+	assert.match(sent[0], /not waiting for the user's answer or approval/);
+	await workSessions.setIssueChat('octo/app#50', null);
+	await workSessions.setIssueChat('octo/app#51', null);
+	runtime.instances.delete('t');
+	runtime.unwatchDismiss();
+});
+
+test('a review session checks out the PR in its own worktree and posts nothing without approval', () => {
+	const p = prompts.reviewSessionPrompt({ key: 'octo/app#77', title: 'Add caching', url: 'https://github.com/octo/app/pull/77' });
+	assert.match(p, /title "Review #77: <short title>"/);
+	assert.match(p, /worktree true/);
+	assert.match(p, /gh pr checkout 77 --repo octo\/app/);
+	assert.match(p, /never submit a review, approve, comment, push or change GitHub without the user's explicit approval/);
+	assert.match(p, /omit relationship, so it is nested under this My Work session/);
+});
+
+test('review and fix sessions link themselves to their PR or issue', async () => {
+	const { TriageRuntime } = await import(new URL('lib/runtime.mjs', ext));
+	const runtime = new TriageRuntime({ log: () => { }, sendToChat: async () => { } });
+	const link = 'agent-host-session://ahp-session/abababab-1111-2222-3333-444444444444';
+	await runtime.invoke('x', 'updateMyWork', { op: 'linkSession', session: link, issue: 'octo/app#77' });
+	assert.deepEqual((await workSessions.getSessionLinks())['abababab-1111-2222-3333-444444444444'], ['octo/app#77']);
+	await workSessions.linkSessionIssue('abababab-1111-2222-3333-444444444444', 'octo/app#77', false);
+	assert.match(prompts.reviewSessionPrompt({ key: 'octo/app#77', title: 't', url: 'u' }), /"op": "linkSession", "session": "<the new session link>", "issue": "octo\/app#77"/);
+	assert.match(prompts.workSessionPrompt({ key: 'octo/app#78', title: 't', url: 'u' }), /"op": "linkSession"/);
+});
+
+test('fix and review sessions let the host create the worktree', () => {
+	const all = [
+		prompts.workSessionPrompt({ key: 'octo/app#1', title: 't', url: 'u' }),
+		prompts.reviewSessionPrompt({ key: 'octo/app#2', title: 't', url: 'u' }),
+		prompts.notificationIssueActionPrompt({ action: 'start', notification: { issueKey: 'octo/app#3', title: 't', htmlUrl: 'u' } }),
+		prompts.implementPrompt({ issue: { key: 'octo/app#4', title: 't', url: 'u', area: 'x' } }),
+		prompts.startIssueSessionMessage({ key: 'octo/app#5', url: 'u', title: 't' }),
+	];
+	for (const p of all) assert.match(p, /Never create a git worktree yourself|never run `git worktree add`/);
+	for (const p of all.slice(0, 4)) assert.match(p, /worktree true/);
+});
+
+test('an investigation runs in the repository clone, read-only', () => {
+	const ask = key => prompts.notificationIssueActionPrompt({ action: 'investigate', notification: { issueKey: key, title: 'Crash', htmlUrl: 'u' } });
+	assert.ok(ask('octo/app#5').includes(`workspace ${JSON.stringify(path.join(home, 'src', 'app'))}`), 'the local clone is the workspace');
+	assert.match(ask('octo/app#5'), /no worktree/);
+	assert.match(ask('octo/app#5'), /Do not edit files, switch branches or commit there/);
+	assert.match(ask('octo/missing#5'), /no local clone of octo\/missing, so omit workspace and worktree/);
 });
 
 test('any session can get a summary from the My Work chat', async () => {

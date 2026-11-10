@@ -2,8 +2,8 @@ import { execFile } from 'node:child_process';
 import { promises as fs, watch as fsWatch } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { sessionsFor } from './sessions.mjs';
-import { listIssueChats, getSessionSummaries } from './workSessions.mjs';
+import { sessionsFor, sessionsById } from './sessions.mjs';
+import { listIssueChats, getSessionSummaries, getSessionLinks, listPinnedIssues } from './workSessions.mjs';
 import { COPILOT_HOME, BOARD, SCRIPT, config } from './config.mjs';
 
 export { BOARD, SCRIPT };
@@ -25,7 +25,7 @@ const ISSUE_RULES_FILE = path.join(DATA_DIR, 'issue-rules.json');
 const PRIORITIES_FILE = path.join(DATA_DIR, 'priorities.json');
 export const THREADS_DIR = path.join(DATA_DIR, 'threads');
 export const OPINIONS_DIR = path.join(BOARD, 'my-issue-opinions');
-export const DEFAULT_SETTINGS = { batchSize: 10, popularThreshold: 5, theme: 'vscode', accent: 'blue', linkTarget: 'vscode', chatHeight: 160, chatCollapsed: false, density: 'auto', listHeight: 40, listWidth: 38, areaFilter: '' };
+export const DEFAULT_SETTINGS = { batchSize: 10, popularThreshold: 5, theme: 'vscode', chatBackground: true, accent: 'blue', linkTarget: 'vscode', chatHeight: 160, chatCollapsed: false, density: 'auto', listHeight: 40, listWidth: 38, areaFilter: '' };
 
 const FORMATS = {
 	triage: { format: 'my-issues-triage/notification-triage', version: 1, key: 'items', empty: () => ({}) },
@@ -230,6 +230,7 @@ export async function setSettings(patch) {
 	if (patch.popularThreshold !== undefined) next.popularThreshold = patch.popularThreshold;
 	if (patch.theme !== undefined) next.theme = patch.theme;
 	if (patch.accent !== undefined) next.accent = patch.accent;
+	if (patch.chatBackground !== undefined) next.chatBackground = patch.chatBackground;
 	if (patch.linkTarget !== undefined) next.linkTarget = patch.linkTarget;
 	if (patch.chatHeight !== undefined) next.chatHeight = patch.chatHeight;
 	if (patch.chatCollapsed !== undefined) next.chatCollapsed = patch.chatCollapsed;
@@ -429,7 +430,24 @@ async function loadNotifications(force = false) {
 	return notifCache;
 }
 
+/** Sessions linked to an issue or PR explicitly (by hand, or by the review / fix session itself) show on it too, first. */
+export async function addLinkedSessions(sessions) {
+	const links = await getSessionLinks();
+	const byId = await sessionsById(Object.keys(links)).catch(() => ({}));
+	for (const [sid, keys] of Object.entries(links)) {
+		const z = byId[sid];
+		if (!z) continue;
+		for (const k of keys) { const list = sessions[k] ||= []; if (!list.some(x => x.id === sid)) list.unshift({ ...z, link: `agent-host-session://ahp-session/${sid}`, linked: true }); }
+	}
+	return sessions;
+}
+
 // --- Public API ---
+/** Unread notification thread ids about these issues / PRs (owner/repo#N). */
+export async function notificationIdsForIssues(keys) {
+	const want = new Set(keys);
+	return ((await loadNotifications()).data || []).filter(n => n.issueKey && want.has(n.issueKey)).map(n => n.id);
+}
 export async function getTriage() { return readStore('triage', TRIAGE_FILE); }
 
 export async function setNotificationTriage(items) {
@@ -544,8 +562,11 @@ export async function getState({ forceNotifications = false } = {}) {
 	]);
 	const threads = await getThreads();
 	const issueChats = await listIssueChats();
+	// Reproduce / investigate requests and their results, so every view can show them (not only My Work).
+	const investigations = Object.fromEntries((await listPinnedIssues().catch(() => [])).filter(p => p.investigation).map(p => [p.key, p.investigation]));
 	const sessionSummaries = await getSessionSummaries();
 	const sessions = await sessionsFor([...new Set([...Object.keys(index.issues || {}), ...(notif.data || []).map(n => n.issueKey).filter(Boolean)])]).catch(() => ({}));
+	await addLinkedSessions(sessions);
 	const customGroups = await getCustomGroups();
 	const areas = await loadAreas();
 	const issues = index.issues || {};
@@ -629,7 +650,7 @@ export async function getState({ forceNotifications = false } = {}) {
 	}
 
 	return {
-		hasIndex, indexing: await loadIndexing(), refreshedAt: index.refreshedAt, counts: index.counts, queueDate: queue?.date ?? null, settings, batches, opinions, opinionPending, informedPending, threads, issueChats, sessionSummaries, me: await currentLogin().catch(() => null), customGroups, areas, sessions,
+		investigations, hasIndex, indexing: await loadIndexing(), refreshedAt: index.refreshedAt, counts: index.counts, queueDate: queue?.date ?? null, settings, batches, opinions, opinionPending, informedPending, threads, issueChats, sessionSummaries, me: await currentLogin().catch(() => null), customGroups, areas, sessions,
 		notifications, notificationsError: notif.error ?? null, notificationsFetchedAt: notif.at ? new Date(notif.at).toISOString() : null, untriaged, notifTriagePending, issueRules, issueRulesPending, sections, cleanup: cleanupGroups,
 		implement: { total: implement.total, bugs: implement.bugs, items: implementItems },
 		today: {
@@ -697,7 +718,13 @@ export async function logStart(key) {
 	await logActivity({ kind: 'issue', key, action: 'start-session' });
 }
 
-export async function dismissNotification({ id, unsubscribe }) {
+// Listeners told which issue / PR a dismissed notification was about (e.g. to archive its finished discussion chat).
+const dismissListeners = new Set();
+export function onNotificationDismissed(fn) { dismissListeners.add(fn); return () => dismissListeners.delete(fn); }
+
+/** keepChat: the dismissal starts work in the issue's chat (a reproduce, an investigation, a review), so leave the chat be. */
+export async function dismissNotification({ id, unsubscribe, keepChat = false }) {
+	const issueKey = notifCache.data?.find(n => n.id === id)?.issueKey || null;
 	if (unsubscribe) {
 		await run('gh', ['api', '--method', 'DELETE', `/notifications/threads/${id}/subscription`]);
 	}
@@ -707,6 +734,7 @@ export async function dismissNotification({ id, unsubscribe }) {
 		notifCache.data = notifCache.data.filter(n => n.id !== id);
 	}
 	await logActivity({ kind: 'notification', id, action: unsubscribe ? 'done' : 'dismiss' });
+	if (issueKey && !keepChat) for (const fn of dismissListeners) { try { fn(issueKey); } catch { /* a listener must not break dismissing */ } }
 	return { id, dismissed: true, unsubscribed: !!unsubscribe };
 }
 

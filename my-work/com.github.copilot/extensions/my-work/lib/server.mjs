@@ -6,22 +6,22 @@ import path from 'node:path';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import * as data from './data.mjs';
-import { spawnJudgeRequest, implementPrompt, createIssueChatPrompt, forwardToIssueChatPrompt, forwardToMyWorkSessionPrompt, startIssueSessionMessage, notificationIssueActionPrompt, notificationTriagePrompt, issueRulesPrompt, browseQueryPrompt, workSessionPrompt, noteSessionPrompt, createMyWorkChatPrompt, forwardToMyWorkChatPrompt, describeSessionMessage } from './prompts.mjs';
-import { getVsCodeDensity, getVsCodeTheme, watchVsCodeDensity, watchVsCodeTheme } from './vscodeTheme.mjs';
+import { spawnJudgeRequest, implementPrompt, createIssueChatPrompt, forwardToIssueChatPrompt, forwardToMyWorkSessionPrompt, startIssueSessionMessage, notificationIssueActionPrompt, notificationTriagePrompt, issueRulesPrompt, browseQueryPrompt, workSessionPrompt, reviewSessionPrompt, noteSessionPrompt, createMyWorkChatPrompt, forwardToMyWorkChatPrompt, describeSessionMessage } from './prompts.mjs';
+import { chatBackgroundFile, getVsCodeDensity, getVsCodeTheme, watchVsCodeDensity, watchVsCodeTheme } from './vscodeTheme.mjs';
 import { getMyWork, moveToMilestone, issueDetails, closingIssues, workSource, sourceQuery, myLogin, doneState } from './work.mjs';
 import { config } from './config.mjs';
 import { saveImage, imagePaths, MAX_IMAGE_BYTES } from './attachments.mjs';
 import { listSections, saveSection, setSectionOrder, moveSection, removeSection, listNotes, getNote, saveNote, removeNote, getSection, isGroup } from './sections.mjs';
 import { sessionsFor, sessionsMentioning, sessionsById, recentSessions, issueCandidates, sessionTranscript } from './sessions.mjs';
-import { listPinned, pinSession, unpinSessions, parseSessionRef, getMyWorkChat, getHiddenSessions, setSessionHidden, setSessionBucket, BUCKETS, moveBucket, listPinnedIssues, pinIssue, setIssueBucket, unpinIssues, markSummaryRequested, markSessionSummaryRequested, getSessionLinks, linkSessionIssue, getSessionSummaries, getIssueChat, setIssueChat, setMyWorkChat } from './workSessions.mjs';
+import { listPinned, pinSession, unpinSessions, parseSessionRef, getMyWorkChat, getHiddenSessions, setSessionHidden, setSessionBucket, BUCKETS, moveBucket, listPinnedIssues, pinIssue, setIssueBucket, unpinIssues, markSummaryRequested, markSessionSummaryRequested, getSessionLinks, linkSessionIssue, getSessionSummaries, getIssueChat, setIssueChat, setMyWorkChat, trackInvestigation, trackFix } from './workSessions.mjs';
 
 const ASSETS = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'assets');
 // Scripts, styles and data come only from this server; images and videos only from GitHub's own hosts
-// (user attachments redirect to GitHub's S3 bucket).
+// (user attachments redirect to GitHub's S3 bucket). `blob:` images are the drawn codicon chat background.
 const GITHUB_MEDIA = 'https://github.com https://*.githubusercontent.com https://github-production-user-asset-6210df.s3.amazonaws.com';
 const CSP = [
 	"default-src 'none'", "script-src 'self'", "style-src 'self' 'unsafe-inline'", "font-src 'self'", "connect-src 'self'",
-	`img-src 'self' data: ${GITHUB_MEDIA}`, `media-src 'self' ${GITHUB_MEDIA}`, "base-uri 'none'", "form-action 'none'",
+	`img-src 'self' data: blob: ${GITHUB_MEDIA}`, `media-src 'self' ${GITHUB_MEDIA}`, "base-uri 'none'", "form-action 'none'",
 ].join('; ');
 const ASSET_TYPES = { 'app.js': 'text/javascript; charset=utf-8', 'style.css': 'text/css; charset=utf-8', 'codicon.ttf': 'font/ttf' };
 // The icon font is not bundled (no binaries in the plugin); it is served from the VS Code installation.
@@ -118,7 +118,7 @@ function cleanBrowse(b) {
 	const source = ['bugs', 'features', 'area', 'reviews', 'mine'].includes(b.source) ? b.source : 'bugs';
 	const area = /^[a-z0-9_-]{0,40}$/.test(b.area || '') ? (b.area || '') : '';
 	const refine = b.refine && str(b.refine.query, 300) ? { query: str(b.refine.query, 300), text: str(b.refine.text, 300), note: str(b.refine.note, 300) } : null;
-	const groupBy = ['', 'reporter', 'milestone', 'age', 'interest', 'label'].includes(b.groupBy) ? b.groupBy : '';
+	const groupBy = ['', 'sweeper', 'reporter', 'milestone', 'age', 'interest', 'label'].includes(b.groupBy) ? b.groupBy : '';
 	return { source, area, refine, groupBy };
 }
 
@@ -306,6 +306,18 @@ export class TriageServer {
 			this.json(res, 200, { theme: await getVsCodeTheme(), density: await getVsCodeDensity() });
 			return;
 		}
+		// Only the file VS Code's chat background setting points at right now, never a path from the request.
+		// Sandboxed so an SVG opened directly cannot script this page's origin.
+		const backgroundRoute = req.method === 'GET' && /^\/api\/chat-background\/(image|reduced|font)$/.exec(url.pathname);
+		if (backgroundRoute) {
+			await getVsCodeTheme();
+			const target = chatBackgroundFile(backgroundRoute[1]);
+			const body = target && await fs.readFile(target.file).catch(() => null);
+			if (!body) throw Object.assign(new Error('not found'), { status: 404 });
+			res.writeHead(200, { 'content-type': target.type, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox" });
+			res.end(body);
+			return;
+		}
 		if (route === 'GET /api/work-source') {
 			const { source, labels } = await this.browseSource(url.searchParams.get('source'), url.searchParams.get('area'));
 			this.json(res, 200, { source, items: await workSource(source, { labels, refine: url.searchParams.get('refine') || '', fresh: url.searchParams.get('fresh') === '1' }) });
@@ -338,7 +350,7 @@ export class TriageServer {
 				return { ...p, session: z, status, fixes };
 			}));
 			const hidden = new Set(await getHiddenSessions());
-			const recent = (await recentSessions(40).catch(() => [])).filter(r => !pinned.some(p => p.id === r.id) && !hidden.has(r.id)).slice(0, 20);
+			const recentAll = await recentSessions(40).catch(() => []);
 			// Issues added locally (e.g. resolved from a session): details from GitHub; closed ones stay, marked, until cleared.
 			const pinIssues = await listPinnedIssues();
 			const det = await issueDetails(pinIssues.map(p => p.key), url.searchParams.get('fresh') === '1').catch(() => ({}));
@@ -363,6 +375,10 @@ export class TriageServer {
 				const list = sessions[p.key] ||= [];
 				if (!list.some(x => x.id === sid)) list.unshift({ ...z, link: `agent-host-session://ahp-session/${sid}` });
 			}
+			// Active sessions lists only what My Work doesn't show yet: not pinned, not hidden, and not a session of an issue in My Work.
+			const shownKeys = new Set([...keys, ...pinnedIssues.map(p => p.key), ...(work.priorityKeys || [])]);
+			const onIssues = new Set(Object.entries(sessions).filter(([k]) => shownKeys.has(k)).flatMap(([, list]) => list.map(z => z.id)));
+			const recent = recentAll.filter(r => !pinned.some(p => p.id === r.id) && !hidden.has(r.id) && !onIssues.has(r.id)).slice(0, 20);
 			this.json(res, 200, { ...work, sections, notes, pinnedSessions, pinnedIssues, recentSessions: recent, myWorkChat: await getMyWorkChat(), sessionSummaries: await getSessionSummaries(), sessionLinks, noteSessions: await sessionsMentioning(notes.map(n => n.ref || n.title)).catch(() => ({})), sessions });
 			return;
 		}
@@ -429,6 +445,10 @@ export class TriageServer {
 				if (body.theme !== undefined) {
 					if (!THEMES.has(body.theme)) throw bad('invalid theme');
 					patch.theme = body.theme;
+				}
+				if (body.chatBackground !== undefined) {
+					if (typeof body.chatBackground !== 'boolean') throw bad('chatBackground must be boolean');
+					patch.chatBackground = body.chatBackground;
 				}
 				if (body.chatHeight !== undefined) {
 					if (!Number.isInteger(body.chatHeight) || body.chatHeight < 48 || body.chatHeight > 2000) throw bad('chatHeight must be 48-2000');
@@ -537,6 +557,8 @@ export class TriageServer {
 					const detail = await data.getIssueDetail(body.key).catch(() => null);
 					const item = { issueKey: body.key, title: detail?.issue.title || body.key, htmlUrl: detail?.issue.url || `https://github.com/${repo}/issues/${num}` };
 					await this.sendToChat(notificationIssueActionPrompt({ action: 'investigate', notification: item }));
+					await trackInvestigation(body.key, 'investigate');
+					for (const id of await data.notificationIdsForIssues([body.key])) await data.dismissNotification({ id, keepChat: true }).catch(() => { });
 					result = { sent: true, kind: body.kind, key: body.key };
 					break;
 				}
@@ -549,6 +571,8 @@ export class TriageServer {
 					const action = body.kind === 'notification-start' ? 'start' : 'investigate';
 					const prompt = notificationIssueActionPrompt({ action, notification });
 					await (action === 'start' ? this.sendToMyWorkSession(prompt) : this.sendToChat(prompt));
+					await (action === 'start' ? trackFix(notification.issueKey) : trackInvestigation(notification.issueKey, 'investigate'));
+					if (action === 'investigate') await data.dismissNotification({ id: notification.id, keepChat: true }).catch(() => { });
 					result = { sent: true, kind: body.kind, id: notification.id, key: notification.issueKey };
 					break;
 				}
@@ -556,6 +580,7 @@ export class TriageServer {
 					if (!KEY_RE.test(body.key || '')) throw bad('invalid key');
 					await this.sendToMyWorkSession(implementPrompt(await data.getIssueDetail(body.key)));
 					await data.logStart(body.key);
+					await trackFix(body.key);
 					result = { sent: true, kind: body.kind, key: body.key };
 					break;
 				}
@@ -701,6 +726,21 @@ export class TriageServer {
 				result = { sent: true, id: note.id };
 				break;
 			}
+			case '/api/review-session': {
+				if (!this.sendToChat) throw Object.assign(new Error('This canvas is not attached to a chat'), { status: 409 });
+				if (!KEY_RE.test(body.key || '')) throw bad('invalid key');
+				const [repo, num] = body.key.split('#');
+				await this.sendToMyWorkSession(reviewSessionPrompt({ key: body.key, title: String(body.title || '').slice(0, 300), url: `https://github.com/${repo}/pull/${num}` }));
+				// The PR shows in My Work (current group, local) with its review session.
+				await trackFix(body.key);
+				// Starting the review addresses the review request: its notifications are done.
+				const dismissed = [];
+				for (const id of await data.notificationIdsForIssues([body.key])) {
+					try { await data.dismissNotification({ id, keepChat: true }); dismissed.push(id); } catch { /* keep going; the panel still shows it */ }
+				}
+				result = { sent: true, key: body.key, dismissed };
+				break;
+			}
 			case '/api/work-session': {
 				if (!this.sendToChat) throw Object.assign(new Error('This canvas is not attached to a chat'), { status: 409 });
 				if (!KEY_RE.test(body.key || '')) throw bad('invalid key');
@@ -714,6 +754,7 @@ export class TriageServer {
 					await this.sendToMyWorkSession(workSessionPrompt(issue));
 					result = { sent: true, key: body.key, via: 'new-session' };
 				}
+				await trackFix(body.key);
 				break;
 			}
 			case '/api/open': {
@@ -756,6 +797,12 @@ export class TriageServer {
 				const chat = await getIssueChat(body.key);
 				if (chat) await this.sendToChat(forwardToIssueChatPrompt({ link: chat.link, key: body.key, text }));
 				else await this.sendToMyWorkSession(createIssueChatPrompt({ key: body.key, url: `https://github.com/${owner}/${repo}/issues/${number}`, title, text }));
+				// A reproduce request from the panel (e.g. the Reproduce recommendation) is tracked in the Investigating section.
+				if (body.track === 'reproduce' && !again) {
+					await trackInvestigation(body.key, 'reproduce');
+					// Asking for a reproduce attempt is acting on the notification: it is done.
+					for (const id of await data.notificationIdsForIssues([body.key])) await data.dismissNotification({ id, keepChat: true }).catch(() => { });
+				}
 				result = { key: body.key, entries: again ? await data.getThread(body.key) : await data.appendThread(body.key, 'user', text) };
 				break;
 			}

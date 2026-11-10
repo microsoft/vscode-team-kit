@@ -144,20 +144,169 @@ async function applyVsCodeTheme(theme) {
 	}
 	ui.vscodeTheme = theme;
 	for (const prop of [...root.style]) if (prop.startsWith('--')) root.style.removeProperty(prop);
-	if ((ui.state?.settings.theme || 'vscode') !== 'vscode') return;
-	if (!theme) { root.dataset.theme = 'system'; return; }
+	if ((ui.state?.settings.theme || 'vscode') !== 'vscode') { applyChatBackground(null); return; }
+	if (!theme) { root.dataset.theme = 'system'; applyChatBackground(null); return; }
 	root.dataset.theme = 'vscode';
 	root.style.colorScheme = theme.dark ? 'dark' : 'light';
 	for (const [k, v] of Object.entries(theme.tokens)) if (v) root.style.setProperty(k, v);
 	const hint = $('vscode-theme-name');
 	if (hint) hint.textContent = `${theme.name} · ${theme.source}`;
+	applyChatBackground(ui.state?.settings.chatBackground !== false && !theme.highContrast ? theme.background : null);
+	const bgHint = $('chat-bg-hint');
+	if (bgHint) bgHint.textContent = theme.highContrast ? 'Not shown in high contrast themes.' : theme.background ? '' : 'No chat background is set in VS Code.';
 }
+
+// ---------- chat background ----------
+// The Agents window chat background (chat.agentSessions.preferred{Light,Dark}BackgroundImage[Layout]), painted behind
+// the panel the way the chat paints it: full strength, fixed to the viewport, in the configured layout. The server
+// resolves it for the current theme (none when unset or in high contrast) and serves only that file.
+let chatBackground = null;
+let codiconBackground;
+const CHAT_BG_VARS = ['--chat-bg-image', '--chat-bg-reduced-motion-image', '--chat-bg-repeat', '--chat-bg-size', '--chat-bg-position'];
+const withToken = url => `${url}${url.includes('?') ? '&' : '?'}t=${encodeURIComponent(TOKEN)}`;
+
+function applyChatBackground(background) {
+	const root = document.documentElement;
+	const css = url => `url("${withToken(String(url)).replace(/["\\\n]/g, '')}")`;
+	chatBackground = background?.kind === 'image' || background?.kind === 'codicons' ? background : null;
+	root.classList.toggle('has-chat-background', !!chatBackground);
+	if (chatBackground?.kind === 'image') {
+		root.style.setProperty('--chat-bg-image', css(chatBackground.url));
+		root.style.setProperty('--chat-bg-reduced-motion-image', css(chatBackground.reducedMotionUrl ?? chatBackground.url));
+		root.style.setProperty('--chat-bg-repeat', chatBackground.repeat);
+		root.style.setProperty('--chat-bg-size', chatBackground.size);
+		root.style.setProperty('--chat-bg-position', chatBackground.position);
+	} else if (!chatBackground) {
+		for (const key of CHAT_BG_VARS) root.style.removeProperty(key);
+	}
+	if (chatBackground?.kind === 'codicons') {
+		if (codiconBackground) setCodiconVars();
+		renderCodiconBackground();
+	} else if (codiconBackground) {
+		URL.revokeObjectURL(codiconBackground.url);
+		codiconBackground = undefined;
+	}
+}
+
+function setCodiconVars() {
+	const root = document.documentElement;
+	root.style.setProperty('--chat-bg-image', `url("${codiconBackground.url}")`);
+	root.style.setProperty('--chat-bg-reduced-motion-image', `url("${codiconBackground.url}")`);
+	root.style.setProperty('--chat-bg-repeat', 'no-repeat');
+	root.style.setProperty('--chat-bg-size', `${codiconBackground.width}px ${codiconBackground.height}px`);
+	root.style.setProperty('--chat-bg-position', 'left top');
+}
+
+// A port of VS Code's decorative codicon background (chatBackgroundRenderer.ts): the same seeded grid, glyphs, depths,
+// colours and fade toward the content, drawn once into an image of the viewport's size.
+const CODICON_CELL = 80;
+// [codepoint, compact codepoint (far depth) or 0], in VS Code's order.
+const CODICON_GLYPHS = [
+	[0xec10, 0xec95], [0xeb05, 0], [0xeaf8, 0xec8d], [0xeb44, 0xec9d], [0xea85, 0xecbb], [0xeac4, 0], [0xeae6, 0], [0xea61, 0xecb3],
+	[0xea79, 0xeca1], [0xec15, 0], [0xea8c, 0], [0xeb5b, 0], [0xeb91, 0], [0xec6f, 0xec8e], [0xeaa4, 0xecef], [0xeaa2, 0],
+	[0xea6b, 0xecac], [0xebaa, 0xecbf], [0xeace, 0], [0xea6d, 0xecb8], [0xeb01, 0], [0xeaf2, 0], [0xeaf9, 0], [0xeb11, 0],
+	[0xeb2a, 0], [0xeb2b, 0], [0xeb2d, 0], [0xeb31, 0], [0xeb34, 0], [0xeb3a, 0xec91], [0xea62, 0xec93], [0xeb53, 0xec94],
+	[0xeb59, 0], [0xeb6d, 0], [0xebcf, 0], [0xea86, 0], [0xec67, 0xecc0], [0xec20, 0], [0xeaaf, 0], [0xeabe, 0],
+	[0xeb68, 0], [0xebd5, 0], [0xebd2, 0], [0xeb29, 0], [0xeb50, 0], [0xebe2, 0], [0xec0d, 0], [0xeb58, 0],
+];
+// far, middle, near: font size and share of the foreground colour.
+const CODICON_DEPTHS = [{ size: 12, share: 10, blur: 0.6 }, { size: 16, share: 18, blur: 0 }, { size: 16, share: 28, blur: 0 }];
+
+function hashCodiconCell(row, column, salt) {
+	let value = Math.imul(row + 1, 73856093) ^ Math.imul(column + 1, 19349663) ^ Math.imul(salt + 1, 83492791);
+	value = Math.imul(value ^ (value >>> 13), 1540483477);
+	return (value ^ (value >>> 15)) >>> 0;
+}
+
+let codiconRender = 0;
+let codiconFont;
+async function renderCodiconBackground() {
+	const background = chatBackground;
+	const render = ++codiconRender;
+	const width = Math.max(1, window.innerWidth);
+	const height = Math.max(1, window.innerHeight);
+	const probe = document.body.appendChild(document.createElement('span'));
+	probe.className = 'chat-bg-probe';
+	const colors = CODICON_DEPTHS.map(depth => {
+		probe.style.color = `color-mix(in srgb, var(--fg) ${depth.share}%, transparent)`;
+		return getComputedStyle(probe).color;
+	});
+	probe.remove();
+	const key = JSON.stringify([background.fontUrl, width, height, devicePixelRatio, colors]);
+	if (codiconBackground?.key === key) return;
+	try {
+		if (codiconFont?.url !== background.fontUrl) {
+			const face = await new FontFace('chat-bg-codicon', `url("${withToken(background.fontUrl)}")`).load();
+			if (codiconFont) document.fonts.delete(codiconFont.face);
+			document.fonts.add(face);
+			codiconFont = { url: background.fontUrl, face };
+		}
+	} catch {
+		return;
+	}
+	const scale = devicePixelRatio || 1;
+	const canvas = document.createElement('canvas');
+	canvas.width = Math.ceil(width * scale);
+	canvas.height = Math.ceil(height * scale);
+	const ctx = canvas.getContext('2d');
+	ctx.scale(scale, scale);
+	ctx.textAlign = 'center';
+	ctx.textBaseline = 'middle';
+	const columns = Math.ceil(width / CODICON_CELL);
+	const rows = Math.ceil(height / CODICON_CELL);
+	const cells = [[], [], []];
+	for (let row = 0; row < rows; row++) {
+		for (let column = 0; column < columns; column++) {
+			if (hashCodiconCell(row, column, 0) % 9 === 0) continue;
+			const left = (column + 0.5 + ((hashCodiconCell(row, column, 2) % 71) - 35) / 100) * CODICON_CELL;
+			const top = (row + 0.5 + ((hashCodiconCell(row, column, 3) % 65) - 32) / 100) * CODICON_CELL;
+			const depthHash = hashCodiconCell(row, column, 6) % 10;
+			const depth = depthHash < 5 ? 0 : depthHash < 9 ? 1 : 2;
+			const distance = Math.min(1, Math.hypot((left / width - 0.5) * 2, (top / height - 0.45) * 2));
+			const [glyph, compact] = CODICON_GLYPHS[hashCodiconCell(row, column, 1) % CODICON_GLYPHS.length];
+			cells[depth].push({
+				left, top,
+				rotation: (hashCodiconCell(row, column, 4) % 71) - 35,
+				opacity: (0.65 + (hashCodiconCell(row, column, 5) % 36) / 100) * (0.35 + 0.65 * distance),
+				text: String.fromCodePoint(depth === 0 && compact ? compact : glyph),
+			});
+		}
+	}
+	cells.forEach((list, depth) => {
+		ctx.font = `${CODICON_DEPTHS[depth].size}px chat-bg-codicon`;
+		ctx.fillStyle = colors[depth];
+		ctx.filter = CODICON_DEPTHS[depth].blur ? `blur(${CODICON_DEPTHS[depth].blur}px)` : 'none';
+		for (const cell of list) {
+			ctx.save();
+			ctx.translate(cell.left, cell.top);
+			ctx.rotate(cell.rotation * Math.PI / 180);
+			ctx.globalAlpha = Math.min(1, cell.opacity);
+			ctx.fillText(cell.text, 0, 0);
+			ctx.restore();
+		}
+	});
+	const blob = await new Promise(resolve => canvas.toBlob(resolve));
+	if (!blob || render !== codiconRender || chatBackground !== background) return;
+	if (codiconBackground) URL.revokeObjectURL(codiconBackground.url);
+	codiconBackground = { key, url: URL.createObjectURL(blob), width, height };
+	setCodiconVars();
+}
+
+let codiconResize;
+window.addEventListener('resize', () => {
+	if (chatBackground?.kind === 'codicons') {
+		cancelAnimationFrame(codiconResize);
+		codiconResize = requestAnimationFrame(() => renderCodiconBackground());
+	}
+});
 function applyTheme(settings) {
 	const theme = settings.theme || 'vscode';
 	document.documentElement.dataset.theme = theme === 'vscode' ? (ui.vscodeTheme ? 'vscode' : 'system') : theme;
 	if (theme === 'vscode') applyVsCodeTheme(ui.vscodeTheme ?? undefined);
-	else { for (const prop of [...document.documentElement.style]) if (prop.startsWith('--')) document.documentElement.style.removeProperty(prop); document.documentElement.style.colorScheme = ''; }
+	else { for (const prop of [...document.documentElement.style]) if (prop.startsWith('--')) document.documentElement.style.removeProperty(prop); document.documentElement.style.colorScheme = ''; applyChatBackground(null); }
 	document.getElementById('accent-seg')?.closest('fieldset')?.classList.toggle('disabled-by-theme', theme === 'vscode');
+	$('chat-bg-field')?.classList.toggle('needs-vscode-theme', theme !== 'vscode');
+	for (const b of document.querySelectorAll('#chat-bg-seg button')) b.setAttribute('aria-pressed', String((b.dataset.chatBg === 'on') === (settings.chatBackground !== false)));
 	if (theme !== 'vscode' && $('vscode-theme-name')) $('vscode-theme-name').textContent = '';
 	document.documentElement.dataset.accent = settings.accent || 'blue';
 	for (const b of document.querySelectorAll('#theme-seg button')) b.setAttribute('aria-pressed', String(b.dataset.theme === theme));
@@ -415,8 +564,8 @@ function renderAreaBar() {
 	$('areabar').innerHTML = `<label class="area-pick${f ? ' active' : ''}" title="Filter by feature area"><i class="codicon codicon-filter" aria-hidden="true"></i><span class="sr-only">Feature area</span>
 		<select id="area-filter" aria-label="Filter by feature area"><option value="">All areas (${total})</option>${opts}</select></label>
 		${f ? `<button type="button" class="link-btn" id="area-clear" title="Show all areas">Clear</button><span class="cd area-note">all batches</span>` : ''}
-		<span class="subtabs-spacer"></span>
 		<span class="actionbar" id="area-acts" role="toolbar" aria-label="Actions"></span>
+		<span class="subtabs-spacer"></span>
 		${COLLAPSE_ACT}${refreshActHtml(ui.refreshing, ui.tab === 'notifications' && ui.state.notificationsFetchedAt ? `Updated ${agoText(ui.state.notificationsFetchedAt)}` : '', ui.tab === 'notifications' ? 'Fetch notifications from GitHub now' : 'Reload the index, notifications and live data')}`;
 	if (keptActs && $('area-acts')) $('area-acts').innerHTML = keptActs;
 }
@@ -636,9 +785,10 @@ function renderBatchBar() {
 // ---- Agents window sessions working on an issue (matched by "#N" in their titles) ----
 function sessionsOf(key) {
 	const a = ui.state?.sessions?.[key] || [], b = ui.work?.data?.sessions?.[key] || [];
-	if (!b.length) return a;
+	// The My Work session matches every issue whose chat is nested in it; it is not that issue's session.
+	const host = new Set(Object.values(ui.state?.issueChats || {}).map(c => /\?chat=/.test(c?.link || '') ? c.link.split('?')[0].split('/').pop() : null).filter(Boolean));
 	const seen = new Set();
-	return [...b, ...a].filter(z => !seen.has(z.id) && seen.add(z.id));
+	return [...b, ...a].filter(z => !host.has(z.id) && !seen.has(z.id) && seen.add(z.id));
 }
 function sessTag(key) {
 	const list = sessionsOf(key).filter(s => !s.archived);
@@ -685,6 +835,11 @@ function sessionsHtml(list, heading = 'Sessions') {
 	return `<section class="linked dcard sess-card"><div class="linked-head"><span class="section-label">${esc(heading)} · ${list.length}</span></div><ul class="sess-list">${rows}</ul></section>`;
 }
 // The issue's own chat (where the panel's messages about it go); stage "session" once it became the work session.
+// Someone else's pull request (from the URL or the loaded GitHub data): its session is a review session.
+function reviewsPr(key, url) {
+	const g = ui.gh?.[key]?.data;
+	return g ? !!g.isPr && g.author?.login !== g.me : /\/pull\/\d+/.test(url || '');
+}
 function issueChat(key) {
 	return ui.state?.issueChats?.[key] || null;
 }
@@ -746,7 +901,8 @@ function issueQuick(key, url, { removable = false, state = null } = {}) {
 		...(removable ? [{ act: 'issue-unpin', key, icon: 'check', label: 'Clear from My Work (done)' }] : []),
 	];
 	return [
-		live ? { act: 'open-session', link: live.link, icon: 'comment-discussion', label: 'Open session' } : { act: 'work-session', key, icon: 'rocket', label: 'Start session' },
+		live ? { act: 'open-session', link: live.link, icon: 'comment-discussion', label: reviewsPr(key, url) ? 'Open review session' : 'Open session' }
+			: reviewsPr(key, url) ? { act: 'review-session', key, icon: 'eye', label: 'Start review session' } : { act: 'work-session', key, icon: 'rocket', label: 'Start session' },
 		{ href: url || `https://github.com/${key.split('#')[0]}/issues/${key.split('#')[1]}`, icon: 'link-external', label: 'Open on GitHub' },
 		...(removable ? [{ act: 'issue-unpin', key, icon: 'close', label: 'Remove from My Work' }] : []),
 	];
@@ -754,8 +910,23 @@ function issueQuick(key, url, { removable = false, state = null } = {}) {
 
 // My Work groups split into In progress, To do and a collapsed Done (closed or merged issues, finished sessions,
 // plus milestone issues closed this week). Sub-headers only show when a group has more than one kind.
+// Status of a reproduce / investigate request made from the panel: running, or the chat's result.
+const INVESTIGATION_TAGS = {
+	reproduced: ['sev', 'bug', 'Reproduced'], 'not-reproduced': ['', 'circle-slash', 'Not reproduced'],
+	partly: ['sev', 'warning', 'Partly reproduced'], findings: ['ok', 'lightbulb', 'Findings ready'],
+};
+function investigationTag(inv) {
+	if (!inv) return '';
+	if (!inv.result) {
+		const what = inv.kind === 'reproduce' ? 'Reproducing' : 'Investigating';
+		return `<span class="tag acc" title="${esc(`Asked ${agoText(inv.at)}; the chat reports the result here`)}"><i class="codicon codicon-loading spin" aria-hidden="true"></i>${what}…</span>`;
+	}
+	const [cls, icon, label] = INVESTIGATION_TAGS[inv.result] || ['', 'info', inv.result];
+	return `<span class="tag ${cls}" title="${esc(inv.summary || label)}"><i class="codicon codicon-${icon}" aria-hidden="true"></i>${label}</span>`;
+}
 function workStage(i) {
-	if (i.kind === 'work') return i.w.state ? 'done' : liveSession(i.w.key) || i.w.outcome?.decision === 'fixing' ? 'progress' : 'todo';
+	// A reproduce / investigate request is in progress until the chat reports back; with a result it waits on you (To do).
+	if (i.kind === 'work') return i.w.state ? 'done' : liveSession(i.w.key) || i.w.outcome?.decision === 'fixing' || (i.w.investigation && !i.w.investigation.result) ? 'progress' : 'todo';
 	if (i.kind === 'pinsess') return i.p.status || ui.foldedDone?.has(i.p.id) ? 'done' : 'progress';
 	if (i.kind === 'note') return !i.n.draft && (ui.work?.data?.noteSessions?.[i.n.ref || i.n.title] || []).some(z => !z.archived) ? 'progress' : 'todo';
 	return 'todo';
@@ -800,7 +971,7 @@ function groupItemsHtml(g) {
 	const doneTip = g.closed?.length ? `Closed in ${g.header.split(' · ')[0]} in the last 7 days (assigned to you), and finished items you added` : 'Finished items: clear them when you no longer need them';
 	return STAGES.filter(([id]) => by[id].length).map(([id, name, icon]) => {
 		const open = stageOpen(g.role, id);
-		return `<button type="button" class="stage-h stage-${id}" data-stage-toggle="${esc(`${g.role}:${id}`)}" aria-expanded="${open}"${id === 'done' ? ` title="${esc(doneTip)}"` : ''}><i class="codicon codicon-chevron-right" aria-hidden="true"></i><i class="codicon codicon-${icon} stage-icon" aria-hidden="true"></i>${name}<span class="group-n">${by[id].length}</span></button>${open ? `<div class="stage-body">${by[id].map(rowHtml).join('')}</div>` : ''}`;
+		return `<button type="button" class="stage-h stage-${id}" data-stage-toggle="${esc(`${g.role}:${id}`)}"${g.drop ? ` data-drop-group="${esc(g.role)}"` : ''} aria-expanded="${open}"${id === 'done' ? ` title="${esc(doneTip)}"` : ''}><i class="codicon codicon-chevron-right" aria-hidden="true"></i><i class="codicon codicon-${icon} stage-icon" aria-hidden="true"></i>${name}<span class="group-n">${by[id].length}</span></button>${open ? `<div class="stage-body">${by[id].map(rowHtml).join('')}</div>` : ''}`;
 	}).join('');
 }
 // How an item is named in a section's saved order.
@@ -849,7 +1020,7 @@ function rowHtml(item) {
 		const prio = item.milestone?.role === 'priorities';
 		const local = !!w.local;
 		return withQuick(`<button type="button" class="${cls}${w.state ? ' is-done' : w.isBug ? ' dot-action' : ''}${prio || local ? ' prio-row' : ''}" data-kind="work" data-id="${esc(w.key)}" data-group="${esc(item.group || '')}"${item.secRef ? ` data-sec-item="${esc(item.secRef)}"` : ''} aria-current="${!!current}"${prio ? ` draggable="true" data-prio="${esc(w.key)}" data-pin-issue="${esc(w.key)}" title="Drag to reorder or into current / next; Alt+↑/↓ moves the selected issue"` : local ? ` draggable="true" data-pin-issue="${esc(w.key)}" title="Added locally (GitHub milestone unchanged). Drag to another group."` : ''}>${prio || local ? '<span class="row-grip" aria-hidden="true" title="Drag to move"><i class="codicon codicon-gripper"></i></span>' : ''}
-			<span class="row-title" title="${esc(w.title)}">${prio ? `<span class="prio-rank">${w.rank}</span>` : ''}${esc(w.title)}</span><span class="row-meta"><span>${esc(shortKey(w.key))}</span>${w.isBug ? '<span>bug</span>' : ''}${prio && w.milestone ? `<span>${esc(w.milestone)}</span>` : ''}${local ? '<span class="tag" title="Added to My Work locally; its GitHub milestone is unchanged">local</span>' : ''}${doneTag(w.state, '', w.stateReason)}${w.state ? '' : sessTag(w.key)}</span>
+			<span class="row-title" title="${esc(w.title)}">${prio ? `<span class="prio-rank">${w.rank}</span>` : ''}${esc(w.title)}</span><span class="row-meta"><span>${esc(shortKey(w.key))}</span>${w.isBug ? '<span>bug</span>' : ''}${prio && w.milestone ? `<span>${esc(w.milestone)}</span>` : ''}${local && !w.investigation ? '<span class="tag" title="Added to My Work locally; its GitHub milestone is unchanged">local</span>' : ''}${w.state ? '' : investigationTag(w.investigation)}${doneTag(w.state, '', w.stateReason)}${w.state ? '' : sessTag(w.key)}</span>
 		</button>`, issueQuick(w.key, w.url, { removable: local || prio, state: w.state }));
 	}
 	if (item.kind === 'workhome') {
@@ -1426,8 +1597,10 @@ async function loadGitHub(key, fresh = false) {
 		const data = await api(`/api/github?key=${encodeURIComponent(key)}${fresh ? '&fresh=1' : ''}`);
 		const wasClosed = prev?.data?.state === 'closed';
 		ui.gh[key] = { data, at: Date.now() };
-		// Live GitHub says it is closed (the index can lag): redraw the title actions, which offer no new session for a closed issue.
-		if (data.state === 'closed' && !wasClosed && ui.selected?.id === key) { renderDetail(false, true); return; }
+		// Live GitHub says it is closed (the index can lag), or it is someone else's PR: redraw the title actions, which offer
+		// no new session for a closed issue and a review session (not a fix session) for a PR to review.
+		const firstPr = data.isPr && !prev?.data?.isPr;
+		if (((data.state === 'closed' && !wasClosed) || firstPr) && ui.selected?.id === key) { renderDetail(false, true); return; }
 	} catch (error) {
 		ui.gh[key] = { ...prev, loading: false, error: prev?.data ? null : error.message };
 		if (prev?.data) toast(`GitHub refresh failed: ${error.message}`, true);
@@ -1458,6 +1631,7 @@ const REPRO_PROMPT = [
 	'Read the issue and its latest comments for the steps, version and OS. Use the local clone of the repository and run it the way the repository supports (for example a dev build); follow the steps exactly, on the latest code.',
 	'Do not change code, and do not comment, label or otherwise change GitHub.',
 	'Report back with: Reproduced (yes / no / partly), what you did and saw (with screenshots or logs if you have them), any difference from the report (version, OS, settings), and the next step you recommend (fix session, ask the reporter for info, or close).',
+	'Before you reply, record the result in My Work with the my-issues-triage canvas action updateMyWork {"op": "investigationResult", "issue": "<this issue owner/repo#N>", "result": "reproduced" | "not-reproduced" | "partly", "summary": "<one line>"}.',
 ].join(' ');
 // Rule-based suggestions from the live GitHub state, the chat's triage, Sweeper and recorded outcomes.
 // Actions either reuse a panel action (data-act) or ask the chat (which still needs approval for GitHub changes).
@@ -1478,7 +1652,7 @@ function recommendations(key) {
 	const newSinceMe = lastHuman && lastHuman.author.login !== me && (!myLast || lastHuman.createdAt > myLast.createdAt);
 	const ref = k => (k.startsWith('microsoft/vscode#') ? '#' + k.split('#')[1] : k);
 	const recs = [];
-	const ask = (label, text, primary) => ({ kind: 'ask', label, text, primary });
+	const ask = (label, text, primary, track) => ({ kind: 'ask', label, text, primary, track });
 	const act = (label, a, primary) => ({ kind: 'act', label, act: a, key: n ? undefined : key, primary });
 	const link = (label, url) => ({ kind: 'link', label, url });
 
@@ -1510,9 +1684,11 @@ function recommendations(key) {
 		recs.push({ icon: 'law', text: `${fact ? `${fact} — ` : ''}${APPROVE_LABEL[p.group].toLowerCase()}?`, why, actions: [{ kind: 'act', label: APPROVE_LABEL[p.group], act: 'apply', key, group: p.group, primary: true }, ask('Double-check', `Double-check Sweeper's "${APPROVE_LABEL[p.group]}" proposal for this issue against the live issue and latest comments (and the fix commit or duplicate if any), then tell me whether to approve, with choices.`)] });
 	}
 	if (g.isPr) {
-		if (n?.reason === 'review_requested') recs.push({ icon: 'eye', text: 'Your review is requested.', why: g.pr ? `${g.pr.changedFiles} files, +${g.pr.additions} −${g.pr.deletions}` : '', actions: [link('Open PR', g.url), ask('Summarize', 'Summarize this PR: what it changes, risks, and what I should focus on in the review.', true)] });
+		// Someone else's PR: a review session (its own worktree) is the main step; one already running opens instead.
+		const review = () => { const live = liveSession(key); return live ? { kind: 'act', label: 'Open review session', act: 'open-session', link: live.link, primary: true } : { kind: 'act', label: 'Start review session', act: 'review-session', key, primary: true }; };
+		if (n?.reason === 'review_requested') recs.push({ icon: 'eye', text: 'Your review is requested.', why: g.pr ? `${g.pr.changedFiles} files, +${g.pr.additions} −${g.pr.deletions}` : '', actions: [review(), ask('Summarize', 'Summarize this PR: what it changes, risks, and what I should focus on in the review.'), link('Open PR', g.url)] });
 		else if (g.author.login === me) recs.push({ icon: 'git-pull-request', text: g.pr?.draft ? 'Your draft PR — finish it or mark it ready.' : 'Your PR — check reviews and CI.', actions: [ask('Check status', 'Check the review comments and CI status of my PR and tell me what is blocking it.', true)] });
-		else recs.push({ icon: 'eye', text: `${g.assignees.includes(me) ? 'Assigned to you' : 'PR'} by @${g.author.login}${g.pr?.draft ? ' (draft)' : ''} — review it.`, why: g.pr ? `${g.pr.changedFiles} files, +${g.pr.additions} −${g.pr.deletions}` : '', actions: [link('Open PR', g.url), ask('Summarize', 'Summarize this PR: what it changes, whether it is ready, risks, and what I should check in the review.', true)] });
+		else recs.push({ icon: 'eye', text: `${g.assignees.includes(me) ? 'Assigned to you' : 'PR'} by @${g.author.login}${g.pr?.draft ? ' (draft)' : ''} — review it.`, why: g.pr ? `${g.pr.changedFiles} files, +${g.pr.additions} −${g.pr.deletions}` : '', actions: [review(), ask('Summarize', 'Summarize this PR: what it changes, whether it is ready, risks, and what I should check in the review.'), link('Open PR', g.url)] });
 	}
 	if (n?.triage?.group === 'route') {
 		recs.push({ icon: 'person', text: n.triage.routeTo?.length ? `Route to ${n.triage.routeTo.map(l => '@' + l).join(', ')}.` : 'Unassign yourself.', why: n.triage.rule || '', actions: [act('Route', 'route-one', true)] });
@@ -1552,10 +1728,26 @@ function recommendations(key) {
 	const hasSteps = /steps to reproduce|repro steps|^\s*1[.)]\s/im.test(text);
 	const hasRepro = hasSteps || /repro|user-attachments|\.(png|gif|mp4)/i.test(text);
 	// A bug with steps: the issue's own chat can try them and report whether it reproduces.
-	if (!g.isPr && isBug && hasSteps && !labels.includes('info-needed') && outcome?.decision !== 'fixing') {
-		recs.push({ icon: 'beaker', text: 'Has steps to reproduce — check whether it reproduces.', actions: [ask('Reproduce', REPRO_PROMPT, !recs.length)] });
+	// Already asked to reproduce or investigate: show where that stands instead of offering it again.
+	const inv = ui.state.investigations?.[key] || ui.work?.data?.pinnedIssues?.find(x => x.key === key)?.investigation;
+	if (!g.isPr && inv) {
+		const what = inv.kind === 'reproduce' ? 'reproduce' : 'investigate';
+		const res = { reproduced: 'Reproduced', 'not-reproduced': 'Did not reproduce', partly: 'Partly reproduced', findings: 'Investigation done' }[inv.result];
+		recs.push(inv.result
+			? { icon: inv.result === 'not-reproduced' ? 'circle-slash' : inv.result === 'findings' ? 'lightbulb' : 'bug', text: `${res}${inv.summary ? ` — ${inv.summary}` : '.'}`, why: inv.resultAt ? agoText(inv.resultAt) : '', actions: [] }
+			: { icon: 'loading', text: `You asked the chat to ${what} this; it reports back here.`, why: agoText(inv.at), actions: [] });
+	} else if (!g.isPr && isBug && hasSteps && !labels.includes('info-needed') && outcome?.decision !== 'fixing') {
+		recs.push({ icon: 'beaker', text: 'Has steps to reproduce — check whether it reproduces.', actions: [ask('Reproduce', REPRO_PROMPT, !recs.length, 'reproduce')] });
 	}
-	if (!g.isPr && !human.length && !labels.includes('info-needed') && !p.group) {
+	// Not triaged yet: no type label, no feature-area label, or no milestone. Offer to set them (the chat proposes, you approve).
+	const TYPE_LABELS = ['bug', 'feature-request', 'debt', 'question', 'polish', 'engineering', 'papercut :drop_of_blood:', 'under-discussion', 'perf', 'accessibility', 'ux', 'error-telemetry'];
+	const areaLabels = new Set((ui.state.areas || []).flatMap(a => a.labels || []));
+	const missing = [!labels.some(l => TYPE_LABELS.includes(l) || /^\*/.test(l)) && 'type', !labels.some(l => areaLabels.has(l)) && 'feature area', !g.milestone && 'milestone'].filter(Boolean);
+	const untriaged = !g.isPr && g.state === 'open' && !labels.includes('info-needed') && missing.length >= 2;
+	if (untriaged) {
+		recs.push({ icon: 'tag', text: `Not triaged yet: no ${missing.join(', no ')}.`, actions: [ask('Triage', `Triage this issue: check for duplicates first, then propose the type label (bug, feature-request, …), the feature-area label(s) (use my configured areas and the matching VS Code area label), and a milestone (Backlog for bugs, Backlog Candidates for feature requests, unless my rules say otherwise). Show me the exact labels and milestone and wait for my approval; then apply them, record the decision, and dismiss this issue's notification.`, !recs.length)] });
+	}
+	if (!untriaged && !g.isPr && !human.length && !labels.includes('info-needed') && !p.group) {
 		if (isFeature || (!isBug && /^(?:feature|add|support|allow|option)\b|would like/i.test(g.title + ' ' + text.slice(0, 400)))) {
 			recs.push({ icon: 'lightbulb', text: 'Feature request with no discussion yet.', actions: [ask('Backlog or close?', 'This is a feature request with no discussion. Check for duplicates and demand, then recommend keeping it (e.g. Backlog Candidates milestone) or closing it, with choices.', !recs.length)] });
 		} else if (!hasRepro) {
@@ -1576,8 +1768,8 @@ function recoHtml(key) {
 	const btn = (a, first) => {
 		const cls = `btn sm${a.primary && first ? ' primary' : ''}`;
 		if (a.kind === 'link') return `<a class="${cls}" href="${esc(safeUrl(a.url))}" target="_blank" rel="noopener">${esc(a.label)}</a>`;
-		if (a.kind === 'act') return `<button type="button" class="${cls}" data-act="${esc(a.act)}"${a.key ? ` data-key="${esc(a.key)}"` : ''}${a.group ? ` data-group="${esc(a.group)}"` : ''}>${esc(a.label)}</button>`;
-		return `<button type="button" class="${cls}" data-reco-ask="${esc(a.text)}" data-key="${esc(key)}" title="Asks the chat: ${esc(a.text)}"><i class="codicon codicon-comment-discussion" aria-hidden="true"></i>${esc(a.label)}</button>`;
+		if (a.kind === 'act') return `<button type="button" class="${cls}" data-act="${esc(a.act)}"${a.key ? ` data-key="${esc(a.key)}"` : ''}${a.group ? ` data-group="${esc(a.group)}"` : ''}${a.link ? ` data-link="${esc(a.link)}"` : ''}>${esc(a.label)}</button>`;
+		return `<button type="button" class="${cls}" data-reco-ask="${esc(a.text)}" data-key="${esc(key)}"${a.track ? ` data-track="${esc(a.track)}"` : ''} title="Asks the chat: ${esc(a.text)}"><i class="codicon codicon-comment-discussion" aria-hidden="true"></i>${esc(a.label)}</button>`;
 	};
 	return `<div class="reco">
 		<div class="reco-h"><span class="section-label">Recommended next</span><button type="button" class="link-btn" data-reco-ask="What should I do next with this ${g.data.isPr ? 'PR' : 'issue'}? Look at the latest comments, linked PRs and my inbox rules, and reply with your recommendation and choices." data-key="${esc(key)}"><i class="codicon codicon-sparkle" aria-hidden="true"></i>Ask the chat</button></div>
@@ -1591,11 +1783,11 @@ function recoHtml(key) {
 function recoSlot(key) {
 	return `<div class="reco-slot" data-key="${esc(key)}"></div>`;
 }
-async function askAboutIssue(key, text) {
+async function askAboutIssue(key, text, track) {
 	const g = ui.gh?.[key]?.data;
 	try {
-		await api('/api/message', { key, title: g?.title || '', text });
-		toast('Asked the chat · the reply appears in the conversation below');
+		await api('/api/message', { key, title: g?.title || '', text, ...(track ? { track } : {}) });
+		toast(track === 'reproduce' ? 'Asked the chat to reproduce it · notification dismissed · tracked in My Work › Investigating' : 'Asked the chat · the reply appears in the conversation below');
 		if (ui.state.settings.chatCollapsed) setChatCollapsed(false);
 		await load();
 	} catch (error) { toast(error.message, true); }
@@ -1856,8 +2048,9 @@ async function renderUnindexedInto(el, key, opts = {}) {
 	const url = g?.url || `https://github.com/${key.split('#')[0]}/issues/${key.split('#')[1]}`;
 	const meta = `<div class="meta"><a class="num-link" href="${esc(safeUrl(url))}" target="_blank" rel="noopener">${esc(shortKey(key))}</a><span class="sep">·</span><span>${g?.isPr ? 'Pull request' : 'Issue'}</span><span class="sep">·</span><span class="cd">not in your issue index</span></div>`;
 	const live = liveSession(key);
-	const primary = opts.work ? (live ? { act: 'open-session', link: live.link, label: 'Open session', icon: 'comment-discussion' } : { act: 'work-session', key, label: 'Start session', icon: 'rocket' }) : null;
-	const menu = opts.work ? [...(live ? [{ act: 'work-session-new', key, label: 'Start another session' }] : []), ...workMenu(key, opts)] : [];
+	const review = g?.isPr && g.author?.login !== g.me;
+	const primary = opts.work ? (live ? { act: 'open-session', link: live.link, label: review ? 'Open review session' : 'Open session', icon: 'comment-discussion' } : review ? { act: 'review-session', key, label: 'Start review session', icon: 'eye' } : { act: 'work-session', key, label: 'Start session', icon: 'rocket' }) : null;
+	const menu = opts.work ? [...(live ? [review ? { act: 'review-session', key, label: 'Start another review session' } : { act: 'work-session-new', key, label: 'Start another session' }] : []), ...workMenu(key, opts)] : [];
 	el.innerHTML = `<div class="detail-head">${titleBarHtml({ title: g?.title || key, url, meta, primary, menu })}</div>
 		<div class="detail-body">${linkPickerHtml(key)}${recoSlot(key)}${sessionsHtml(sessionsOf(key))}${ghSlot(key)}</div>
 		<div class="footer">${threadHtml(key, g?.title || '')}</div>`;
@@ -1894,7 +2087,7 @@ async function renderIssueInto(el, key, fetchDetail, nested, silent = false, opt
 	const sevTag = issue.sweeper?.severity ? `<span class="tag sev">${esc(issue.sweeper.severity)}</span>` : '';
 	if (isCleanup) {
 		const fact = p.fixedByCommit ? `<span class="tag acc">Fixed by <a href="https://github.com/microsoft/vscode/commit/${esc(p.fixedByCommit)}" target="_blank" rel="noopener"><code>${esc(p.fixedByCommit.slice(0, 7))}</code></a>${p.shippedIn ? ` · ${esc(p.shippedIn)}` : ''}</span>`
-			: p.duplicateOf ? `<span class="tag acc">Duplicate of <a href="https://github.com/microsoft/vscode/issues/${esc(p.duplicateOf)}" target="_blank" rel="noopener">#${esc(p.duplicateOf)}</a></span>`
+			: p.duplicateOf ? `<span class="tag acc">Duplicate of <a href="https://github.com/microsoft/vscode/issues/${esc(p.duplicateOf)}" target="_blank" rel="noopener">#${esc(p.duplicateOf)}</a></span>${verifyTag(p.verifyVerdict)}`
 				: p.closeReason ? `<span class="tag acc">${esc(p.closeReason)}</span>` : '';
 		const recheck = `<button type="button" class="link-btn" data-act="recheck" data-key="${safeKey}"><i class="codicon codicon-refresh" aria-hidden="true"></i>Re-check</button>`;
 		const seg = `<div class="seg seg-2 mini" role="tablist" aria-label="Comment view">
@@ -1947,8 +2140,11 @@ async function renderIssueInto(el, key, fetchDetail, nested, silent = false, opt
 	if (opts.work) {
 		// My Work: the work session is the main action; planning moves are in the menu.
 		const live = liveSession(key);
-		primary = live ? { act: 'open-session', link: live.link, label: 'Open session', icon: 'comment-discussion' } : { act: 'work-session', key, label: 'Start session', icon: 'rocket' };
-		menu = [...(live ? [{ act: 'work-session-new', key, label: 'Start another session' }] : []), ...workMenu(key, opts)];
+		const g = ui.gh?.[key]?.data;
+		const reviewPr = g?.isPr && g.author?.login !== g.me;
+		primary = live ? { act: 'open-session', link: live.link, label: reviewPr ? 'Open review session' : 'Open session', icon: 'comment-discussion' }
+			: reviewPr ? { act: 'review-session', key, label: 'Start review session', icon: 'eye' } : { act: 'work-session', key, label: 'Start session', icon: 'rocket' };
+		menu = [...(live ? [reviewPr ? { act: 'review-session', key, label: 'Start another review session' } : { act: 'work-session-new', key, label: 'Start another session' }] : []), ...workMenu(key, opts)];
 	} else if (!nested && ui.work?.data) {
 		menu = [...menu, ...planMenu(key, sel.detail?.milestone), { act: 'link-pick', key, label: 'Link a session…' }];
 	}
@@ -1956,10 +2152,12 @@ async function renderIssueInto(el, key, fetchDetail, nested, silent = false, opt
 	if (!nested) {
 		const live = liveSession(key);
 		const closed = ui.gh?.[key]?.data?.state === 'closed' || issue.state === 'closed' || issue.state === 'CLOSED';
-		const starts = new Set(['implement', 'work-session']);
+		const starts = new Set(['implement', 'work-session', 'review-session']);
+		const gpr = ui.gh?.[key]?.data;
+		const reviewing = gpr?.isPr && gpr.author?.login !== gpr.me;
 		if (live) {
-			primary = { act: 'open-session', link: live.link, label: 'Open session', icon: 'comment-discussion' };
-			if (!closed && !menu.some(m => m.act === 'work-session-new')) menu = [{ act: opts.work ? 'work-session-new' : 'implement', key, label: 'Start another session' }, ...menu];
+			primary = { act: 'open-session', link: live.link, label: reviewing ? 'Open review session' : 'Open session', icon: 'comment-discussion' };
+			if (!closed && !menu.some(m => m.act === 'work-session-new' || m.act === 'review-session')) menu = [reviewing ? { act: 'review-session', key, label: 'Start another review session' } : { act: opts.work ? 'work-session-new' : 'implement', key, label: 'Start another session' }, ...menu];
 		} else if (closed && primary && starts.has(primary.act)) {
 			primary = null;
 		}
@@ -2153,8 +2351,40 @@ async function applyFindFilter(text) {
 	catch (error) { ui.findAsking = null; renderDetail(false, true); toast(`Could not ask the chat: ${error.message}`, true); }
 }
 // Browse grouping: computed from the search results, no extra GitHub calls.
-const GROUP_BY = [['', 'No grouping'], ['reporter', 'Reporter: team / community'], ['milestone', 'Milestone'], ['age', 'Age'], ['interest', 'Interest (👍, comments)'], ['label', 'Label']];
+const GROUP_BY = [['', 'No grouping'], ['sweeper', 'Sweeper verdict'], ['reporter', 'Reporter: team / community'], ['milestone', 'Milestone'], ['age', 'Age'], ['interest', 'Interest (👍, comments)'], ['label', 'Label']];
 const TEAM_ASSOC = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
+// What Sweeper says about an issue you own: already fixed, duplicate, not planned, needs info (close proposals), or agent-ready.
+const SWEEPER_VERDICTS = [
+	['fixed', 'Already fixed', 'pass', 'ok'], ['duplicate', 'Duplicate', 'copy', 'sev'], ['reason', 'Not planned', 'circle-slash', ''],
+	['needs-info', 'Needs info', 'question', 'sev'], ['agent', 'Agent-ready', 'rocket', 'acc'],
+];
+function sweeperVerdict(key) {
+	ui.sweeperIndex ??= { at: null, map: new Map() };
+	if (ui.sweeperIndex.at !== ui.state) {
+		const map = new Map();
+		for (const [g, v] of Object.entries(ui.state.cleanup || {})) for (const i of v.items || []) if (!map.has(i.key)) map.set(i.key, { id: g, confirmed: i.verifyVerdict === 'confirmed', why: [i.summary, i.duplicateOf ? `Duplicate of ${i.duplicateOf}${i.verifyVerdict ? ` (second review: ${i.verifyVerdict})` : ''}` : '', i.shippedIn ? `Shipped in ${i.shippedIn}` : '', i.confidence ? `confidence ${i.confidence}` : ''].filter(Boolean).join(' · ') });
+		for (const i of ui.state.implement?.items || []) if (!map.has(i.key)) map.set(i.key, { id: 'agent', value: i.valueRaw || 0, bug: !!i.isBug, why: `Sweeper: agent-ready${i.severity ? ` · ${i.severity}` : ''}${i.valueRaw ? ` · value ${i.valueRaw}` : ''}${i.confidence ? ` · confidence ${i.confidence}` : ''}${i.contentStale ? ' · the issue changed since the review' : ''}` });
+		ui.sweeperIndex = { at: ui.state, map };
+	}
+	const v = ui.sweeperIndex.map.get(key);
+	if (!v) return null;
+	const [, label, icon, cls] = SWEEPER_VERDICTS.find(x => x[0] === v.id);
+	return { ...v, label: v.confirmed ? `${label} (confirmed)` : label, icon, cls };
+}
+// Sweeper's blinded second review of a close proposal: only "confirmed" means the duplicate is established.
+const VERIFY_TAGS = {
+	confirmed: ['ok', 'pass', 'Confirmed', 'A blinded second review confirmed this proposal'],
+	refuted: ['sev', 'warning', 'Disputed', 'A blinded second review disagreed with this proposal: look at both issues before closing'],
+	unverifiable: ['', 'question', 'Unverified', 'A blinded second review could not confirm this proposal'],
+};
+function verifyTag(verdict) {
+	const t = VERIFY_TAGS[verdict];
+	return t ? `<span class="tag ${t[0]}" title="${esc(t[3])}"><i class="codicon codicon-${t[1]}" aria-hidden="true"></i>${esc(t[2])}</span>` : '';
+}
+function sweeperTagHtml(key) {
+	const v = sweeperVerdict(key);
+	return v ? `<span class="tag ${v.cls}" title="${esc(`Sweeper: ${v.label}${v.why ? ` — ${v.why}` : ''}`)}"><i class="codicon codicon-${v.icon}" aria-hidden="true"></i>${esc(v.label)}</span>` : '';
+}
 function groupFindItems(items, by) {
 	if (!by) return null;
 	const order = [];
@@ -2165,7 +2395,11 @@ function groupFindItems(items, by) {
 	// Labels that say nothing new inside this list: the issue types and the chosen area's labels.
 	const generic = new Set(['bug', 'feature-request', ...((ui.state.areas || []).find(a => a.id === ui.findArea)?.labels || [])]);
 	for (const i of items) {
-		if (by === 'reporter') {
+		if (by === 'sweeper') {
+			const v = sweeperVerdict(i.key);
+			const at = v ? SWEEPER_VERDICTS.findIndex(x => x[0] === v.id) : SWEEPER_VERDICTS.length;
+			put(v ? SWEEPER_VERDICTS[at][1] : 'No Sweeper verdict', i, at);
+		} else if (by === 'reporter') {
 			const bot = i.authorType === 'Bot' || /\[bot\]$/.test(i.author || '');
 			put(bot ? 'Bots' : TEAM_ASSOC.has(i.association) ? 'Team' : 'Community', i, bot ? 2 : TEAM_ASSOC.has(i.association) ? 0 : 1);
 		} else if (by === 'milestone') {
@@ -2183,6 +2417,9 @@ function groupFindItems(items, by) {
 	}
 	// Fixed buckets keep their natural order; milestones and labels go by size (biggest first).
 	const bySize = by === 'label' || by === 'milestone';
+	// Agent-ready issues like the Implement list: bugs first, then by Sweeper's value score (comparable within bugs or features only).
+	const rank = i => { const v = sweeperVerdict(i.key); return [v?.bug ? 0 : 1, -(v?.value || 0)]; };
+	if (by === 'sweeper') groups.get('Agent-ready')?.sort((a, b) => { const [x, y] = [rank(a), rank(b)]; return x[0] - y[0] || x[1] - y[1]; });
 	return order.sort((a, b) => (a.rank - b.rank) || (bySize ? groups.get(b.name).length - groups.get(a.name).length : 0)).map(o => ({ name: o.name, items: groups.get(o.name) }));
 }
 
@@ -2222,7 +2459,7 @@ function renderFindWorkInto(el) {
 			<i class="codicon codicon-${icon} find-icon${isBug ? ' bug' : i.isPr ? ' pr' : ''}" aria-hidden="true" title="${i.isPr ? 'Pull request' : isBug ? 'Bug' : i.labels.includes('feature-request') ? 'Feature request' : 'Issue'}"></i>
 			<div class="find-main">
 				<button type="button" class="find-title" data-browse-open="${esc(i.key)}" title="Open ${esc(shortKey(i.key))} here">${esc(i.title)}</button>
-				<div class="find-meta"><span class="find-num">${esc(shortKey(i.key))}</span>${i.isPr ? `<span>@${esc(i.author)}</span>` : ''}${i.milestone ? `<span>${esc(i.milestone)}</span>` : ''}${chips}<span class="find-age">${esc(ago(i.updatedAt))}</span></div>
+				<div class="find-meta"><span class="find-num">${esc(shortKey(i.key))}</span>${i.isPr ? '' : sweeperTagHtml(i.key)}${i.isPr ? `<span>@${esc(i.author)}</span>` : ''}${i.milestone ? `<span>${esc(i.milestone)}</span>` : ''}${chips}<span class="find-age">${esc(ago(i.updatedAt))}</span></div>
 			</div>
 			<div class="find-add">${has ? '<span class="find-in"><i class="codicon codicon-pass-filled" aria-hidden="true"></i>In My Work</span>'
 				: `${add('current', `+ ${cur?.title || 'Current'}`, `Add to ${cur?.title || 'current'} (local)`)}${add('next', 'Next', `Add to ${nxt?.title || 'next'} (local)`)}${add('priorities', 'Priorities', 'Add to the end of My priorities')}`}</div>
@@ -2237,6 +2474,9 @@ function renderFindWorkInto(el) {
 	el.innerHTML = `<div class="detail-head">${titleBarHtml({ title: 'Browse issues & PRs', meta: `<div class="meta"><span class="cd" title="Type a filter and press Enter: GitHub syntax or plain words. Click a row to open it here, drag it into a group on the left, or use its buttons. Added locally: GitHub milestones stay unchanged.">Live from GitHub, org:microsoft, newest first. Drag a row into a group on the left to plan it.</span></div>` })}</div>
 		<div class="detail-body find-view">
 			<div class="find-tools">
+				<div class="find-tabs">
+					<div class="tabs" role="group" aria-label="Source">${pills}</div>${areaSel}
+				</div>
 				<div class="find-search">
 					<i class="codicon codicon-search" aria-hidden="true"></i><label class="sr-only" for="find-filter">Filter, press Enter to apply</label><input id="find-filter" type="search" placeholder="Filter, press Enter to apply (e.g. created by ${esc(ui.state.me || 'octocat')})" value="${esc(ui.findFilter || '')}">
 					<span class="actionbar find-acts" role="toolbar" aria-label="Search actions">
@@ -2244,9 +2484,6 @@ function renderFindWorkInto(el) {
 						${actHtml(`data-find-history aria-expanded="${!!ui.findHistoryOpen}"`, 'history', '', 'Recent filters', !!ui.findHistoryOpen)}
 						<button type="button" class="act" data-find-refresh title="Run this search again on GitHub" aria-label="Refresh results"><i class="codicon codicon-refresh${ui.find?.loading ? ' spin' : ''}" aria-hidden="true"></i></button>
 					</span>
-				</div>
-				<div class="find-tabs">
-					<div class="tabs" role="group" aria-label="Source">${pills}</div>${areaSel}
 				</div>
 			</div>
 			${ui.findHistoryOpen ? browseHistoryHtml() : ''}${queryBar}${asking}
@@ -2421,6 +2658,8 @@ async function loadWork(fresh = false) {
 function advance(before) {
 	const items = flatItems();
 	const same = i => i.kind === ui.selected?.kind && i.id === ui.selected?.id;
+	// Opened from outside the list (Browse, a linked issue): stay on it and show its new state.
+	if (!before?.some(same) && !items.some(same)) return;
 	let idx = items.findIndex(same);
 	if (idx < 0 && before) {
 		const later = before.slice(before.findIndex(same) + 1);
@@ -2446,6 +2685,10 @@ async function act(button) {
 	const id = ui.selected?.kind === 'notification' ? ui.selected.id : undefined;
 	ui.busy = true;
 	document.querySelectorAll('.title-actions .btn, .menu button, .toolbar .btn, [data-act="opinion"]').forEach(b => { b.disabled = true; });
+	// Progress on the button itself (the split button's main half when the action came from its menu).
+	const shown = button.closest('.menu') ? button.closest('.split')?.querySelector('.split-main') || button : button;
+	shown.classList.add('working');
+	shown.insertAdjacentHTML('afterbegin', '<i class="codicon codicon-loading spin act-spin" aria-hidden="true"></i>');
 	toast('Working…');
 	let move = true;
 	const before = flatItems();
@@ -2525,6 +2768,11 @@ async function act(button) {
 			ui.resentAt[key] = new Date().toISOString();
 			msg = fresh ? 'Resent to a new chat' : 'Sent again to the same chat';
 			move = false;
+		} else if (act === 'review-session') {
+			const r = await api('/api/review-session', { key, title: ui.gh?.[key]?.data?.title || ui.selected?.detail?.issue?.title || '' });
+			msg = `Asked the chat to start a review session for ${shortKey(key)}${r.dismissed?.length ? ' · notification dismissed' : ''}`;
+			// From Notifications the review request is now done: go on to the next one.
+			move = ui.tab === 'notifications' && !!r.dismissed?.length;
 		} else if (act === 'work-session' || act === 'work-session-new') {
 			const w = ui.work?.data?.milestones.flatMap(m => m.items.map(i => ({ ...i, milestone: m.title }))).find(i => i.key === key);
 			const d = ui.selected?.detail?.issue?.key === key ? ui.selected.detail.issue : null;
@@ -2631,12 +2879,16 @@ async function act(button) {
 		}
 		toast(`✓ ${msg}`);
 		await load();
+		// The action changed it on GitHub: refetch so the details show the new state (closed, labels, assignees).
+		if (key && ui.gh?.[key]) loadGitHub(key, true);
 		if (move) advance(before);
 	} catch (error) {
 		toast(error.message, true);
 		document.querySelectorAll('.title-actions .btn, .menu button, .toolbar .btn, [data-act="opinion"]').forEach(b => { b.disabled = false; });
 	} finally {
 		ui.busy = false;
+		shown.classList.remove('working');
+		shown.querySelector('.act-spin')?.remove();
 	}
 }
 
@@ -3373,7 +3625,7 @@ $('detail').addEventListener('click', e => {
 	if (e.target.closest('.menu [data-act]')) closeMenus();
 	if (e.target.closest('[data-act="toggle-chat"]')) { setChatCollapsed(!ui.state.settings.chatCollapsed); return; }
 	const recoAsk = e.target.closest('[data-reco-ask]');
-	if (recoAsk) { recoAsk.disabled = true; askAboutIssue(recoAsk.dataset.key, recoAsk.dataset.recoAsk); return; }
+	if (recoAsk) { recoAsk.disabled = true; askAboutIssue(recoAsk.dataset.key, recoAsk.dataset.recoAsk, recoAsk.dataset.track); return; }
 	const ghReload = e.target.closest('[data-gh-reload]');
 	if (ghReload) { loadGitHub(ghReload.dataset.ghReload, true); return; }
 	const ghExpand = e.target.closest('[data-gh-expand]');
@@ -3491,6 +3743,10 @@ $('theme-seg').addEventListener('click', e => {
 $('link-seg').addEventListener('click', e => {
 	const b = e.target.closest('button[data-link]');
 	if (b) saveSettings({ linkTarget: b.dataset.link });
+});
+$('chat-bg-seg').addEventListener('click', e => {
+	const b = e.target.closest('button[data-chat-bg]');
+	if (b) saveSettings({ chatBackground: b.dataset.chatBg === 'on' });
 });
 $('density-seg').addEventListener('click', e => {
 	const b = e.target.closest('button[data-density]');

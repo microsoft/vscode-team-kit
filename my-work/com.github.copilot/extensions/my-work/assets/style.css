@@ -1213,3 +1213,43 @@ body > * { min-width: 0; }
 /* the classify slot keeps its width whether it shows an icon, a count or the spinner */
 .act-slot { display: inline-flex; min-width: 44px; justify-content: flex-start; }
 .act:disabled .act-n { color: var(--faint); }
+/* Browse: tabs on top, search under them */
+.find-view .find-tools { gap: 10px; }
+/* Browse: room above the tabs row, and the area dropdown centred in it rather than touching the borders */
+.find-view .find-tools { padding-top: 10px; }
+.find-tabs { align-items: center; min-height: 34px; }
+.find-tabs .find-area { margin: 0 0 4px auto; height: 26px; padding: 0 8px; }
+/* Browse tabs: no separator line under the row, less space above it */
+.find-view .find-tools { padding-top: 2px; }
+.find-tabs { border-bottom: 0; }
+.find-tabs .seg-btn { margin-bottom: 0; }
+.find-tabs .find-area { margin-bottom: 0; }
+.codicon-copy::before { content: "\ebcc"; }
+/* actions inside the search box use the normal icon colour (not the faint placeholder colour) */
+.find-view .find-search .act .codicon { color: var(--icon-fg, var(--fg)); font-size: 16px; }
+/* an action in progress: spinner on the clicked button, its own icon hidden */
+.working .act-spin { margin-right: 4px; }
+.working .act-spin ~ .codicon { display: none; }
+
+/*
+ * The Agents window chat background (applyChatBackground): fixed to the viewport at full strength, as the chat paints
+ * it. The page, list and detail let it through; bars, cards, inputs and the chat dock stay opaque.
+ */
+:root.has-chat-background { --chat-bg-current: var(--chat-bg-image, none); }
+@media (prefers-reduced-motion: reduce) {
+	:root.has-chat-background { --chat-bg-current: var(--chat-bg-reduced-motion-image, none); }
+}
+:root.has-chat-background {
+	background-color: var(--bg);
+	background-image: var(--chat-bg-current);
+	background-repeat: var(--chat-bg-repeat, repeat);
+	background-size: var(--chat-bg-size, auto);
+	background-position: var(--chat-bg-position, left top);
+	background-attachment: fixed;
+}
+:root.has-chat-background body,
+:root.has-chat-background .list,
+:root.has-chat-background .detail { background: transparent; }
+.chat-bg-probe { position: absolute; visibility: hidden; }
+fieldset.needs-vscode-theme { opacity: .45; pointer-events: none; }
+fieldset.needs-vscode-theme legend::after { content: " · VS Code theme only"; font-weight: 400; }

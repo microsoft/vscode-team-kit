@@ -8,10 +8,9 @@ Pipeline:
      missing (possibly unassigned or deleted) records.
   3. Fetch full metadata (REST) only for added/changed/restored records.
   4. Verify missing records directly against GitHub (not just absence from search).
-  5. Enrich changed microsoft/vscode records from the vscodesweeper-state `origin/state` ref
-     (read-only git, no checkout/mutation of that repo), then refresh the `sweeper` object of
-     every open (or already-enriched) microsoft/vscode record whose upstream Sweeper review
-     changed, independent of GitHub changes.
+  5. Refresh the `sweeper` object of every open (or already-enriched) microsoft/vscode record from the
+     Sweeper's published index (sweeper_source.py: cached, read-only), independent of GitHub changes;
+     the few record-only fields (Fixed by) are read per issue only when its review changed.
   6. Reclassify every record (existing + new) against my-issue-features.json.
   7. Validate the rebuilt index comprehensively.
   8. Atomically publish my-issues.json + my-issues.md only if validation passes.
@@ -23,7 +22,8 @@ unchanged records), and any unknown/extra fields already present on a record.
 import json, os, re, subprocess, sys, time, datetime, tempfile, shutil, hashlib
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from my_work_config import BOARD as BOARD_DIR, CACHE_DIR, ORG, SWEEPER_REPO, login  # noqa: E402
+from my_work_config import BOARD as BOARD_DIR, CACHE_DIR, ORG, SWEEPER_SCOPE, SWEEPER_STATE_REPO, has_sweeper, login  # noqa: E402
+import sweeper_source  # noqa: E402
 
 ASSIGNEE = login()
 CONFIG_PATH = os.path.join(BOARD_DIR, "my-issue-features.json")
@@ -38,6 +38,13 @@ def now_iso():
 
 
 START_NOW = now_iso()
+
+
+def moved_elsewhere(full, repo, number):
+    """GitHub redirects a transferred issue's old URL to the new issue, so a fetch can succeed for an
+    issue that no longer lives at repo#number."""
+    actual_repo = (full.get("repository_url") or "").split("/repos/")[-1]
+    return (actual_repo or repo).lower() != repo.lower() or full.get("number", number) != number
 NOW = START_NOW  # refreshed to END_NOW right before publish
 TODAY = datetime.date.today().isoformat()
 
@@ -245,123 +252,6 @@ def reproduction_evidence(body):
     has_visual = "![" in b or "screenshot" in lb or "recording" in lb
     has_logs = "```" in b or "log" in lb
     return {"hasSteps": has_steps, "hasVisualEvidence": has_visual, "hasLogs": has_logs}
-
-
-def parse_frontmatter(text):
-    m = re.match(r"^---\n(.*?)\n---\n", text, flags=re.S)
-    if not m:
-        return {}
-    fm = {}
-    for line in m.group(1).split("\n"):
-        if not line.strip() or ":" not in line:
-            continue
-        k, v = line.split(":", 1)
-        k = k.strip()
-        v = v.strip().strip('"')
-        fm[k] = v
-    return fm
-
-
-def sweeper_batch_lookup(numbers, commit):
-    """Read many Sweeper records in one `git cat-file --batch` call (read-only, no checkout)."""
-    numbers = sorted(set(numbers))
-    if not numbers:
-        return {}
-    paths = {n: f"records/microsoft/vscode/items/{n}.md" for n in numbers}
-    stdin = "".join(f"{commit}:{paths[n]}\n" for n in numbers).encode()
-    # Feed stdin from a file: piping a large `input=` while capturing output can hang (seen on Python 3.14).
-    with tempfile.TemporaryFile() as f:
-        f.write(stdin)
-        f.seek(0)
-        r = subprocess.run(["git", "-C", SWEEPER_REPO, "cat-file", "--batch"],
-                           stdin=f, capture_output=True, timeout=300)
-    if r.returncode != 0:
-        raise RuntimeError(f"git cat-file failed: {r.stderr.decode(errors='replace')}")
-    out, pos, result = r.stdout, 0, {}
-    for n in numbers:
-        nl = out.index(b"\n", pos)
-        header = out[pos:nl].decode(errors="replace").split()
-        pos = nl + 1
-        if len(header) == 3 and header[1] == "blob":
-            size = int(header[2])
-            text = out[pos:pos + size].decode("utf-8", errors="replace")
-            pos += size + 1
-            enrichment = sweeper_from_text(text, commit, paths[n])
-            if enrichment:
-                result[n] = enrichment
-        # "<object> missing" lines carry no body
-    return result
-
-
-SWEEPER_CHANGE_FIELDS = ("reviewedAt", "contentHash", "policyHash", "triageAction")
-
-
-def body_field(text, name):
-    m = re.search(r"^- \*\*" + re.escape(name) + r":\*\* (.+)$", text, re.M)
-    return m.group(1).strip() if m else None
-
-
-def duplicate_of(text):
-    m = re.search(r"/duplicate of #(\d+)", text)
-    return int(m.group(1)) if m else None
-
-
-def sweeper_from_text(text, commit, path):
-    fm = parse_frontmatter(text)
-    if not fm:
-        return None
-    fixed = body_field(text, "Fixed by") or ""
-    m = re.match(r"`([0-9a-f]{7,40})`.*?(?:shipped in ([\w.\-]+))?$", fixed)
-    fixed_by = (m.group(1), m.group(2)) if m else (None, None)
-
-    def none_or(v):
-        return None if v in (None, "", "none") else v
-
-    def as_float(v):
-        try:
-            return float(v)
-        except (TypeError, ValueError):
-            return None
-
-    def as_int(v):
-        try:
-            return int(v)
-        except (TypeError, ValueError):
-            return None
-
-    return {
-        "sourceCommit": commit,
-        "sourceRef": "origin/state",
-        "sourcePath": path,
-        "engine": fm.get("engine"),
-        "owner": fm.get("owner"),
-        "labels": fm.get("labels"),
-        "proposedLabel": none_or(fm.get("proposedLabel")),
-        "triageAction": fm.get("triageAction"),
-        "confidence": as_float(fm.get("confidence")),
-        "severity": none_or(fm.get("severity")),
-        "breadth": fm.get("breadth"),
-        "priority": none_or(fm.get("priority")),
-        "visionFit": fm.get("visionFit"),
-        "autoFixable": fm.get("autoFixable") == "true",
-        "agentReadiness": none_or(fm.get("agentReadiness")),
-        "closeReason": none_or(fm.get("closeReason")),
-        "itemType": body_field(text, "Item type"),
-        "fixedByCommit": fixed_by[0],
-        "shippedIn": fixed_by[1],
-        "duplicateOf": duplicate_of(text),
-        "hasProposedComment": "**Proposed comment:**" in text,
-        "reviewedAt": fm.get("reviewedAt"),
-        "itemUpdatedAt": fm.get("itemUpdatedAt"),
-        "itemCreatedAt": fm.get("itemCreatedAt"),
-        "upvotes": as_int(fm.get("upvotes")),
-        "reactionsTotal": as_int(fm.get("reactionsTotal")),
-        "commentCount": as_int(fm.get("commentCount")),
-        "relatedOpenIssues": as_int(fm.get("relatedOpenIssues")),
-        "milestone": fm.get("milestone"),
-        "contentHash": fm.get("contentHash"),
-        "policyHash": fm.get("policyHash"),
-    }
 
 
 def classify(labels, key, config):
@@ -635,7 +525,7 @@ def main():
         rec = issues[k]
         repo, number = rec["repository"], rec["number"]
         full, err = missing_full[(repo, number)]
-        if full is None:
+        if full is None or moved_elsewhere(full, repo, number):
             deleted_or_transferred.append(k)
             continue
         assignee_logins = [a["login"] for a in full.get("assignees", [])]
@@ -664,13 +554,17 @@ def main():
         full_meta[k] = full
 
     sweeper_new_commit = None
-    if SWEEPER_REPO and os.path.isdir(SWEEPER_REPO):
+    sweeper_index = None
+    sweeper_refresh_error = None
+    if has_sweeper():
         status("Reading Sweeper proposals")
-    try:
-        run(["git", "-C", SWEEPER_REPO, "fetch", "origin", "state"])
-        sweeper_new_commit = run(["git", "-C", SWEEPER_REPO, "rev-parse", "origin/state"]).strip()
-    except Exception as e:
-        print(f"WARN: sweeper fetch failed: {e}", file=sys.stderr)
+        try:
+            sweeper_index = sweeper_source.load_index()
+            sweeper_new_commit = sweeper_index["sha"]
+            sweeper_source.fetch_clone()
+        except Exception as e:
+            sweeper_refresh_error = str(e)
+            print(f"WARN: Sweeper index unavailable, keeping the previous Sweeper data: {e}", file=sys.stderr)
 
     sweeper_from_commit = manifest.get("sweeper", {}).get("toCommit")
 
@@ -747,40 +641,51 @@ def main():
             updated_list.append(k)
 
     # --- Sweeper refresh, independent of GitHub changes ---
-    # Sweeper re-reviews issues on its own schedule, so compare every open microsoft/vscode
-    # issue (plus any record already enriched) against the current origin/state record and
-    # refresh only when the upstream review changed. Scope is bounded to keep the index small.
+    # Sweeper re-reviews issues on its own schedule, so compare every open microsoft/vscode issue (plus any record
+    # already enriched) against its row in the published index, and refresh it when the row changed. Fields only the
+    # review record carries (Fixed by, breadth) are kept while the review is the same, and read for the issues that
+    # need them when it changes.
     sweeper_refreshed = 0
     sweeper_action_changes = []
-    sweeper_refresh_error = None
-    if sweeper_new_commit:
+    if sweeper_index:
         candidates = {
             k: r for k, r in issues.items()
-            if r["repository"] == "microsoft/vscode" and (r["state"] == "open" or r.get("sweeper"))
+            if r["repository"] == SWEEPER_SCOPE and (r["state"] == "open" or r.get("sweeper"))
         }
-        try:
-            upstream = sweeper_batch_lookup([r["number"] for r in candidates.values()], sweeper_new_commit)
-        except Exception as e:
-            upstream = {}
-            sweeper_refresh_error = str(e)
-            print(f"WARN: sweeper batch refresh failed: {e}", file=sys.stderr)
+        updates = {}
         for k, rec in candidates.items():
-            new = upstream.get(rec["number"])
-            if not new:
+            row = sweeper_index["rows"].get(rec["number"])
+            if not row:
                 continue
             old = rec.get("sweeper") or {}
-            # A changed key set means the stored schema is older; refresh to backfill new fields.
-            if set(old) == set(new) and all(old.get(f) == new.get(f) for f in SWEEPER_CHANGE_FIELDS):
+            new = sweeper_source.sweeper_from_row(row, sweeper_new_commit)
+            if old.get("reviewedAt") == new.get("reviewedAt"):
+                new.update({f: old[f] for f in sweeper_source.RECORD_FIELDS if old.get(f) is not None})
+            updates[k] = new
+        # Cached records from the same review are free; only reviews that changed are fetched.
+        want = {k: candidates[k]["number"] for k, new in updates.items()
+                if candidates[k]["state"] == "open" and sweeper_source.needs_record(new)}
+        texts = sweeper_source.record_texts(want.values(), {n: updates[k]["reviewedAt"] for k, n in want.items()}) if want else {}
+        for k, n in want.items():
+            if texts.get(n):
+                extras = sweeper_source.record_extras(texts[n])
+                updates[k].update({f: v for f, v in extras.items() if v is not None})
+        same = lambda a, b: ({f: v for f, v in a.items() if f not in sweeper_source.SOURCE_FIELDS}
+                             == {f: v for f, v in b.items() if f not in sweeper_source.SOURCE_FIELDS})
+        for k, new in updates.items():
+            rec = candidates[k]
+            old = rec.get("sweeper") or {}
+            if same(old, new):
                 continue
-            if old.get("triageAction") != new.get("triageAction"):
-                sweeper_action_changes.append({
-                    "key": k, "from": old.get("triageAction"), "to": new.get("triageAction"),
-                })
+            # The index folds the record format's route-to-area into keep-open; that is not a new verdict.
+            before = "keep-open" if old.get("triageAction") == "route-to-area" else old.get("triageAction")
+            if old and before != new["triageAction"]:
+                sweeper_action_changes.append({"key": k, "from": before, "to": new["triageAction"]})
             if not old and k in need_full:
                 sweeper_enriched += 1
             rec["sweeper"] = new
             sweeper_refreshed += 1
-        print(f"sweeper: candidates={len(candidates)} upstream={len(upstream)} "
+        print(f"sweeper: candidates={len(candidates)} rows={len(updates)} records={len(texts)}/{len(want)} "
               f"refreshed={sweeper_refreshed} actionChanges={len(sweeper_action_changes)}", file=sys.stderr)
 
     # --- Apply user-owned triage decisions (written by the my-issues skill) ---
@@ -855,8 +760,9 @@ def main():
         "lastFullAt": NOW if full_pass or SCOPE["name"] == "closed" else gh_checkpoint.get("lastFullAt"),
     }
     index["sourceCheckpoints"]["sweeper"] = {
-        "repository": "egamma/vscodesweeper-state",
-        "ref": "origin/state",
+        "repository": SWEEPER_STATE_REPO,
+        "ref": f"main:{sweeper_source.INDEX_FILE}",
+        "generatedAt": (sweeper_index or {}).get("generatedAt") or (index.get("sourceCheckpoints", {}).get("sweeper") or {}).get("generatedAt"),
         "commit": sweeper_new_commit or sweeper_from_commit,
         "fetchedAt": NOW,
     }

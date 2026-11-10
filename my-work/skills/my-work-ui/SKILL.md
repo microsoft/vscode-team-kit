@@ -12,6 +12,7 @@ Code: `com.github.copilot/extensions/my-work/assets/` (`app.js`, `style.css`, `i
 ## 1. VS Code look
 
 - **Colours come from the VS Code theme.** `lib/vscodeTheme.mjs` maps the host theme into CSS variables. Use these variables and never hard-coded colours. Each has a fallback for the panel's own Light and Dark themes, for example `var(--section-bg, transparent)`.
+- **The chat background shows through.** With the VS Code theme, the panel paints the Agents window chat background (`chat.agentSessions.preferred{Light,Dark}BackgroundImage[Layout]`, resolved by `lib/chatBackground.mjs`) behind the page, list and detail, live-updating; the Chat background setting turns it off. Keep those containers transparent; bars, cards, inputs and the chat dock stay opaque so text stays readable.
 
   | Element | Variables | VS Code tokens |
   |---|---|---|
@@ -71,14 +72,14 @@ Code: `com.github.copilot/extensions/my-work/assets/` (`app.js`, `style.css`, `i
 
 ## 4. Toolbars and actions
 
-- **One toolbar row per view:** the area picker, then an icon action bar, then Refresh.
+- **One toolbar row per view:** the area picker with its filter actions right next to it, then (on the right) Collapse All and Refresh.
   - Counts sit next to their icons, for example Route 2, Auto-dismiss 7, Safe to dismiss 12.
   - Labels and status ("Updated 1m ago") go in tooltips.
   - Actions keep fixed places: show them disabled at 0 rather than hiding them, and let a busy state replace an action in its own slot, so the bar never jumps.
   - Don't add rows of pills. A filter that switches on is a toggle action using `--toggle-*`.
 - **Search works like the Settings and Keyboard Shortcuts editors.**
   - One full-width input with its actions inside it on the right: Group by (an icon over an invisible native select), Recent filters, Refresh.
-  - Source tabs (Bugs, Features, All, Reviews) go under the input as VS Code panel tabs with an underline on the active one. A secondary dropdown goes on the right of that row.
+  - Source tabs (Bugs, Features, All, Reviews) go above the input as VS Code panel tabs with an underline on the active one. A secondary dropdown goes on the right of that row.
 - **Buttons:**
   - Give each place one primary button. Everything else is a secondary button or an icon action.
   - A primary action with alternatives is a split button: one joined shape with a `--btn-separator` line, not two separate buttons.
