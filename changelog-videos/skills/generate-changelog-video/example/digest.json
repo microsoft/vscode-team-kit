@@ -1,0 +1,325 @@
+{
+	"date": "2026-10-19",
+	"timing": {},
+	"chapters": {
+		"c1": {
+			"pick": 1,
+			"headline": "Signed out? The Welcome page offers GitHub sign-in",
+			"eyebrow": "When you're signed out",
+			"before": {
+				"at": "When",
+				"rows": [
+					{
+						"id": "old",
+						"style": "chip",
+						"icon": "chat",
+						"text": "Try out the new Agents window"
+					}
+				]
+			},
+			"now": {
+				"at": "Sign in to GitHub",
+				"rows": [
+					{
+						"id": "new",
+						"style": "chip",
+						"icon": "github",
+						"text": "Sign in to GitHub"
+					}
+				]
+			},
+			"setting": {
+				"name": "chat.welcomePage.signIn.enabled",
+				"state": "On by default",
+				"at": "A setting",
+				"toggle": "flip"
+			},
+			"visual": {
+				"scene": {
+					"name": "button-swap",
+					"params": {
+						"tab": "Welcome",
+						"before": {
+							"text": "Try out the new Agents window",
+							"icon": "chat"
+						},
+						"after": {
+							"text": "Sign in to GitHub",
+							"icon": "github"
+						},
+						"swapAt": "Sign in to GitHub"
+					}
+				}
+			},
+			"recap": {
+				"before": "Try out the new Agents window",
+				"now": "Sign in to GitHub"
+			},
+			"focus": [
+				{
+					"part": "before",
+					"row": "old"
+				},
+				{
+					"part": "after",
+					"row": "new"
+				}
+			]
+		},
+		"c2": {
+			"pick": 2,
+			"headline": "Session rows lead with New Nested Session",
+			"eyebrow": "A session's first button",
+			"before": {
+				"at": "In the Agents window",
+				"rows": [
+					{
+						"id": "pin",
+						"icon": "pin",
+						"text": "Pin"
+					}
+				]
+			},
+			"now": {
+				"at": "New Nested Session",
+				"rows": [
+					{
+						"id": "nested",
+						"icon": "add",
+						"text": "New Nested Session",
+						"kbd": "⌘T"
+					},
+					{
+						"id": "click",
+						"text": "One click starts a new chat",
+						"at": "One click"
+					}
+				]
+			},
+			"visual": {
+				"demo": "c2"
+			},
+			"recap": {
+				"before": "Pin",
+				"now": "New Nested Session"
+			},
+			"focus": [
+				{
+					"part": "tooltip",
+					"row": "nested"
+				},
+				{
+					"part": "nested",
+					"row": "click",
+					"at": "One click"
+				}
+			],
+			"proof": "New Nested Session"
+		},
+		"c3": {
+			"pick": 3,
+			"headline": "The Agents window badge, on by default in Stable",
+			"eyebrow": "Stable",
+			"before": {
+				"at": "Stable",
+				"rows": [
+					{
+						"id": "off",
+						"toggle": "off",
+						"text": "Off by default"
+					}
+				]
+			},
+			"now": {
+				"at": "by default",
+				"rows": [
+					{
+						"id": "on",
+						"toggle": "flip",
+						"text": "On by default"
+					}
+				]
+			},
+			"setting": {
+				"name": "sessions.showApplicationBadge"
+			},
+			"visual": {
+				"scene": {
+					"name": "app-badge",
+					"params": {
+						"count": 2,
+						"places": [
+							"Dock on macOS",
+							"Launcher on Linux",
+							"Taskbar on Windows"
+						],
+						"legend": "Sessions waiting for your input",
+						"badgeAt": "badge",
+						"legendAt": "It counts"
+					}
+				}
+			},
+			"recap": {
+				"before": "Stable: off by default",
+				"now": "On by default"
+			},
+			"focus": [
+				{
+					"part": "badge",
+					"row": "on"
+				}
+			]
+		},
+		"c4": {
+			"pick": 4,
+			"headline": "/fork, with a title or with a prompt",
+			"eyebrow": "In Agent Host chats",
+			"before": {
+				"at": "In Agent Host chats",
+				"rows": [
+					{
+						"id": "old",
+						"mono": true,
+						"text": "/fork"
+					}
+				]
+			},
+			"now": {
+				"at": "now takes",
+				"rows": [
+					{
+						"id": "plain",
+						"mono": true,
+						"text": "/fork",
+						"changed": false
+					},
+					{
+						"id": "title",
+						"mono": true,
+						"text": "/fork <title>"
+					},
+					{
+						"id": "prompt",
+						"mono": true,
+						"text": "/fork prompt <prompt>"
+					}
+				]
+			},
+			"visual": {
+				"demo": "c4"
+			},
+			"recap": {
+				"before": "/fork",
+				"now": "/fork <title> · /fork prompt <prompt>",
+				"mono": true
+			},
+			"focus": [
+				{
+					"part": "prompt",
+					"row": "prompt",
+					"at": "takes a prompt"
+				},
+				{
+					"part": "title",
+					"row": "title",
+					"at": "or a title"
+				},
+				{
+					"part": "forked",
+					"row": "title",
+					"at": "like"
+				}
+			],
+			"proof": "Fork conversation and send a prompt"
+		},
+		"c5": {
+			"pick": 5,
+			"headline": "Plugin links that ask before they act",
+			"eyebrow": "VS Code links",
+			"before": {
+				"head": "Link",
+				"icon": "link",
+				"at": {
+					"cue": "links",
+					"offset": -0.15
+				},
+				"dim": false,
+				"rows": [
+					{
+						"id": "l1",
+						"text": "Add a plugin marketplace",
+						"sub": "chat-plugin/add-marketplace",
+						"at": {
+							"mark": "dialog1"
+						}
+					},
+					{
+						"id": "l2",
+						"text": "Install a plugin",
+						"sub": "chat-plugin/install",
+						"at": "or install a plugin"
+					}
+				]
+			},
+			"now": {
+				"head": "Asks first",
+				"icon": "shield",
+				"at": {
+					"mark": "dialog1",
+					"offset": 0.3
+				},
+				"pulseAt": "asks first",
+				"rows": [
+					{
+						"id": "a1",
+						"style": "button",
+						"tone": "blue",
+						"text": "Add Marketplace"
+					},
+					{
+						"id": "a2",
+						"style": "button",
+						"tone": "blue",
+						"text": "Add Marketplace and Install",
+						"at": {
+							"mark": "dialog2"
+						}
+					},
+					{
+						"id": "warn",
+						"tone": "orange",
+						"icon": "warning",
+						"text": "Plugins can run code on your machine.",
+						"at": {
+							"cue": "plugins can run code",
+							"offset": -0.1
+						}
+					}
+				]
+			},
+			"visual": {
+				"demo": "c5"
+			},
+			"recap": {
+				"before": null,
+				"now": "Plugin links that ask first"
+			},
+			"proof": "Plugins can run code on your machine",
+			"focus": [
+				{
+					"part": "dialog1.primary",
+					"row": "a1"
+				},
+				{
+					"part": "dialog2.primary",
+					"row": "a2"
+				},
+				{
+					"part": "dialog2.warning",
+					"row": "warn",
+					"at": "plugins can run code"
+				}
+			]
+		}
+	}
+}
