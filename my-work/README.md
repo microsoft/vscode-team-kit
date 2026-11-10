@@ -41,14 +41,14 @@ A daily automation refreshes the index and posts the day's triage to a reused tr
 
 ## How it works
 
-- `skills/my-issues/scripts/refresh_my_issues.py` builds an incremental local index (`~/.copilot/project-boards/my-issues.json`) of every issue assigned to you in your org, with feature areas discovered from GitHub labels and optional [Sweeper](https://github.com/egamma/vscodesweeper-state) enrichment for microsoft/vscode. It never changes GitHub.
+- `skills/my-issues/scripts/refresh_my_issues.py` builds an incremental local index (`~/.copilot/project-boards/my-issues.json`) of every issue assigned to you in your org, with feature areas discovered from GitHub labels and [Sweeper](https://github.com/egamma/vscodesweeper-state) enrichment for microsoft/vscode from its published index (no clone needed). It never changes GitHub.
 - `skills/my-issues/scripts/my_issues.py` answers queries, builds the daily queue, applies approved cleanup actions and records your decisions.
 - The canvas extension serves a loopback-only panel. The extension can't create chats, so it sends requests to the chat it is attached to (for example "start a nested judge chat"), and chats report back through canvas actions.
 - Your inbox rules live in `~/.copilot/github-inbox-rules.md`, shared with the [github-inbox](../github-inbox/) plugin. They decide what can be auto-dismissed, routed or closed; Sweeper is advisory only.
 
 ## Configuration
 
-Optional per-user settings live in `~/.copilot/project-boards/my-work.config.json`: org, plan repository, local clones, Sweeper clone, rules file, data folder and your private security-fix workflow. Defaults suit the VS Code team. See [my-work-setup](skills/my-work-setup/SKILL.md).
+Optional per-user settings live in `~/.copilot/project-boards/my-work.config.json`: org, plan repository, local clones, Sweeper source, rules file, data folder and your private security-fix workflow. Defaults suit the VS Code team. See [my-work-setup](skills/my-work-setup/SKILL.md).
 
 ## Data and privacy
 

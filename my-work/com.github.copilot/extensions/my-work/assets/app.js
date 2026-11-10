@@ -2087,7 +2087,7 @@ async function renderIssueInto(el, key, fetchDetail, nested, silent = false, opt
 	const sevTag = issue.sweeper?.severity ? `<span class="tag sev">${esc(issue.sweeper.severity)}</span>` : '';
 	if (isCleanup) {
 		const fact = p.fixedByCommit ? `<span class="tag acc">Fixed by <a href="https://github.com/microsoft/vscode/commit/${esc(p.fixedByCommit)}" target="_blank" rel="noopener"><code>${esc(p.fixedByCommit.slice(0, 7))}</code></a>${p.shippedIn ? ` · ${esc(p.shippedIn)}` : ''}</span>`
-			: p.duplicateOf ? `<span class="tag acc">Duplicate of <a href="https://github.com/microsoft/vscode/issues/${esc(p.duplicateOf)}" target="_blank" rel="noopener">#${esc(p.duplicateOf)}</a></span>`
+			: p.duplicateOf ? `<span class="tag acc">Duplicate of <a href="https://github.com/microsoft/vscode/issues/${esc(p.duplicateOf)}" target="_blank" rel="noopener">#${esc(p.duplicateOf)}</a></span>${verifyTag(p.verifyVerdict)}`
 				: p.closeReason ? `<span class="tag acc">${esc(p.closeReason)}</span>` : '';
 		const recheck = `<button type="button" class="link-btn" data-act="recheck" data-key="${safeKey}"><i class="codicon codicon-refresh" aria-hidden="true"></i>Re-check</button>`;
 		const seg = `<div class="seg seg-2 mini" role="tablist" aria-label="Comment view">
@@ -2362,14 +2362,24 @@ function sweeperVerdict(key) {
 	ui.sweeperIndex ??= { at: null, map: new Map() };
 	if (ui.sweeperIndex.at !== ui.state) {
 		const map = new Map();
-		for (const [g, v] of Object.entries(ui.state.cleanup || {})) for (const i of v.items || []) if (!map.has(i.key)) map.set(i.key, { id: g, why: [i.summary, i.duplicateOf ? `Duplicate of ${i.duplicateOf}` : '', i.shippedIn ? `Shipped in ${i.shippedIn}` : '', i.confidence ? `confidence ${i.confidence}` : ''].filter(Boolean).join(' · ') });
-		for (const i of ui.state.implement?.items || []) if (!map.has(i.key)) map.set(i.key, { id: 'agent', why: `Sweeper: agent-ready${i.severity ? ` · ${i.severity}` : ''}${i.confidence ? ` · confidence ${i.confidence}` : ''}` });
+		for (const [g, v] of Object.entries(ui.state.cleanup || {})) for (const i of v.items || []) if (!map.has(i.key)) map.set(i.key, { id: g, confirmed: i.verifyVerdict === 'confirmed', why: [i.summary, i.duplicateOf ? `Duplicate of ${i.duplicateOf}${i.verifyVerdict ? ` (second review: ${i.verifyVerdict})` : ''}` : '', i.shippedIn ? `Shipped in ${i.shippedIn}` : '', i.confidence ? `confidence ${i.confidence}` : ''].filter(Boolean).join(' · ') });
+		for (const i of ui.state.implement?.items || []) if (!map.has(i.key)) map.set(i.key, { id: 'agent', value: i.valueRaw || 0, bug: !!i.isBug, why: `Sweeper: agent-ready${i.severity ? ` · ${i.severity}` : ''}${i.valueRaw ? ` · value ${i.valueRaw}` : ''}${i.confidence ? ` · confidence ${i.confidence}` : ''}${i.contentStale ? ' · the issue changed since the review' : ''}` });
 		ui.sweeperIndex = { at: ui.state, map };
 	}
 	const v = ui.sweeperIndex.map.get(key);
 	if (!v) return null;
 	const [, label, icon, cls] = SWEEPER_VERDICTS.find(x => x[0] === v.id);
-	return { ...v, label, icon, cls };
+	return { ...v, label: v.confirmed ? `${label} (confirmed)` : label, icon, cls };
+}
+// Sweeper's blinded second review of a close proposal: only "confirmed" means the duplicate is established.
+const VERIFY_TAGS = {
+	confirmed: ['ok', 'pass', 'Confirmed', 'A blinded second review confirmed this proposal'],
+	refuted: ['sev', 'warning', 'Disputed', 'A blinded second review disagreed with this proposal: look at both issues before closing'],
+	unverifiable: ['', 'question', 'Unverified', 'A blinded second review could not confirm this proposal'],
+};
+function verifyTag(verdict) {
+	const t = VERIFY_TAGS[verdict];
+	return t ? `<span class="tag ${t[0]}" title="${esc(t[3])}"><i class="codicon codicon-${t[1]}" aria-hidden="true"></i>${esc(t[2])}</span>` : '';
 }
 function sweeperTagHtml(key) {
 	const v = sweeperVerdict(key);
@@ -2388,7 +2398,7 @@ function groupFindItems(items, by) {
 		if (by === 'sweeper') {
 			const v = sweeperVerdict(i.key);
 			const at = v ? SWEEPER_VERDICTS.findIndex(x => x[0] === v.id) : SWEEPER_VERDICTS.length;
-			put(v ? v.label : 'No Sweeper verdict', i, at);
+			put(v ? SWEEPER_VERDICTS[at][1] : 'No Sweeper verdict', i, at);
 		} else if (by === 'reporter') {
 			const bot = i.authorType === 'Bot' || /\[bot\]$/.test(i.author || '');
 			put(bot ? 'Bots' : TEAM_ASSOC.has(i.association) ? 'Team' : 'Community', i, bot ? 2 : TEAM_ASSOC.has(i.association) ? 0 : 1);
@@ -2407,6 +2417,9 @@ function groupFindItems(items, by) {
 	}
 	// Fixed buckets keep their natural order; milestones and labels go by size (biggest first).
 	const bySize = by === 'label' || by === 'milestone';
+	// Agent-ready issues like the Implement list: bugs first, then by Sweeper's value score (comparable within bugs or features only).
+	const rank = i => { const v = sweeperVerdict(i.key); return [v?.bug ? 0 : 1, -(v?.value || 0)]; };
+	if (by === 'sweeper') groups.get('Agent-ready')?.sort((a, b) => { const [x, y] = [rank(a), rank(b)]; return x[0] - y[0] || x[1] - y[1]; });
 	return order.sort((a, b) => (a.rank - b.rank) || (bySize ? groups.get(b.name).length - groups.get(a.name).length : 0)).map(o => ({ name: o.name, items: groups.get(o.name) }));
 }
 

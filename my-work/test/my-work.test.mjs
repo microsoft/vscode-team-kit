@@ -40,10 +40,86 @@ test('config overlays the user file on the defaults', () => {
 });
 
 test('Python and JS configs share their defaults', () => {
-	const out = execFileSync('python3', ['-c', 'import json, my_work_config as c; print(json.dumps({k: c.DEFAULTS[k] for k in ["org", "planRepo", "repoPaths", "sweeperRepo", "rulesFile", "memoryFile"]}))'], { cwd: scripts, env: { ...process.env, COPILOT_HOME: home, PYTHONDONTWRITEBYTECODE: '1' } });
+	const out = execFileSync('python3', ['-c', 'import json, my_work_config as c; print(json.dumps({k: c.DEFAULTS[k] for k in ["org", "planRepo", "repoPaths", "sweeperRepo", "sweeperStateRepo", "rulesFile", "memoryFile"]}))'], { cwd: scripts, env: { ...process.env, COPILOT_HOME: home, PYTHONDONTWRITEBYTECODE: '1' } });
 	const py = JSON.parse(String(out));
 	for (const key of Object.keys(py)) {
 		assert.deepEqual(py[key], config.DEFAULTS[key], key);
+	}
+});
+
+test('Sweeper rows map onto the stored record, and records are reused only for the same review', () => {
+	const py = `
+import json, os, sys
+sys.argv = ['x']
+sys.path.insert(0, ${JSON.stringify(scripts)})
+import sweeper_source as s
+s.SWEEPER_STATE_REPO = ''
+row = {'number': 7, 'triageAction': 'propose-close', 'closeReason': 'duplicate', 'canonical': '5', 'verifyVerdict': 'confirmed',
+       'reviewedAt': '2026-11-01T00:00:00.000Z', 'agentReadiness': 'implement', 'lane': 'bugs', 'valueRaw': 2.5, 'comments': 3,
+       'proposedComment': 'x', 'severity': 'none', 'linkedPr': 'https://github.com/o/r/pull/1'}
+mapped = s.sweeper_from_row(row, 'sha1')
+keep = s.sweeper_from_row({'number': 8, 'reviewedAt': 'r'}, 'sha1')
+rec = '---\\nreviewedAt: "2026-11-01T00:00:00.000Z"\\nbreadth: niche\\n---\\n## Summary\\nSame bug.\\n- **Fixed by:** \`abcdef1\` shipped in 1.145.0\\n'
+os.makedirs(s.RECORDS_CACHE, exist_ok=True)
+open(os.path.join(s.RECORDS_CACHE, '7.md'), 'w').write(rec)
+print(json.dumps({
+    'mapped': mapped, 'keep': keep['triageAction'], 'ready': s.ready_to_implement(mapped),
+    'same': list(s.record_texts([7], {7: '2026-11-01T00:00:00.000Z'})),
+    'newer': list(s.record_texts([7], {7: '2026-11-02T00:00:00.000Z'})),
+    'extras': s.record_extras(rec), 'sections': s.record_sections(rec),
+}))
+`;
+	const fresh = mkdtempSync(path.join(os.tmpdir(), 'my-work-sweeper-'));
+	try {
+		const out = JSON.parse(String(execFileSync('python3', ['-c', py], { env: { ...process.env, COPILOT_HOME: fresh, PYTHONDONTWRITEBYTECODE: '1' } })));
+		assert.equal(out.mapped.duplicateOf, 5);
+		assert.equal(out.mapped.verifyVerdict, 'confirmed');
+		assert.equal(out.mapped.commentCount, 3);
+		assert.equal(out.mapped.autoFixable, true);
+		assert.equal(out.mapped.hasProposedComment, true);
+		assert.equal('severity' in out.mapped, false, '"none" is dropped');
+		assert.equal('proposedComment' in out.mapped, false, 'the comment text is not stored in the index');
+		assert.equal(out.keep, 'keep-open', 'an absent triageAction is keep-open');
+		assert.equal(out.ready, false, 'an issue with an open PR is not ready to implement');
+		assert.deepEqual(out.same, [7], 'a cached record of the same review is reused');
+		assert.deepEqual(out.newer, [], 'a re-reviewed issue is not answered from the old record');
+		assert.deepEqual(out.extras, { fixedByCommit: 'abcdef1', shippedIn: '1.145.0', breadth: 'niche', priority: null });
+		assert.equal(out.sections.Summary, 'Same bug.\n- **Fixed by:** `abcdef1` shipped in 1.145.0');
+	} finally {
+		rmSync(fresh, { recursive: true, force: true });
+	}
+});
+
+test('Today lists reporter replies, and Implement skips taken issues and ranks bugs by Sweeper value', () => {
+	const py = `
+import json, sys
+sys.argv = ['x']
+sys.path.insert(0, ${JSON.stringify(scripts)})
+import my_issues as m
+def issue(n, **sw):
+    return {'repository': 'o/r', 'number': n, 'url': 'u', 'title': f't{n}', 'state': 'open', 'labels': [], 'updatedAt': '2026-11-01',
+            'primaryFeatureArea': 'others', 'sweeper': sw}
+idx = {'issues': {
+    'o/r#1': issue(1, infoAnsweredAt='2026-11-02T00:00:00Z', agentReadiness='implement', itemType='bug', valueRaw=1),
+    'o/r#2': issue(2, agentReadiness='implement', itemType='bug', valueRaw=3),
+    'o/r#3': issue(3, agentReadiness='implement', itemType='bug', valueRaw=9, linkedPr='https://github.com/o/r/pull/9'),
+    'o/r#4': issue(4, agentReadiness='implement', itemType='feature-request', valueRaw=50),
+}}
+sections, _ = m.build_queue(idx, {})
+class A: readiness = ['implement']; limit = 10
+import io, contextlib
+buf = io.StringIO()
+with contextlib.redirect_stdout(buf):
+    m.cmd_implement(A, idx)
+print(json.dumps({'replied': next(s['keys'] for s in sections if s['id'] == 'replied'), 'implement': [i['key'] for i in json.loads(buf.getvalue())['items']]}))
+`;
+	const fresh = mkdtempSync(path.join(os.tmpdir(), 'my-work-queue-'));
+	try {
+		const out = JSON.parse(String(execFileSync('python3', ['-c', py], { env: { ...process.env, COPILOT_HOME: fresh, PYTHONDONTWRITEBYTECODE: '1' } })));
+		assert.deepEqual(out.replied, ['o/r#1']);
+		assert.deepEqual(out.implement, ['o/r#2', 'o/r#1', 'o/r#4']);
+	} finally {
+		rmSync(fresh, { recursive: true, force: true });
 	}
 });
 

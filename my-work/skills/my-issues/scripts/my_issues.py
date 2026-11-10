@@ -8,8 +8,9 @@ import argparse, datetime, json, os, re, subprocess, sys, tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from my_work_config import (  # noqa: E402
-    BOARD, DATA_DIR, ORG, PLAN_REPO, RULES_FILE, MEMORY_FILE, PRINCIPLES_FILE, SWEEPER_REPO, SWEEPER_SCOPE, REPO_CLONE, has_sweeper, login as _gh_login,
+    BOARD, DATA_DIR, ORG, PLAN_REPO, RULES_FILE, MEMORY_FILE, PRINCIPLES_FILE, SWEEPER_SCOPE, REPO_CLONE, has_sweeper, login as _gh_login,
 )
+import sweeper_source  # noqa: E402
 
 INDEX = os.path.join(BOARD, "my-issues.json")
 MANIFEST = os.path.join(BOARD, "my-issues-refresh-manifest.json")
@@ -118,18 +119,9 @@ def cmd_list(a, idx):
               f"{' | outcome=' + o if o else ''}")
 
 
-def sweeper_sections(number):
-    if not has_sweeper():
-        return None
-    r = subprocess.run(["git", "-C", SWEEPER_REPO, "show", f"origin/state:records/microsoft/vscode/items/{number}.md"],
-                       capture_output=True, text=True)
-    if r.returncode != 0:
-        return None
-    body = r.stdout.split("\n---\n", 1)[-1]
-    sections = {}
-    for m in re.finditer(r"^## (.+?)\n(.*?)(?=^## |\Z)", body, re.S | re.M):
-        sections[m.group(1).strip()] = m.group(2).strip()
-    return sections
+def sweeper_sections(r):
+    text = sweeper_texts([r]).get(r["number"])
+    return sweeper_source.record_sections(text) if text else None
 
 
 def cmd_get(a, idx):
@@ -138,7 +130,7 @@ def cmd_get(a, idx):
     rec = {kk: v for kk, v in r.items() if kk != "analysis"}
     rec["analysis"] = {kk: v for kk, v in (r.get("analysis") or {}).items() if kk != "summary"}
     if r["repository"] == SWEEPER_SCOPE and not a.no_sweeper_text:
-        secs = sweeper_sections(r["number"])
+        secs = sweeper_sections(r)
         if secs:
             rec["sweeperReview"] = {n: secs[n] for n in ("Summary", "Change summary", "Best solution", "Proposed action") if n in secs}
     print(json.dumps(rec, indent=1, ensure_ascii=False))
@@ -201,15 +193,18 @@ def build_queue(idx, manifest):
     by_conf = lambda k: -((issues[k].get("sweeper") or {}).get("confidence") or 0)
     changes = {c["key"]: c for c in sw.get("triageActionChanges") or []}
 
+    open_keys = [k for k, r in issues.items() if needs_attention(r)]
     section("new", "Newly assigned", "assigned to you since the previous refresh",
             gh.get("addedKeys") or [], 20, True)
     section("verdict", "Sweeper changed its verdict", "Sweeper now proposes an action",
             sorted((k for k, c in changes.items() if c.get("to") in QUEUE_ACTIONS and k in issues), key=by_conf),
             20, True)
+    section("replied", "Reporter replied", "the reporter answered your request for information",
+            sorted((k for k in open_keys if (issues[k].get("sweeper") or {}).get("infoAnsweredAt")),
+                   key=lambda k: issues[k]["sweeper"]["infoAnsweredAt"], reverse=True), 10, True)
     section("activity", "New activity", "updated on GitHub since the previous refresh",
             sorted(gh.get("updatedKeys") or [], key=lambda k: issues.get(k, {}).get("updatedAt", ""), reverse=True),
             15, True)
-    open_keys = [k for k, r in issues.items() if needs_attention(r)]
     section("severe", "Severe bugs without a decision", "Sweeper severity data-loss / crash / freeze",
             sorted((k for k in open_keys if (issues[k].get("sweeper") or {}).get("severity") in SEVERE),
                    key=lambda k: SEVERITY_RANK.get(issues[k]["sweeper"]["severity"], 99)), 5, False)
@@ -470,29 +465,14 @@ CLEANUP_GROUPS = {
 }
 
 
-def sweeper_texts(numbers):
-    """Read current Sweeper records for many vscode issues in one git call. Returns {number: text}."""
-    numbers = sorted(set(numbers))
-    if not numbers or not has_sweeper():
+def sweeper_texts(records):
+    """Current Sweeper review records for these indexed vscode issues, {number: text} (sweeper_source.py: the local
+    clone when current, else gh, cached until the issue's review changes)."""
+    records = list(records)
+    if not records or not has_sweeper():
         return {}
-    stdin = "".join(f"origin/state:records/microsoft/vscode/items/{n}.md\n" for n in numbers).encode()
-    # Feed stdin from a file: piping a large `input=` while capturing output can hang (seen on Python 3.14).
-    with tempfile.TemporaryFile() as f:
-        f.write(stdin)
-        f.seek(0)
-        r = subprocess.run(["git", "-C", SWEEPER_REPO, "cat-file", "--batch"], stdin=f, capture_output=True, timeout=120)
-    if r.returncode != 0:
-        sys.exit(f"git cat-file failed: {r.stderr.decode(errors='replace')}")
-    out, pos, result = r.stdout, 0, {}
-    for n in numbers:
-        nl = out.index(b"\n", pos)
-        header = out[pos:nl].decode().split()
-        pos = nl + 1
-        if len(header) == 3 and header[1] == "blob":
-            size = int(header[2])
-            result[n] = out[pos:pos + size].decode("utf-8", errors="replace")
-            pos += size + 1
-    return result
+    expected = {r["number"]: (r.get("sweeper") or {}).get("reviewedAt") for r in records}
+    return sweeper_source.record_texts(expected.keys(), {n: t for n, t in expected.items() if t})
 
 
 def parse_proposal(text):
@@ -562,6 +542,8 @@ def cleanup_item(key, r, p):
         "activitySinceReview": (p["reviewedAt"] or "") < r["updatedAt"],
         "issueUpdatedAt": r["updatedAt"], **{k: v for k, v in p.items() if k != "group"},
         "plan": plan_for(key, p),
+        # A blinded second review's verdict on the proposal (confirmed / refuted / unverifiable), unless outdated.
+        "verifyVerdict": None if (r.get("sweeper") or {}).get("verifyStale") else (r.get("sweeper") or {}).get("verifyVerdict"),
     }
 
 
@@ -569,8 +551,9 @@ def cmd_cleanup(a, idx):
     issues = idx["issues"]
     cands = {k: r for k, r in issues.items()
              if r["repository"] == SWEEPER_SCOPE and needs_attention(r)
-             and (r.get("sweeper") or {}).get("triageAction") in ("propose-close", "needs-info")}
-    texts = sweeper_texts([r["number"] for r in cands.values()])
+             and (r.get("sweeper") or {}).get("triageAction") in ("propose-close", "needs-info")
+             and not (r.get("sweeper") or {}).get("dismissed")}
+    texts = sweeper_texts(cands.values())
     groups = {g: [] for g in CLEANUP_GROUPS}
     for k, r in cands.items():
         if r["number"] not in texts:
@@ -595,7 +578,7 @@ def cmd_proposal(a, idx):
     r = idx["issues"][k]
     if r["repository"] != SWEEPER_SCOPE:
         sys.exit(f"no Sweeper data for {r['repository']}")
-    text = sweeper_texts([r["number"]]).get(r["number"])
+    text = sweeper_texts([r]).get(r["number"])
     if not text:
         sys.exit(f"no Sweeper record for {k}")
     print(json.dumps(cleanup_item(k, r, parse_proposal(text)), indent=1, ensure_ascii=False))
@@ -626,7 +609,7 @@ def cmd_apply(a, idx):
     k = resolve_key(idx["issues"], a.issue)
     r = idx["issues"][k]
     repo, num = r["repository"], str(r["number"])
-    text = sweeper_texts([r["number"]]).get(r["number"]) if repo == SWEEPER_SCOPE else None
+    text = sweeper_texts([r]).get(r["number"]) if repo == SWEEPER_SCOPE else None
     p = parse_proposal(text) if text else {"group": None, "proposedLabel": None, "duplicateOf": None,
                                            "commentCountAtReview": 0, "closeReason": None}
     group = a.group or p["group"]
@@ -675,16 +658,18 @@ def cmd_implement(a, idx):
     items = []
     for k, r in idx["issues"].items():
         s = r.get("sweeper") or {}
-        if not needs_attention(r) or s.get("agentReadiness") not in a.readiness:
+        # The sweeper-query skill's ready predicate: not already taken by a PR, not dismissed by a maintainer.
+        if not needs_attention(r) or s.get("agentReadiness") not in a.readiness or s.get("linkedPr") or s.get("skillPr") or s.get("dismissed"):
             continue
         is_bug = s.get("itemType") == "bug" or "bug" in (r.get("labels") or [])
         items.append((k, r, s, is_bug))
-    items.sort(key=lambda t: (not t[3], SEVERITY_RANK.get(t[2].get("severity"), 99), -(t[2].get("upvotes") or 0)))
+    # Sweeper's value score ranks within a lane (bugs, features), so bugs first, then by value.
+    items.sort(key=lambda t: (not t[3], -(t[2].get("valueRaw") or 0), SEVERITY_RANK.get(t[2].get("severity"), 99), -(t[2].get("upvotes") or 0)))
     out = [{
         "key": k, "url": r["url"], "title": r["title"], "area": r["primaryFeatureArea"], "isBug": b,
         "itemType": s.get("itemType"), "severity": s.get("severity"), "breadth": s.get("breadth"),
         "upvotes": s.get("upvotes"), "confidence": s.get("confidence"), "agentReadiness": s.get("agentReadiness"),
-        "updatedAt": r["updatedAt"],
+        "valueRaw": s.get("valueRaw"), "contentStale": bool(s.get("contentStale")), "updatedAt": r["updatedAt"],
     } for k, r, s, b in items]
     print(json.dumps({"total": len(out), "bugs": sum(1 for i in out if i["isBug"]), "items": out[:a.limit]},
                      indent=1, ensure_ascii=False))
@@ -707,7 +692,7 @@ def cmd_checks(a, idx):
     k = resolve_key(idx["issues"], a.issue)
     r = idx["issues"][k]
     repo, num = r["repository"], r["number"]
-    text = sweeper_texts([num]).get(num) if repo == SWEEPER_SCOPE else None
+    text = sweeper_texts([r]).get(num) if repo == SWEEPER_SCOPE else None
     p = parse_proposal(text) if text else {}
     checks = []
     add = lambda cid, status, label, detail="": checks.append({"id": cid, "status": status, "label": label, "detail": detail})
@@ -843,7 +828,7 @@ def informed_prompt(k, r):
     blind = load(opinion_path(k))
     if not blind:
         sys.exit(f"{k} has no blind judgement yet; run a blind judgement first")
-    text = sweeper_texts([r["number"]]).get(r["number"]) if r["repository"] == SWEEPER_SCOPE else None
+    text = sweeper_texts([r]).get(r["number"]) if r["repository"] == SWEEPER_SCOPE else None
     if not text:
         sys.exit(f"no Sweeper record for {k}")
     p = parse_proposal(text)

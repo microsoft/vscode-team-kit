@@ -7,7 +7,7 @@ description: Query and act on the local index of every GitHub issue assigned to 
 
 A daily automation ("My Issues Indexer", set up with the **my-work-setup** skill) maintains a local index of all issues assigned to the user in their GitHub org. Use it to answer questions about the user's issues **before** calling GitHub. It is fast and offline.
 
-Paths below use `<board>` for `<COPILOT_HOME>/project-boards` (default `~/.copilot/project-boards`) and `<scripts>` for this skill's `scripts/` folder. Per-user settings (org, plan repository, local clones, Sweeper clone, rules file, data folder) live in `<board>/my-work.config.json`; see the my-work-setup skill.
+Paths below use `<board>` for `<COPILOT_HOME>/project-boards` (default `~/.copilot/project-boards`) and `<scripts>` for this skill's `scripts/` folder. Per-user settings (org, plan repository, local clones, Sweeper source, rules file, data folder) live in `<board>/my-work.config.json`; see the my-work-setup skill.
 
 ## Files (`<board>/`)
 
@@ -52,11 +52,11 @@ Record keys are `owner/repo#number`. A bare number means `<planRepo>#number` (de
 
 `list` filters: `--area <id>`, `--repo owner/repo`, `--label L` (repeatable, all required), `--action keep-open|propose-close|needs-info|route-to-area`, `--severity S` (repeatable), `--autofixable`, `--no-milestone`, `--no-outcome`, `--has-outcome`, `--no-repro`, `--stale-days N`, `--text <title substring>`, `--state`. Sort: `updated` (default), `created`, `upvotes`, `confidence`, `severity`.
 
-Feature area ids: read `my-issue-features.json` (fallback `others`). Sweeper severities: `data-loss`, `crash`, `freeze`, `perf`, `correctness`, `visual`, `papercut`. Sweeper only covers microsoft/vscode; without a Sweeper clone, proposals and cleanup are simply empty.
+Feature area ids: read `my-issue-features.json` (fallback `others`). Sweeper severities: `data-loss`, `crash`, `freeze`, `perf`, `correctness`, `visual`, `papercut`. Sweeper only covers microsoft/vscode. Its data comes from Sweeper's published index (`index-vscode.json`, read with `gh`, cached) and, for the issues that need them, its review records (cached until the issue's review changes; read from the optional local clone when it's current). If GitHub can't be reached, the previous Sweeper data stays. Rows also carry Sweeper's value score (`valueRaw`, comparable within the bugs or features `lane`), `verifyVerdict` (a blinded second review: only `confirmed` establishes a duplicate), `infoAnsweredAt` (the reporter answered a request for information), `contentStale`, `linkedPr` and `dismissed`.
 
 ## Common recipes
 
-- Daily triage (the reused triage chat, titled "My Work"): read `<board>/my-triage-queue.md`. Its sections are Newly assigned, Sweeper changed its verdict, New activity, Severe bugs, and Top close proposals. It only lists open issues with no decision, or issues changed on GitHub after the last decision.
+- Daily triage (the reused triage chat, titled "My Work"): read `<board>/my-triage-queue.md`. Its sections are Newly assigned, Sweeper changed its verdict, Reporter replied (a reporter answered your request for information), New activity, Severe bugs, Easy closes, and Top close proposals. It only lists open issues with no decision, or issues changed on GitHub after the last decision.
 - Morning overview: `changes`, then `list --no-outcome --action propose-close --limit 15`.
 - Close candidates: `list --action propose-close --no-outcome --sort confidence`.
 - Worst bugs: `list --label bug --severity data-loss --severity crash --severity freeze --sort upvotes`.
@@ -98,7 +98,7 @@ In microsoft/vscode, `*`-labels can make the triage bot close the issue and post
 
 ## The My Work canvas
 
-The `my-issues-triage` canvas ("My Work", from the my-work plugin) has a left activity bar: **Today** (the daily queue), **My Work**, **Notifications**, **Cleanup** and **Implement** (agent-ready, bugs first). Each view shows one **batch** at a time (size configurable, default 10). Every button click (Approve / Dismiss / Done / Keep open / Defer / Skip / Start session / Route …) is the user's explicit per-item decision. Without an index, My Work and Notifications still work and the other views explain how to build it.
+The `my-issues-triage` canvas ("My Work", from the my-work plugin) has a left activity bar: **Today** (the daily queue), **My Work**, **Notifications**, **Cleanup** and **Implement** (agent-ready and not already taken by a PR, bugs first, then by Sweeper value). Each view shows one **batch** at a time (size configurable, default 10). Every button click (Approve / Dismiss / Done / Keep open / Defer / Skip / Start session / Route …) is the user's explicit per-item decision. Without an index, My Work and Notifications still work and the other views explain how to build it.
 
 Canvas actions:
 - `setNotificationTriage {items:[{id, group: action|route|auto|cleanup|dismiss|fyi, reason, rule?, routeTo?}], keepBatch?}`: `auto` = matches an auto-dismiss rule in the user's inbox rules (give `rule`, e.g. "A1. Merged own PR" from the triage principles or a numbered rule of the user); the panel offers a bulk **Auto-dismiss** / **Safe to dismiss** review. `route` = the issue/PR belongs to another owner per the user's routing rules: give `routeTo` (logins; `[]` = only unassign the user) and `rule`; the panel's **Route** list lets the user bulk **Route & dismiss**. Put uncertain owners in `action` with `replyToIssue` choices instead. This also sets the notification batch unless `keepBatch: true`. Answer "Panel request: classify these N notifications", "triage the next N untriaged notifications" and "re-check the classification" messages with one call and `keepBatch: true`, using `auto`/`dismiss` whenever a rule applies after reading the latest comments.

@@ -24,8 +24,10 @@ export const DEFAULTS = Object.freeze({
 	planRepo: 'microsoft/vscode',
 	// Local clones used for fix sessions and read-only investigations, by repository.
 	repoPaths: { 'microsoft/vscode': '~/work/vscode' },
-	// Optional Sweeper state clone (https://github.com/egamma/vscodesweeper-state); missing = no Sweeper data.
+	// Optional local clone of the Sweeper state repo: a faster, offline source for review records.
 	sweeperRepo: '~/work/vscodesweeper-state',
+	// The Sweeper's published state repo (index and records, read with gh); empty turns Sweeper data off.
+	sweeperStateRepo: 'egamma/vscodesweeper-state',
 	// Inbox rules shared with the github-inbox plugin.
 	rulesFile: path.join(COPILOT_HOME, 'github-inbox-rules.md'),
 	// Inbox memory shared with the github-inbox plugin: people, GitHub logins, owners, teams, preferences.
