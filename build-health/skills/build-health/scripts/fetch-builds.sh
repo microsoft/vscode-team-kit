@@ -21,7 +21,9 @@ COUNT=100
 OUT_DIR="./build-data"
 ORG="https://dev.azure.com/monacotools"
 PROJECT="Monaco"
-PIPELINE_ID=111
+# The CI builds of main run in pipeline 727 (VS Code (CI)). Pipeline 111 (VS Code) has the
+# scheduled and manual product builds: use --pipeline 111 for those.
+PIPELINE_ID=727
 BRANCH="main"
 BATCH_SIZE=10
 

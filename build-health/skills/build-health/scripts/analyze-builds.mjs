@@ -5,7 +5,8 @@ import path from 'node:path';
 
 const ADO_ORG = 'https://dev.azure.com/monacotools';
 const ADO_PROJECT = 'Monaco';
-const PIPELINE_ID = 111;
+// The pipeline that fetch-builds.sh downloads by default.
+const DEFAULT_PIPELINE_ID = 727;
 const GH_REPO = 'microsoft/vscode';
 const REPORT_FORMATS = new Set(['text', 'markdown']);
 
@@ -364,6 +365,7 @@ function collectBuildRows(dataDir, runs) {
       result: run.result ?? 'unknown',
       resultLabel: resultLabel(run.result),
       reason: run.reason ?? '?',
+      pipelineId: run.definition?.id ?? DEFAULT_PIPELINE_ID,
       startTime: run.startTime ?? '',
       finishTime: fmtTime(run.finishTime),
       finishTimeIso: run.finishTime ?? '',
@@ -481,6 +483,7 @@ function collectSummary(rows, incidents) {
     incidentCount: incidents.length,
     ongoing: incidents.filter((incident) => !incident.fixedRow).length,
     latest: rows.at(-1) ?? null,
+    pipelineId: [...new Set(rows.map((row) => row.pipelineId))].join(', ') || DEFAULT_PIPELINE_ID,
     topFailureReasons: [...topFailureReasons.entries()].sort((left, right) => {
       if (right[1] !== left[1]) {
         return right[1] - left[1];
@@ -616,7 +619,7 @@ function renderTextReport(runs, rows, incidents, summary) {
   const lines = [];
   lines.push('');
   lines.push('='.repeat(120));
-  lines.push(`  BUILD HEALTH REPORT — Pipeline ${PIPELINE_ID}, branch: main`);
+  lines.push(`  BUILD HEALTH REPORT — Pipeline ${summary.pipelineId}, branch: main`);
   lines.push(`  Range: ${fmtTime(runs.at(-1)?.finishTime)} → ${fmtTime(runs[0]?.finishTime)}`);
   lines.push(`  Total builds: ${rows.length}`);
   lines.push('='.repeat(120));
@@ -634,7 +637,7 @@ function renderMarkdownReport(runs, rows, incidents, summary) {
 
   lines.push('# Build Health Report');
   lines.push('');
-  lines.push(`- Pipeline: ${PIPELINE_ID}`);
+  lines.push(`- Pipeline: ${summary.pipelineId}`);
   lines.push('- Branch: main');
   lines.push(`- Range: ${fmtTime(runs.at(-1)?.finishTime)} to ${fmtTime(runs[0]?.finishTime)}`);
   lines.push(`- Total builds: ${summary.total}`);

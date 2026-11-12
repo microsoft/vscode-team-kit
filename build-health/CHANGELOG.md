@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.1.0 (2026-11-12)
+
+- The rolling build is now Pipeline 727 (`VS Code (CI)`), where the CI builds of `main` run from Nov 13, 2026. `fetch-builds.sh` fetches it by default, and the report names the pipeline of the fetched runs. Use `--pipeline 111` for the scheduled and manual product builds.
+
 ## 2.0.0 (2026-10-22)
 
 - BREAKING: Require Agent Plugins 1.0 with a root `plugin.json`. Marketplace metadata now lives only in `marketplace.json`; legacy manifests are removed.

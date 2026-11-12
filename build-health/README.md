@@ -4,7 +4,7 @@ Quickly diagnose the VS Code rolling build health. Downloads recent builds from 
 
 ## Skills
 
-- **[build-health](./skills/build-health/SKILL.md)** — Fetch and analyze rolling build data from Pipeline 111.
+- **[build-health](./skills/build-health/SKILL.md)** — Fetch and analyze rolling build data from Pipeline 727 (the CI builds of `main`; Pipeline 111 has the product builds).
 
 ## Quick Start
 

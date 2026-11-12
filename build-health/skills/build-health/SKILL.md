@@ -5,7 +5,7 @@ description: "Analyze VS Code rolling build health on Azure DevOps. Use when: th
 
 # Build Health
 
-Quickly diagnose the VS Code rolling build (Pipeline 111) on Azure DevOps. This skill has two modes:
+Quickly diagnose the VS Code rolling build on Azure DevOps: the CI builds of `main`, which run in Pipeline 727 (`VS Code (CI)`). Pipeline 111 (`VS Code`) has the scheduled and manual product builds; pass `--pipeline 111` to analyze those. This skill has two modes:
 
 1. Fix the build if it is red right now by finding where the red streak started and identifying the compare range from last green to first red.
 2. Analyze and present the last 100 builds in a predictable report file.
@@ -66,7 +66,7 @@ bash <skill-dir>/scripts/fetch-builds.sh --count 100 --out "$OUT_DIR"
 Options:
 - `--count N` — Number of recent builds to fetch (default: 100)
 - `--out DIR` — Output directory (default: `./build-data`)
-- `--pipeline ID` — Pipeline definition ID (default: 111)
+- `--pipeline ID` — Pipeline definition ID (default: 727, the CI builds; 111 for the product builds)
 - `--branch NAME` — Branch to filter (default: `main`)
 
 Run this in a terminal with `mode=sync` and a generous timeout (e.g. 300000ms). The script needs network access, so request unsandboxed execution if sandboxing is enabled.
