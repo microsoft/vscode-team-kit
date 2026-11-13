@@ -3,11 +3,12 @@
 # from the VS Code Azure DevOps pipeline.
 #
 # Usage:
-#   ./fetch-builds.sh [--count N] [--out DIR]
+#   ./fetch-builds.sh [--count N] [--out DIR] [--pipeline IDS] [--branch NAME]
 #
 # Defaults:
-#   --count 100      Number of recent main-branch builds to fetch
+#   --count 100      Number of recent main-branch builds to fetch per pipeline
 #   --out ./build-data   Output directory
+#   --pipeline 727,111   Comma-separated pipeline definition IDs
 #
 # Prerequisites:
 #   - Azure CLI (`az`) installed and logged in
@@ -21,9 +22,9 @@ COUNT=100
 OUT_DIR="./build-data"
 ORG="https://dev.azure.com/monacotools"
 PROJECT="Monaco"
-# The CI builds of main run in pipeline 727 (VS Code (CI)). Pipeline 111 (VS Code) has the
-# scheduled and manual product builds: use --pipeline 111 for those.
-PIPELINE_ID=727
+# The CI builds of main run in pipeline 727 (VS Code (CI)), and pipeline 111 (VS Code) has the
+# scheduled and manual product builds. Both are fetched by default; each is analyzed on its own.
+PIPELINE_IDS="727,111"
 BRANCH="main"
 BATCH_SIZE=10
 
@@ -32,7 +33,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --count) COUNT="$2"; shift 2 ;;
     --out)   OUT_DIR="$2"; shift 2 ;;
-    --pipeline) PIPELINE_ID="$2"; shift 2 ;;
+    --pipeline) PIPELINE_IDS="$2"; shift 2 ;;
     --branch) BRANCH="$2"; shift 2 ;;
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
@@ -43,7 +44,7 @@ mkdir -p "$OUT_DIR/timelines" "$OUT_DIR/logs"
 echo "╔══════════════════════════════════════════════════════════════╗"
 echo "║  Build Health — Fetching data from Azure DevOps             ║"
 echo "╠══════════════════════════════════════════════════════════════╣"
-echo "║  Pipeline:  $PIPELINE_ID"
+echo "║  Pipelines: $PIPELINE_IDS"
 echo "║  Branch:    $BRANCH"
 echo "║  Count:     $COUNT"
 echo "║  Output:    $OUT_DIR"
@@ -54,13 +55,36 @@ echo
 az devops configure --defaults organization="$ORG" project="$PROJECT" 2>/dev/null || true
 
 # ── Step 1: Download build runs ──────────────────────────────────────────────
-echo "▸ Step 1/3: Downloading $COUNT recent builds on '$BRANCH'..."
-az pipelines runs list \
-  --pipeline-ids "$PIPELINE_ID" \
-  --branch "$BRANCH" \
-  --query-order FinishTimeDesc \
-  --top "$COUNT" \
-  --output json 2>/dev/null > "$OUT_DIR/runs.json"
+echo "▸ Step 1/3: Downloading $COUNT recent builds on '$BRANCH' per pipeline..."
+PIPELINE_LIST=()
+IFS=',' read -r -a RAW_PIPELINE_LIST <<< "$PIPELINE_IDS"
+for pipeline_id in "${RAW_PIPELINE_LIST[@]}"; do
+  pipeline_id="${pipeline_id// /}"
+  [[ -n "$pipeline_id" ]] && PIPELINE_LIST+=("$pipeline_id")
+done
+if (( ${#PIPELINE_LIST[@]} == 0 )); then
+  echo "No pipeline IDs in --pipeline '$PIPELINE_IDS'"; exit 1
+fi
+
+for pipeline_id in "${PIPELINE_LIST[@]}"; do
+  # Fetch each pipeline with its own --top, so a busy pipeline can't crowd out the other.
+  az pipelines runs list \
+    --pipeline-ids "$pipeline_id" \
+    --branch "$BRANCH" \
+    --query-order FinishTimeDesc \
+    --top "$COUNT" \
+    --output json 2>/dev/null > "$OUT_DIR/runs-$pipeline_id.json"
+  echo "  ✓ Pipeline $pipeline_id: $(python3 -c "import json; print(len(json.load(open('$OUT_DIR/runs-$pipeline_id.json'))))") builds"
+done
+
+python3 -c "
+import json, sys
+out_dir = sys.argv[1]
+runs = []
+for pipeline_id in sys.argv[2:]:
+    runs.extend(json.load(open(f'{out_dir}/runs-{pipeline_id}.json')))
+json.dump(runs, open(f'{out_dir}/runs.json', 'w'))
+" "$OUT_DIR" "${PIPELINE_LIST[@]}"
 
 BUILD_COUNT=$(python3 -c "import json; print(len(json.load(open('$OUT_DIR/runs.json'))))")
 echo "  ✓ Downloaded $BUILD_COUNT builds"
