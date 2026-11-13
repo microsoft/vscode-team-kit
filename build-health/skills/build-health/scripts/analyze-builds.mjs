@@ -12,6 +12,7 @@ const PIPELINE_ROLES = new Map([
   [727, 'the CI builds of main'],
   [111, 'the scheduled and manual product builds'],
 ]);
+const NO_USABLE_BUILDS = 'every fetched build was an informational run, so fetch a larger window';
 const GH_REPO = 'microsoft/vscode';
 const REPORT_FORMATS = new Set(['text', 'markdown']);
 
@@ -99,15 +100,16 @@ function isInformationalRun(run) {
 
 function loadRuns(dataDir) {
   const runsPath = path.join(dataDir, 'runs.json');
+  const allRuns = loadJson(runsPath, []);
   // Informational runs are 0-second placeholders that Azure Pipelines creates when it can't
   // evaluate a trigger. They never ran, so they say nothing about build health.
-  const runs = loadJson(runsPath, []).filter((run) => !isInformationalRun(run));
+  const runs = allRuns.filter((run) => !isInformationalRun(run));
   runs.sort((left, right) => {
     const leftTime = left?.finishTime ?? '';
     const rightTime = right?.finishTime ?? '';
     return leftTime.localeCompare(rightTime);
   });
-  return runs;
+  return { allRuns, runs };
 }
 
 function extractErrorFromLog(logPath) {
@@ -630,14 +632,18 @@ function pipelineLabel(section) {
   return `Pipeline ${section.pipelineId}${name}${role ? `, ${role}` : ''}`;
 }
 
-function groupRunsByPipeline(runs) {
+// Groups the usable runs by pipeline. A pipeline whose fetched runs were all skipped (for example,
+// informational runs) keeps an empty group, so the report shows it as UNKNOWN instead of omitting it.
+function groupRunsByPipeline(allRuns, runs) {
   const groups = new Map();
-  for (const run of runs) {
-    const pipelineId = run.definition?.id ?? 'unknown';
+  for (const run of allRuns) {
+    const pipelineId = run?.definition?.id ?? 'unknown';
     if (!groups.has(pipelineId)) {
-      groups.set(pipelineId, { pipelineId, pipelineName: (run.definition?.name ?? '').trim(), runs: [] });
+      groups.set(pipelineId, { pipelineId, pipelineName: (run?.definition?.name ?? '').trim(), runs: [] });
     }
-    groups.get(pipelineId).runs.push(run);
+  }
+  for (const run of runs) {
+    groups.get(run.definition?.id ?? 'unknown').runs.push(run);
   }
 
   const rank = (pipelineId) => {
@@ -669,6 +675,11 @@ function renderTextReport(runs, sections) {
     lines.push('#'.repeat(120));
     lines.push(`  ${pipelineLabel(section)}: ${section.rows.length} builds`);
     lines.push('#'.repeat(120));
+    if (section.rows.length === 0) {
+      lines.push('');
+      lines.push(`  Current status: UNKNOWN: ${NO_USABLE_BUILDS}`);
+      continue;
+    }
     renderTextBuildStatus(lines, section.rows);
     renderTextIncidents(lines, section.incidents);
     renderTextSummary(lines, section.summary);
@@ -766,7 +777,7 @@ function renderMarkdownReport(runs, sections) {
   for (const section of sections) {
     const { summary } = section;
     const latest = summary.latest;
-    lines.push(`| ${markdownEscape(pipelineLabel(section))} | ${latest ? latest.resultLabel : 'UNKNOWN'} | ${latest ? markdownLink(latest.buildNumber, latest.buildUrl) : '-'} | ${latest?.commitUrl ? markdownLink(latest.shortSha, latest.commitUrl) : '-'} | ${summary.total} | ${summary.succeeded} | ${summary.failed} | ${summary.partial} | ${summary.ongoing} |`);
+    lines.push(`| ${markdownEscape(pipelineLabel(section))} | ${latest ? latest.resultLabel : `UNKNOWN: ${NO_USABLE_BUILDS}`} | ${latest ? markdownLink(latest.buildNumber, latest.buildUrl) : '-'} | ${latest?.commitUrl ? markdownLink(latest.shortSha, latest.commitUrl) : '-'} | ${summary.total} | ${summary.succeeded} | ${summary.failed} | ${summary.partial} | ${summary.ongoing} |`);
   }
   lines.push('');
 
@@ -797,6 +808,9 @@ function renderMarkdownReport(runs, sections) {
   lines.push('## Suggested Next Step');
   lines.push('');
   const red = sections.filter((section) => section.summary.latest?.result === 'failed');
+  for (const section of sections.filter((section) => section.rows.length === 0)) {
+    lines.push(`- Pipeline ${section.pipelineId} status is unknown: ${NO_USABLE_BUILDS}.`);
+  }
   if (red.length === 0) {
     lines.push('Use this report to identify recurring failure patterns and compare incidents across the fetched builds of each pipeline.');
   } else {
@@ -827,7 +841,7 @@ function writeReport(output, reportPath) {
 
 function main() {
   const { dataDir, format, reportPath } = parseArgs(process.argv.slice(2));
-  const runs = loadRuns(dataDir);
+  const { allRuns, runs } = loadRuns(dataDir);
   if (runs.length === 0) {
     // Don't leave an older report in place for the report-first workflow to read.
     const message = `No usable builds in ${path.join(dataDir, 'runs.json')} (missing, empty, or only informational runs). Fetch a larger window.`;
@@ -839,7 +853,7 @@ function main() {
     return;
   }
 
-  const sections = groupRunsByPipeline(runs).map((group) => analyzePipeline(dataDir, group));
+  const sections = groupRunsByPipeline(allRuns, runs).map((group) => analyzePipeline(dataDir, group));
   const output = renderReport(runs, sections, format);
 
   if (reportPath) {
