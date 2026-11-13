@@ -817,8 +817,10 @@ function renderMarkdownReport(runs, sections) {
     for (const section of red) {
       lines.push(`- Pipeline ${section.pipelineId} is red. Use its incidents to confirm where the current failure pattern started. Only after that, ask the user whether to continue with commit-range culprit analysis.`);
     }
+    // Only a green counterpart shows that the failure is specific to the red pipeline.
     const pairIds = sections.map((section) => section.pipelineId).sort().join(',');
-    if (pairIds === '111,727' && red.length === 1) {
+    const green = sections.filter((section) => section.summary.latest?.result === 'succeeded');
+    if (pairIds === '111,727' && red.length === 1 && green.length === 1) {
       lines.push('- A failure in only one pipeline points at what differs between them: the signing, publishing and release steps of the product builds (pipeline 111), or the per-suite test jobs of the CI builds (pipeline 727).');
     }
   }
