@@ -151,7 +151,7 @@
       "name": "build-health",
       "source": "./build-health/",
       "description": "Analyze VS Code rolling build health on Azure DevOps — download recent builds, identify failures, show break/fix transitions with error details and commit links.",
-      "version": "2.0.0",
+      "version": "2.1.0",
       "categories": ["ci"],
       "status": "stable",
       "maintainers": ["alexdima"],

@@ -5,7 +5,14 @@ import path from 'node:path';
 
 const ADO_ORG = 'https://dev.azure.com/monacotools';
 const ADO_PROJECT = 'Monaco';
-const PIPELINE_ID = 111;
+// The pipelines that fetch-builds.sh downloads by default, in report order. Each pipeline is
+// analyzed on its own, so a red product build never breaks or fixes a CI streak.
+const PIPELINE_ORDER = [727, 111];
+const PIPELINE_ROLES = new Map([
+  [727, 'the CI builds of main'],
+  [111, 'the scheduled and manual product builds'],
+]);
+const NO_USABLE_BUILDS = 'every fetched build was an informational run, so fetch a larger window';
 const GH_REPO = 'microsoft/vscode';
 const REPORT_FORMATS = new Set(['text', 'markdown']);
 
@@ -87,15 +94,22 @@ function loadJson(filePath, fallback = null) {
   }
 }
 
+function isInformationalRun(run) {
+  return String(run?.triggerInfo?.['ci.isInformationalRun'] ?? '').toLowerCase() === 'true';
+}
+
 function loadRuns(dataDir) {
   const runsPath = path.join(dataDir, 'runs.json');
-  const runs = loadJson(runsPath, []);
+  const allRuns = loadJson(runsPath, []);
+  // Informational runs are 0-second placeholders that Azure Pipelines creates when it can't
+  // evaluate a trigger. They never ran, so they say nothing about build health.
+  const runs = allRuns.filter((run) => !isInformationalRun(run));
   runs.sort((left, right) => {
     const leftTime = left?.finishTime ?? '';
     const rightTime = right?.finishTime ?? '';
     return leftTime.localeCompare(rightTime);
   });
-  return runs;
+  return { allRuns, runs };
 }
 
 function extractErrorFromLog(logPath) {
@@ -612,45 +626,68 @@ function renderTextSummary(lines, summary) {
   }
 }
 
-function renderTextReport(runs, rows, incidents, summary) {
+function pipelineLabel(section) {
+  const role = PIPELINE_ROLES.get(section.pipelineId);
+  const name = section.pipelineName ? ` (${section.pipelineName})` : '';
+  return `Pipeline ${section.pipelineId}${name}${role ? `, ${role}` : ''}`;
+}
+
+// Groups the usable runs by pipeline. A pipeline whose fetched runs were all skipped (for example,
+// informational runs) keeps an empty group, so the report shows it as UNKNOWN instead of omitting it.
+function groupRunsByPipeline(allRuns, runs) {
+  const groups = new Map();
+  for (const run of allRuns) {
+    const pipelineId = run?.definition?.id ?? 'unknown';
+    if (!groups.has(pipelineId)) {
+      groups.set(pipelineId, { pipelineId, pipelineName: (run?.definition?.name ?? '').trim(), runs: [] });
+    }
+  }
+  for (const run of runs) {
+    groups.get(run.definition?.id ?? 'unknown').runs.push(run);
+  }
+
+  const rank = (pipelineId) => {
+    const index = PIPELINE_ORDER.indexOf(pipelineId);
+    return index === -1 ? PIPELINE_ORDER.length : index;
+  };
+  return [...groups.values()].sort((left, right) => rank(left.pipelineId) - rank(right.pipelineId)
+    || String(left.pipelineId).localeCompare(String(right.pipelineId)));
+}
+
+function analyzePipeline(dataDir, group) {
+  const rows = collectBuildRows(dataDir, group.runs);
+  const incidents = collectIncidents(rows);
+  const summary = collectSummary(rows, incidents);
+  return { ...group, rows, incidents, summary };
+}
+
+function renderTextReport(runs, sections) {
   const lines = [];
   lines.push('');
   lines.push('='.repeat(120));
-  lines.push(`  BUILD HEALTH REPORT — Pipeline ${PIPELINE_ID}, branch: main`);
+  lines.push(`  BUILD HEALTH REPORT — branch: main, ${sections.map((section) => `pipeline ${section.pipelineId}`).join(', ')}`);
   lines.push(`  Range: ${fmtTime(runs.at(-1)?.finishTime)} → ${fmtTime(runs[0]?.finishTime)}`);
-  lines.push(`  Total builds: ${rows.length}`);
+  lines.push(`  Total builds: ${runs.length}`);
   lines.push('='.repeat(120));
 
-  renderTextBuildStatus(lines, rows);
-  renderTextIncidents(lines, incidents);
-  renderTextSummary(lines, summary);
+  for (const section of sections) {
+    lines.push('');
+    lines.push('#'.repeat(120));
+    lines.push(`  ${pipelineLabel(section)}: ${section.rows.length} builds`);
+    lines.push('#'.repeat(120));
+    if (section.rows.length === 0) {
+      lines.push('');
+      lines.push(`  Current status: UNKNOWN: ${NO_USABLE_BUILDS}`);
+      continue;
+    }
+    renderTextBuildStatus(lines, section.rows);
+    renderTextIncidents(lines, section.incidents);
+    renderTextSummary(lines, section.summary);
+  }
   return `${lines.join('\n')}\n`;
 }
 
-function renderMarkdownReport(runs, rows, incidents, summary) {
-  const lines = [];
-  const latest = summary.latest;
-  const currentStatus = latest ? latest.resultLabel : 'UNKNOWN';
-
-  lines.push('# Build Health Report');
-  lines.push('');
-  lines.push(`- Pipeline: ${PIPELINE_ID}`);
-  lines.push('- Branch: main');
-  lines.push(`- Range: ${fmtTime(runs.at(-1)?.finishTime)} to ${fmtTime(runs[0]?.finishTime)}`);
-  lines.push(`- Total builds: ${summary.total}`);
-  lines.push(`- Incidents: ${incidents.length}`);
-  lines.push(`- Ongoing incidents: ${summary.ongoing}`);
-  lines.push('');
-
-  lines.push('## Current Status');
-  lines.push('');
-  lines.push('| Status | Latest build | Latest commit | Ongoing incidents |');
-  lines.push('| --- | --- | --- | --- |');
-  lines.push(`| ${currentStatus} | ${latest ? markdownLink(latest.buildNumber, latest.buildUrl) : '-'} | ${latest?.commitUrl ? markdownLink(latest.shortSha, latest.commitUrl) : '-'} | ${summary.ongoing} |`);
-  lines.push('');
-
-  lines.push('## Build Table');
-  lines.push('');
+function renderMarkdownBuildTable(lines, rows) {
   lines.push('| # | Build | Finished | Result | Trigger | Commit | Compare | Failure reason | First error |');
   lines.push('| --- | --- | --- | --- | --- | --- | --- | --- | --- |');
   const descRows = [...rows].reverse();
@@ -658,81 +695,145 @@ function renderMarkdownReport(runs, rows, incidents, summary) {
     lines.push(`| ${index + 1} | ${markdownLink(row.buildNumber, row.buildUrl)} | ${markdownEscape(row.finishTime)} | ${row.resultLabel} | ${markdownEscape(row.reason)} | ${row.commitUrl ? markdownLink(row.shortSha, row.commitUrl) : '-'} | ${row.compareUrl ? markdownLink('diff', row.compareUrl) : '-'} | ${markdownEscape(row.failureSummary)} | ${markdownEscape(row.firstError)} |`);
   });
   lines.push('');
+}
 
-  lines.push('## Incidents');
-  lines.push('');
+function renderMarkdownIncidents(lines, section) {
+  const { incidents, pipelineId } = section;
   if (incidents.length === 0) {
     lines.push('No break/fix transitions found.');
     lines.push('');
-  } else {
-    lines.push('| Incident | Status | First red build | Fixed by | Duration | Failure pattern | Compare |');
-    lines.push('| --- | --- | --- | --- | --- | --- | --- |');
-    const descIncidents = [...incidents].reverse();
-    descIncidents.forEach((incident, index) => {
-      const incidentNumber = index + 1;
-      const fixedCell = incident.fixedRow
-        ? `${markdownLink(incident.fixedRow.buildNumber, incident.fixedRow.buildUrl)} (${markdownEscape(incident.fixedTime)})`
-        : 'STILL RED';
-      const failurePattern = incident.failureReasons.length > 0
-        ? incident.failureReasons
-          .slice(0, 3)
-          .map(([reason, count]) => (count > 1 ? `${reason} x${count}` : reason))
-          .join('; ')
-        : '-';
-      lines.push(`| ${incidentNumber} | ${incident.fixedRow ? 'RESOLVED' : 'ONGOING'} | ${markdownLink(incident.brokeRow.buildNumber, incident.brokeRow.buildUrl)} (${markdownEscape(incident.brokeTime)}) | ${fixedCell} | ${markdownEscape(incident.duration)} | ${markdownEscape(failurePattern)} | ${incident.compareUrl ? markdownLink('compare', incident.compareUrl) : '-'} |`);
-    });
-    lines.push('');
+    return;
+  }
 
-    lines.push('### Incident Details');
+  lines.push('| Incident | Status | First red build | Fixed by | Duration | Failure pattern | Compare |');
+  lines.push('| --- | --- | --- | --- | --- | --- | --- |');
+  const descIncidents = [...incidents].reverse();
+  descIncidents.forEach((incident, index) => {
+    const incidentNumber = index + 1;
+    const fixedCell = incident.fixedRow
+      ? `${markdownLink(incident.fixedRow.buildNumber, incident.fixedRow.buildUrl)} (${markdownEscape(incident.fixedTime)})`
+      : 'STILL RED';
+    const failurePattern = incident.failureReasons.length > 0
+      ? incident.failureReasons
+        .slice(0, 3)
+        .map(([reason, count]) => (count > 1 ? `${reason} x${count}` : reason))
+        .join('; ')
+      : '-';
+    lines.push(`| ${incidentNumber} | ${incident.fixedRow ? 'RESOLVED' : 'ONGOING'} | ${markdownLink(incident.brokeRow.buildNumber, incident.brokeRow.buildUrl)} (${markdownEscape(incident.brokeTime)}) | ${fixedCell} | ${markdownEscape(incident.duration)} | ${markdownEscape(failurePattern)} | ${incident.compareUrl ? markdownLink('compare', incident.compareUrl) : '-'} |`);
+  });
+  lines.push('');
+
+  descIncidents.forEach((incident, index) => {
+    const incidentNumber = index + 1;
+    lines.push(`#### Pipeline ${pipelineId} incident ${incidentNumber}`);
     lines.push('');
-    descIncidents.forEach((incident, index) => {
-      const incidentNumber = index + 1;
-      lines.push(`#### Incident ${incidentNumber}`);
-      lines.push('');
-      lines.push(`- Status: ${incident.fixedRow ? 'Resolved' : 'Ongoing'}`);
-      lines.push(`- First red build: ${markdownLink(incident.brokeRow.buildNumber, incident.brokeRow.buildUrl)} at ${incident.brokeTime}`);
-      lines.push(`- Consecutive red builds: ${incident.buildCount}`);
-      if (incident.compareUrl) {
-        lines.push(`- Compare range: ${markdownLink('last green to first red', incident.compareUrl)}`);
-      }
-      if (incident.firstError && incident.firstError !== '-') {
-        lines.push(`- First error: ${markdownEscape(incident.firstError)}`);
-      }
-      lines.push('');
-    });
+    lines.push(`- Status: ${incident.fixedRow ? 'Resolved' : 'Ongoing'}`);
+    lines.push(`- First red build: ${markdownLink(incident.brokeRow.buildNumber, incident.brokeRow.buildUrl)} at ${incident.brokeTime}`);
+    lines.push(`- Consecutive red builds: ${incident.buildCount}`);
+    if (incident.compareUrl) {
+      lines.push(`- Compare range: ${markdownLink('last green to first red', incident.compareUrl)}`);
+    }
+    if (incident.firstError && incident.firstError !== '-') {
+      lines.push(`- First error: ${markdownEscape(incident.firstError)}`);
+    }
+    lines.push('');
+  });
+}
+
+function renderMarkdownTopFailureReasons(lines, summary) {
+  if (summary.topFailureReasons.length === 0) {
+    lines.push('No failed builds in this range.');
+    lines.push('');
+    return;
+  }
+
+  lines.push('| Count | Failure reason |');
+  lines.push('| --- | --- |');
+  for (const [reason, count] of summary.topFailureReasons) {
+    lines.push(`| ${count} | ${markdownEscape(reason)} |`);
+  }
+  lines.push('');
+}
+
+function renderMarkdownReport(runs, sections) {
+  const lines = [];
+  const ongoing = sections.reduce((total, section) => total + section.summary.ongoing, 0);
+  const incidentCount = sections.reduce((total, section) => total + section.incidents.length, 0);
+
+  lines.push('# Build Health Report');
+  lines.push('');
+  lines.push(`- Pipelines: ${sections.map((section) => pipelineLabel(section)).join('; ')}`);
+  lines.push('- Branch: main');
+  lines.push(`- Range: ${fmtTime(runs.at(-1)?.finishTime)} to ${fmtTime(runs[0]?.finishTime)}`);
+  lines.push(`- Total builds: ${runs.length}`);
+  lines.push(`- Incidents: ${incidentCount}`);
+  lines.push(`- Ongoing incidents: ${ongoing}`);
+  lines.push('');
+
+  lines.push('## Current Status');
+  lines.push('');
+  lines.push('| Pipeline | Status | Latest build | Latest commit | Builds | Succeeded | Failed | Partial | Ongoing incidents |');
+  lines.push('| --- | --- | --- | --- | --- | --- | --- | --- | --- |');
+  for (const section of sections) {
+    const { summary } = section;
+    const latest = summary.latest;
+    lines.push(`| ${markdownEscape(pipelineLabel(section))} | ${latest ? latest.resultLabel : `UNKNOWN: ${NO_USABLE_BUILDS}`} | ${latest ? markdownLink(latest.buildNumber, latest.buildUrl) : '-'} | ${latest?.commitUrl ? markdownLink(latest.shortSha, latest.commitUrl) : '-'} | ${summary.total} | ${summary.succeeded} | ${summary.failed} | ${summary.partial} | ${summary.ongoing} |`);
+  }
+  lines.push('');
+
+  lines.push('## Build Table');
+  lines.push('');
+  for (const section of sections) {
+    lines.push(`### ${markdownEscape(pipelineLabel(section))}`);
+    lines.push('');
+    renderMarkdownBuildTable(lines, section.rows);
+  }
+
+  lines.push('## Incidents');
+  lines.push('');
+  for (const section of sections) {
+    lines.push(`### ${markdownEscape(pipelineLabel(section))}`);
+    lines.push('');
+    renderMarkdownIncidents(lines, section);
   }
 
   lines.push('## Top Failure Reasons');
   lines.push('');
-  if (summary.topFailureReasons.length === 0) {
-    lines.push('No failed builds in this range.');
+  for (const section of sections) {
+    lines.push(`### ${markdownEscape(pipelineLabel(section))}`);
     lines.push('');
-  } else {
-    lines.push('| Count | Failure reason |');
-    lines.push('| --- | --- |');
-    for (const [reason, count] of summary.topFailureReasons) {
-      lines.push(`| ${count} | ${markdownEscape(reason)} |`);
-    }
-    lines.push('');
+    renderMarkdownTopFailureReasons(lines, section.summary);
   }
 
   lines.push('## Suggested Next Step');
   lines.push('');
-  if (latest?.result === 'failed') {
-    lines.push('Use this report to confirm where the current failure pattern started. Only after that, ask the user whether to continue with commit-range culprit analysis.');
+  const red = sections.filter((section) => section.summary.latest?.result === 'failed');
+  for (const section of sections.filter((section) => section.rows.length === 0)) {
+    lines.push(`- Pipeline ${section.pipelineId} status is unknown: ${NO_USABLE_BUILDS}.`);
+  }
+  if (red.length === 0) {
+    lines.push('Use this report to identify recurring failure patterns and compare incidents across the fetched builds of each pipeline.');
   } else {
-    lines.push('Use this report to identify recurring failure patterns and compare incidents across the last 100 builds.');
+    for (const section of red) {
+      lines.push(`- Pipeline ${section.pipelineId} is red. Use its incidents to confirm where the current failure pattern started. Only after that, ask the user whether to continue with commit-range culprit analysis.`);
+    }
+    // Only a green counterpart shows that the failure is specific to the red pipeline.
+    const pairIds = sections.map((section) => section.pipelineId).sort().join(',');
+    const green = sections.filter((section) => section.summary.latest?.result === 'succeeded');
+    if (pairIds === '111,727' && red.length === 1 && green.length === 1) {
+      lines.push('- A failure in only one pipeline points at what differs between them: the signing, publishing and release steps of the product builds (pipeline 111), or the per-suite test jobs of the CI builds (pipeline 727).');
+    }
   }
   lines.push('');
 
   return `${lines.join('\n')}\n`;
 }
 
-function renderReport(runs, rows, incidents, summary, format) {
+function renderReport(runs, sections, format) {
   if (format === 'markdown') {
-    return renderMarkdownReport(runs, rows, incidents, summary);
+    return renderMarkdownReport(runs, sections);
   }
-  return renderTextReport(runs, rows, incidents, summary);
+  return renderTextReport(runs, sections);
 }
 
 function writeReport(output, reportPath) {
@@ -742,16 +843,20 @@ function writeReport(output, reportPath) {
 
 function main() {
   const { dataDir, format, reportPath } = parseArgs(process.argv.slice(2));
-  const runs = loadRuns(dataDir);
+  const { allRuns, runs } = loadRuns(dataDir);
   if (runs.length === 0) {
-    console.log('No builds found.');
+    // Don't leave an older report in place for the report-first workflow to read.
+    const message = `No usable builds in ${path.join(dataDir, 'runs.json')} (missing, empty, or only informational runs). Fetch a larger window.`;
+    if (reportPath) {
+      writeReport(format === 'markdown' ? `# Build Health Report\n\n${message}\n` : `${message}\n`, reportPath);
+    }
+    console.error(message);
+    process.exitCode = 1;
     return;
   }
 
-  const rows = collectBuildRows(dataDir, runs);
-  const incidents = collectIncidents(rows);
-  const summary = collectSummary(rows, incidents);
-  const output = renderReport(runs, rows, incidents, summary, format);
+  const sections = groupRunsByPipeline(allRuns, runs).map((group) => analyzePipeline(dataDir, group));
+  const output = renderReport(runs, sections, format);
 
   if (reportPath) {
     writeReport(output, reportPath);
