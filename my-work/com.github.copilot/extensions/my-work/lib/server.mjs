@@ -25,17 +25,34 @@ const CSP = [
 ].join('; ');
 const ASSET_TYPES = { 'app.js': 'text/javascript; charset=utf-8', 'style.css': 'text/css; charset=utf-8', 'codicon.ttf': 'font/ttf' };
 // The icon font is not bundled (no binaries in the plugin); it is served from the VS Code installation.
-async function findCodiconFont() {
+export async function findCodiconFont(env = process.env, execPath = process.execPath) {
 	const rel = ['out', 'media', 'codicon.ttf'];
+	const exists = file => fs.stat(file).then(s => s.isFile(), () => false);
+	// First the VS Code build hosting this process: the SDK path and the executable live inside its `resources/app`
+	// (or `Contents/Resources/app`), wherever and however it is installed.
+	for (const start of [env.COPILOT_SDK_PATH, execPath].filter(Boolean)) {
+		for (let dir = path.resolve(start), parent; (parent = path.dirname(dir)) !== dir; dir = parent) {
+			for (const app of [dir, path.join(dir, 'resources', 'app'), path.join(dir, 'Resources', 'app')]) {
+				if (await exists(path.join(app, ...rel))) return path.join(app, ...rel);
+			}
+		}
+	}
 	const apps = process.platform === 'darwin'
 		? ['Visual Studio Code - Insiders', 'Visual Studio Code', 'Visual Studio Code - Exploration'].flatMap(n => [`/Applications/${n}.app`, path.join(os.homedir(), 'Applications', `${n}.app`)]).map(a => path.join(a, 'Contents', 'Resources', 'app'))
 		: process.platform === 'win32'
 			? ['Microsoft VS Code Insiders', 'Microsoft VS Code'].flatMap(n => [process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'Programs', n), process.env.ProgramFiles && path.join(process.env.ProgramFiles, n)]).filter(Boolean).map(a => path.join(a, 'resources', 'app'))
 			: ['/usr/share/code-insiders', '/usr/share/code', '/opt/visual-studio-code-insiders', '/opt/visual-studio-code'].map(a => path.join(a, 'resources', 'app'));
-	if (process.env.VSCODE_CWD) apps.unshift(path.join(process.env.VSCODE_CWD, 'resources', 'app'));
+	if (env.VSCODE_CWD) apps.unshift(path.join(env.VSCODE_CWD, 'resources', 'app'));
 	for (const app of apps) {
 		const file = path.join(app, ...rel);
-		if (await fs.stat(file).catch(() => null)) return file;
+		if (await exists(file)) return file;
+		// Windows installs keep each version in a subfolder: <install>\<commit>\resources\app.
+		const install = path.dirname(path.dirname(app));
+		const versions = process.platform === 'win32' ? await fs.readdir(install, { withFileTypes: true }).catch(() => []) : [];
+		for (const v of versions.filter(d => d.isDirectory())) {
+			const versioned = path.join(install, v.name, 'resources', 'app', ...rel);
+			if (await exists(versioned)) return versioned;
+		}
 	}
 	return null;
 }

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.10 (2026-11-17)
+
+- Fixed: icons were missing in the panel on Windows. The icon font is not bundled; it was looked up only in fixed install folders, but Windows installs keep each version in a subfolder (`<install>\<commit>\resources\app`) and may live elsewhere. The panel now finds the font in the VS Code build it runs in, and also checks versioned folders.
+
 ## 1.0.9 (2026-11-02)
 
 - Sweeper data now comes from Sweeper's published index (`index-vscode.json`, the source the vscode repo's `sweeper-query` skill uses) through `gh`, so the 372 MB `vscodesweeper-state` clone is no longer needed. Review records (Fixed by, summary, evidence) are read only for the issues that need them and cached until Sweeper reviews the issue again. A local clone is still used for records when present (`sweeperRepo`); `sweeperStateRepo` sets where Sweeper lives. Cleanup shows whether Sweeper's blinded second review **confirmed**, disputed or couldn't verify a duplicate proposal. Implement skips issues that already have a PR or whose proposal a maintainer dismissed, and ranks bugs by Sweeper's value score. Today has a new **Reporter replied** section for issues where the reporter answered your request for information.

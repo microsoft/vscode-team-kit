@@ -287,6 +287,22 @@ print(json.dumps([
 	}
 });
 
+test('the icon font is found in the running VS Code build, wherever it is installed', async () => {
+	const { findCodiconFont } = await import(new URL('lib/server.mjs', ext));
+	const root = mkdtempSync(path.join(os.tmpdir(), 'my-work-font-'));
+	try {
+		// A Windows-style versioned install: <install>/<commit>/resources/app, with the SDK unpacked inside it.
+		const app = path.join(root, 'Custom VS Code', '1a2b3c', 'resources', 'app');
+		mkdirSync(path.join(app, 'out', 'media'), { recursive: true });
+		writeFileSync(path.join(app, 'out', 'media', 'codicon.ttf'), 'font');
+		const sdk = path.join(app, 'node_modules.asar.unpacked', '@github', 'copilot-sdk-win32-x64', 'copilot-sdk');
+		assert.equal(await findCodiconFont({ COPILOT_SDK_PATH: sdk }, '/nowhere/node'), path.join(app, 'out', 'media', 'codicon.ttf'));
+		assert.equal(await findCodiconFont({}, path.join(root, 'Custom VS Code', '1a2b3c', 'Code - Insiders.exe')), path.join(app, 'out', 'media', 'codicon.ttf'), 'found from the executable next to resources/app');
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
 test('panel server rejects other hosts and API calls without the token', async () => {
 	const http = await import('node:http');
 	const { TriageServer } = await import(new URL('lib/server.mjs', ext));
