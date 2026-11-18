@@ -51,7 +51,7 @@ def load_index():
         raise SweeperUnavailable(f"cannot check {SWEEPER_STATE_REPO}:{INDEX_FILE}: {err.strip() or 'no commit'}")
     cached = os.path.join(CACHE, INDEX_FILE)
     try:
-        with open(cached + ".sha") as f:
+        with open(cached + ".sha", encoding="utf-8") as f:
             fresh = f.read().strip() == sha and os.path.getsize(cached) > 0
     except OSError:
         fresh = False
@@ -62,7 +62,7 @@ def load_index():
             raise SweeperUnavailable(f"download of {INDEX_FILE} failed: {err.strip()}")
         _write_atomic(cached, out)
         _write_atomic(cached + ".sha", sha.encode())
-    with open(cached) as f:
+    with open(cached, encoding="utf-8") as f:
         data = json.load(f)
     if str(data.get("schema", "")).split(".")[0] != str(INDEX_SCHEMA_MAJOR):
         raise SweeperUnavailable(f"{INDEX_FILE} has schema {data.get('schema')}, expected {INDEX_SCHEMA_MAJOR}.x")

@@ -3,7 +3,39 @@
 Users override any field in <COPILOT_HOME>/project-boards/my-work.config.json. Keep the defaults in
 sync with com.github.copilot/extensions/my-work/lib/config.mjs.
 """
-import json, os, subprocess
+import json, os, shutil, subprocess, sys
+
+# Every script reads and prints JSON as UTF-8, whatever the platform's default (cp1252 on Windows).
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8")
+
+
+def _gh_dirs():
+    if os.name == "nt":
+        env = os.environ
+        return [d for d in (
+            env.get("ProgramFiles") and os.path.join(env["ProgramFiles"], "GitHub CLI"),
+            env.get("ProgramFiles(x86)") and os.path.join(env["ProgramFiles(x86)"], "GitHub CLI"),
+            env.get("LOCALAPPDATA") and os.path.join(env["LOCALAPPDATA"], "Programs", "GitHub CLI"),
+            env.get("LOCALAPPDATA") and os.path.join(env["LOCALAPPDATA"], "Microsoft", "WinGet", "Links"),
+        ) if d]
+    return ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/home/linuxbrew/.linuxbrew/bin", os.path.expanduser("~/.local/bin")]
+
+
+def ensure_gh_on_path(dirs=None):
+    """Add gh's install folder to PATH when gh is installed but not on PATH (a chat started before gh was installed)."""
+    if shutil.which("gh"):
+        return True
+    exe = "gh.exe" if os.name == "nt" else "gh"
+    for d in _gh_dirs() if dirs is None else dirs:
+        if os.path.isfile(os.path.join(d, exe)):
+            os.environ["PATH"] = d + os.pathsep + os.environ.get("PATH", "")
+            return True
+    return False
+
+
+ensure_gh_on_path()
 
 COPILOT_HOME = os.environ.get("COPILOT_HOME") or os.path.expanduser("~/.copilot")
 BOARD = os.path.join(COPILOT_HOME, "project-boards")
@@ -28,7 +60,7 @@ DEFAULTS = {
 def load_config():
     cfg = dict(DEFAULTS)
     try:
-        with open(CONFIG_FILE) as f:
+        with open(CONFIG_FILE, encoding="utf-8") as f:
             user = json.load(f)
     except (OSError, ValueError):
         user = {}
@@ -62,7 +94,7 @@ def login():
         _login = CFG.get("login") or ""
         if not _login:
             try:
-                r = subprocess.run(["gh", "api", "user", "--jq", ".login"], capture_output=True, text=True, timeout=30)
+                r = subprocess.run(["gh", "api", "user", "--jq", ".login"], capture_output=True, text=True, encoding="utf-8", timeout=30)
                 _login = r.stdout.strip() if r.returncode == 0 else ""
             except (OSError, subprocess.TimeoutExpired):
                 _login = ""

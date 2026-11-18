@@ -586,6 +586,10 @@ function isHandled(item) {
 }
 
 // ---------- rendering ----------
+// Why notifications or the Sweeper lists couldn't load, appended to the subtitle so empty lists are never silent.
+function loadErrors(st) {
+	return `${st.notificationsError ? ` · notifications error: ${st.notificationsError}` : ''}${st.listsError ? ` · ${st.listsError}` : ''}`;
+}
 function render() {
 	const st = ui.state;
 	if (!st) return;
@@ -593,7 +597,7 @@ function render() {
 	$('heading').textContent = VIEW_TITLES[ui.tab];
 	$('heading').title = VIEW_HINTS[ui.tab];
 	$('top-meta').textContent = `${date}${date ? ' · ' : ''}${st.hasIndex === false ? 'no issue index yet' : `index updated ${ago(st.refreshedAt)} ago`}`;
-	$('subtitle').textContent = `${VIEW_HINTS[ui.tab]}${st.notificationsError ? ` · notifications error: ${st.notificationsError}` : ''}`;
+	$('subtitle').textContent = `${VIEW_HINTS[ui.tab]}${loadErrors(st)}`;
 	$('count-notifications').textContent = st.notifications.filter(n => !n.handled).length;
 	$('count-queue').textContent = st.sections.reduce((a, s) => a + s.items.filter(i => !i.handled).length, 0);
 	$('count-cleanup').textContent = Object.values(st.cleanup).reduce((a, g) => a + g.items.filter(i => !i.handled).length, 0);
@@ -1174,7 +1178,7 @@ function renderSummary(groups, handled) {
 		parts = [`${handledN} of ${total} ${noun} handled`, `${pct(handledN, total)}%`, ...(ui.tab === 'implement' ? [`${st.implement.bugs} bugs`] : []), `${st.today.sessionsStarted} session${st.today.sessionsStarted === 1 ? '' : 's'} started today`];
 		segs = [['done', handledN], ['todo', total - handledN]];
 	}
-	$('subtitle').textContent = `${parts.join(' · ') || VIEW_HINTS[ui.tab]}${st.notificationsError ? ` · notifications error: ${st.notificationsError}` : ''}`;
+	$('subtitle').textContent = `${parts.join(' · ') || VIEW_HINTS[ui.tab]}${loadErrors(st)}`;
 	const total = segs.reduce((a, [, n]) => a + n, 0);
 	$('top-progress').innerHTML = total ? segs.filter(([, n]) => n > 0).map(([k, n]) => `<span class="seg-${k}" style="flex-grow:${n}"></span>`).join('') : '';
 	$('top-progress').setAttribute('aria-label', parts.join(', '));

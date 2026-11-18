@@ -4,7 +4,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { sessionsFor, sessionsById } from './sessions.mjs';
 import { listIssueChats, getSessionSummaries, getSessionLinks, listPinnedIssues } from './workSessions.mjs';
-import { COPILOT_HOME, BOARD, SCRIPT, config } from './config.mjs';
+import { COPILOT_HOME, BOARD, SCRIPT, config, python, PYTHON_MISSING, ensureGhOnPath } from './config.mjs';
 
 export { BOARD, SCRIPT };
 
@@ -69,6 +69,7 @@ export class StorageError extends Error {
 }
 
 function run(cmd, args, { timeout = 120_000 } = {}) {
+	ensureGhOnPath();
 	return new Promise((resolve, reject) => {
 		execFile(cmd, args, { maxBuffer: 64 * 1024 * 1024, timeout }, (error, stdout, stderr) => {
 			if (error) {
@@ -82,7 +83,10 @@ function run(cmd, args, { timeout = 120_000 } = {}) {
 }
 
 export async function runScript(args) {
-	return JSON.parse(await run('python3', [SCRIPT, ...args]));
+	const py = python();
+	if (!py) throw Object.assign(new Error(PYTHON_MISSING), { code: 'command_failed' });
+	const [cmd, ...pre] = py;
+	return JSON.parse(await run(cmd, [...pre, SCRIPT, ...args]));
 }
 
 async function readJsonFile(file) {
@@ -552,12 +556,15 @@ export async function getState({ forceNotifications = false } = {}) {
 	// Without an index (e.g. before the first indexer run) My Work and Notifications still work;
 	// the index-based views (Today, Cleanup, Implement) stay empty and show how to build it.
 	const hasIndex = !!(await fs.stat(INDEX_JSON).catch(() => null));
+	// Why Cleanup / Implement couldn't load (e.g. Python or gh missing), shown in the panel and returned by refresh instead of empty lists.
+	const listErrors = [];
+	const listFailed = (what, empty) => e => (listErrors.push(`${what}: ${e.message.split('\n').filter(Boolean).pop() || e.message}`), console.error(`my-work: ${what} failed: ${e.message}`), empty);
 	const [index, queue, cleanup, notif, triage, activity, implement, opinions, settings, tabs] = await Promise.all([
 		hasIndex ? loadIndex() : { issues: {}, counts: {}, refreshedAt: null },
 		readJsonFile(QUEUE_JSON).catch(() => undefined),
-		hasIndex ? loadCleanup().catch(() => emptyCleanup()) : emptyCleanup(),
+		hasIndex ? loadCleanup().catch(listFailed('Cleanup', emptyCleanup())) : emptyCleanup(),
 		loadNotifications(forceNotifications), getTriage(), getActivity(startOfToday()),
-		hasIndex ? loadImplement().catch(() => ({ total: 0, bugs: 0, items: [] })) : { total: 0, bugs: 0, items: [] },
+		hasIndex ? loadImplement().catch(listFailed('Implement', { total: 0, bugs: 0, items: [] })) : { total: 0, bugs: 0, items: [] },
 		getOpinions(), getSettings(), getBatches(),
 	]);
 	const threads = await getThreads();
@@ -651,7 +658,7 @@ export async function getState({ forceNotifications = false } = {}) {
 
 	return {
 		investigations, hasIndex, indexing: await loadIndexing(), refreshedAt: index.refreshedAt, counts: index.counts, queueDate: queue?.date ?? null, settings, batches, opinions, opinionPending, informedPending, threads, issueChats, sessionSummaries, me: await currentLogin().catch(() => null), customGroups, areas, sessions,
-		notifications, notificationsError: notif.error ?? null, notificationsFetchedAt: notif.at ? new Date(notif.at).toISOString() : null, untriaged, notifTriagePending, issueRules, issueRulesPending, sections, cleanup: cleanupGroups,
+		notifications, notificationsError: notif.error ?? null, listsError: listErrors.join('; ') || null, notificationsFetchedAt: notif.at ? new Date(notif.at).toISOString() : null, untriaged, notifTriagePending, issueRules, issueRulesPending, sections, cleanup: cleanupGroups,
 		implement: { total: implement.total, bugs: implement.bugs, items: implementItems },
 		today: {
 			notificationsHandled: new Set(activity.filter(e => e.kind === 'notification' && e.action !== 'skip').map(e => e.id)).size,

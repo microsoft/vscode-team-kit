@@ -50,7 +50,7 @@ TODAY = datetime.date.today().isoformat()
 
 
 def run(cmd):
-    r = subprocess.run(cmd, capture_output=True, text=True)
+    r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
     if r.returncode != 0:
         raise RuntimeError(f"cmd failed: {cmd}\n{r.stderr}")
     return r.stdout
@@ -60,7 +60,7 @@ def gh_graphql(query, variables):
     args = ["gh", "api", "graphql", "-f", f"query={query}"]
     for k, v in variables.items():
         args += ["-f", f"{k}={v}"]
-    out = subprocess.run(args, capture_output=True, text=True)
+    out = subprocess.run(args, capture_output=True, text=True, encoding="utf-8")
     if out.returncode != 0:
         raise RuntimeError(out.stderr)
     return json.loads(out.stdout)
@@ -177,7 +177,7 @@ def build_inventory(prev_partitions):
 
 
 def rest_get(path):
-    r = subprocess.run(["gh", "api", path], capture_output=True, text=True)
+    r = subprocess.run(["gh", "api", path], capture_output=True, text=True, encoding="utf-8")
     return r.returncode, r.stdout, r.stderr
 
 
@@ -222,7 +222,7 @@ def fetch_full_issues(pairs, on_progress=None, batch=50):
             parts.append(f'i{i}: repository(owner: {json.dumps(owner)}, name: {json.dumps(name)}) {{ issue(number: {int(number)}) {{ {BATCH_FIELDS} }} }}')
         data = {}
         # Missing or transferred issues make gh exit non-zero but still return the other issues' data.
-        r = subprocess.run(["gh", "api", "graphql", "-f", "query=query {" + "\n".join(parts) + "}"], capture_output=True, text=True)
+        r = subprocess.run(["gh", "api", "graphql", "-f", "query=query {" + "\n".join(parts) + "}"], capture_output=True, text=True, encoding="utf-8")
         try:
             data = json.loads(r.stdout or "{}").get("data") or {}
         except ValueError:
@@ -291,7 +291,7 @@ def repo_label_colors(repo):
     path = os.path.join(CACHE_DIR, f"labels-{repo.replace('/', '__')}.json")
     try:
         if time.time() - os.path.getmtime(path) < 86400:
-            with open(path) as f:
+            with open(path, encoding="utf-8") as f:
                 return json.load(f)
     except OSError:
         pass
@@ -302,7 +302,7 @@ def repo_label_colors(repo):
             name, color = json.loads(line)
             colors[name] = (color or "").lower()
     os.makedirs(CACHE_DIR, exist_ok=True)
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         json.dump(colors, f)
     return colors
 
@@ -337,7 +337,7 @@ def discover_auto_areas(config, issues):
     if new:
         config["featureAreas"].extend(new)
         fd, tmp = tempfile.mkstemp(dir=os.path.dirname(CONFIG_PATH), prefix=".tmp-", suffix=".json")
-        with os.fdopen(fd, "w") as f:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(config, f, indent=2, ensure_ascii=False)
         os.replace(tmp, CONFIG_PATH)
     return new
@@ -382,9 +382,9 @@ def render_md(issues, counts, feature_areas_out, now):
 def reclassify_only():
     """Discover auto areas and reclassify the existing index in place, without touching GitHub inventory,
     Sweeper data, refreshedAt or the refresh manifest (so the daily queue baseline is unchanged)."""
-    with open(CONFIG_PATH) as f:
+    with open(CONFIG_PATH, encoding="utf-8") as f:
         config = json.load(f)
-    with open(INDEX_PATH) as f:
+    with open(INDEX_PATH, encoding="utf-8") as f:
         index = json.load(f)
     issues, departed = index["issues"], index.get("departedIssues", {})
     new = discover_auto_areas(config, issues)
@@ -407,11 +407,11 @@ def reclassify_only():
     index["featureAreas"] = feature_areas_out
     index["featureConfigurationHash"] = hashlib.sha256(json.dumps(config, sort_keys=True).encode()).hexdigest()
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(INDEX_PATH), prefix=".tmp-", suffix=".json")
-    with os.fdopen(fd, "w") as f:
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
         json.dump(index, f, indent=2, ensure_ascii=False)
     os.replace(tmp, INDEX_PATH)
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(MD_PATH), prefix=".tmp-", suffix=".md")
-    with os.fdopen(fd, "w") as f:
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
         f.write(render_md(issues, index["counts"], feature_areas_out, index.get("refreshedAt")))
     os.replace(tmp, MD_PATH)
     print(json.dumps({"newAutoAreas": [a["name"] for a in new], "moved": moved,
@@ -420,7 +420,7 @@ def reclassify_only():
 
 def write_json_atomic(path, obj):
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".tmp-", suffix=".json")
-    with os.fdopen(fd, "w") as f:
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
         json.dump(obj, f, indent=2, ensure_ascii=False)
     os.replace(tmp, path)
 
@@ -473,11 +473,11 @@ def main():
     if not ASSIGNEE:
         sys.exit("Cannot tell whose issues to index: sign in with `gh auth login` or set \"login\" in my-work.config.json.")
     bootstrap()
-    with open(CONFIG_PATH) as f:
+    with open(CONFIG_PATH, encoding="utf-8") as f:
         config = json.load(f)
-    with open(INDEX_PATH) as f:
+    with open(INDEX_PATH, encoding="utf-8") as f:
         index = json.load(f)
-    with open(MANIFEST_PATH) as f:
+    with open(MANIFEST_PATH, encoding="utf-8") as f:
         manifest = json.load(f)
 
     issues = index["issues"]
@@ -490,7 +490,7 @@ def main():
     status("Finding your issues on GitHub")
     print("== Building inventory (adaptive partitions) ==", file=sys.stderr)
     inventory, partition_report = build_inventory(prev_partitions)
-    with open(INVENTORY_CACHE, "w") as f:
+    with open(INVENTORY_CACHE, "w", encoding="utf-8") as f:
         json.dump({"inventory": inventory, "partitions": partition_report}, f)
     print(f"inventory size={len(inventory)}", file=sys.stderr)
 
@@ -692,7 +692,7 @@ def main():
     # Read late so a decision recorded while this refresh was running is not lost.
     user_outcomes = {}
     if os.path.exists(OUTCOMES_PATH):
-        with open(OUTCOMES_PATH) as f:
+        with open(OUTCOMES_PATH, encoding="utf-8") as f:
             user_outcomes = json.load(f).get("outcomes", {})
     for k, outcome in user_outcomes.items():
         target = issues.get(k) or departed.get(k)
@@ -864,7 +864,7 @@ def main():
 
     if not validation_passed:
         print("VALIDATION FAILED — not publishing.", file=sys.stderr)
-        with open(os.path.join(CACHE_DIR, "refresh-result-FAILED.json"), "w") as f:
+        with open(os.path.join(CACHE_DIR, "refresh-result-FAILED.json"), "w", encoding="utf-8") as f:
             json.dump(result_summary, f, indent=2)
         print(json.dumps(result_summary, indent=2))
         sys.exit(1)
@@ -873,14 +873,14 @@ def main():
     def atomic_write_json(path, obj):
         d = os.path.dirname(path)
         fd, tmp = tempfile.mkstemp(dir=d, prefix=".tmp-", suffix=".json")
-        with os.fdopen(fd, "w") as f:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(obj, f, indent=2, ensure_ascii=False)
         os.replace(tmp, path)
 
     atomic_write_json(INDEX_PATH, index)
     d = os.path.dirname(MD_PATH)
     fd, tmp = tempfile.mkstemp(dir=d, prefix=".tmp-", suffix=".md")
-    with os.fdopen(fd, "w") as f:
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
         f.write(render_md(issues, counts, feature_areas_out, NOW))
     os.replace(tmp, MD_PATH)
 
@@ -925,7 +925,7 @@ def main():
     }
     atomic_write_json(MANIFEST_PATH, new_manifest)
 
-    with open(os.path.join(CACHE_DIR, "refresh-result.json"), "w") as f:
+    with open(os.path.join(CACHE_DIR, "refresh-result.json"), "w", encoding="utf-8") as f:
         json.dump(result_summary, f, indent=2)
     print(json.dumps(result_summary, indent=2))
 
@@ -942,7 +942,7 @@ def run_passes(force_full=False):
     if not ASSIGNEE:
         sys.exit("Cannot tell whose issues to index: sign in with `gh auth login` or set \"login\" in my-work.config.json.")
     bootstrap()
-    with open(INDEX_PATH) as f:
+    with open(INDEX_PATH, encoding="utf-8") as f:
         index = json.load(f)
     gh = (index.get("sourceCheckpoints") or {}).get("github") or {}
     if not index.get("issues"):

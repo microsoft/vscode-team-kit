@@ -19,7 +19,7 @@ QUEUE_MD = os.path.join(BOARD, "my-triage-queue.md")
 QUEUE_JSON = os.path.join(BOARD, "my-triage-queue.json")
 TRIAGE_CHATS = os.path.join(BOARD, "my-triage-chats.json")
 SCRIPT_PATH = os.path.abspath(__file__)
-SCRIPT_CMD = f'python3 "{SCRIPT_PATH}"'
+SCRIPT_CMD = f'"{sys.executable}" "{SCRIPT_PATH}"'
 SKILL_DIR = os.path.dirname(os.path.dirname(SCRIPT_PATH))
 DECISIONS = ["accepted", "rejected", "deferred", "closed", "needs-info-sent", "routed", "fixing", "fixed", "duplicate", "wont-fix"]
 SEVERITY_RANK = {"data-loss": 0, "crash": 1, "freeze": 2, "perf": 3, "correctness": 4, "visual": 5, "papercut": 6}
@@ -32,13 +32,13 @@ def login():
 def load(path, default=None):
     if not os.path.exists(path):
         return default
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 
 def atomic_write(path, obj):
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".tmp-", suffix=".json")
-    with os.fdopen(fd, "w") as f:
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
         json.dump(obj, f, indent=2, ensure_ascii=False)
     os.replace(tmp, path)
 
@@ -256,7 +256,7 @@ def unread_notifications():
     """Count unread GitHub notifications (read-only). Returns None if gh fails."""
     try:
         r = subprocess.run(["gh", "api", "--paginate", "notifications?per_page=50", "--jq", "length"],
-                           capture_output=True, text=True, timeout=60)
+                           capture_output=True, text=True, encoding="utf-8", timeout=60)
         if r.returncode != 0:
             return None
         return sum(int(x) for x in r.stdout.split())
@@ -369,7 +369,7 @@ def new_day_message(date, refreshed_at, notifications):
 def my_work_session():
     """The session of the panel's "My Work chat" (its link without the ?chat= part), if the panel has one."""
     try:
-        with open(os.path.join(DATA_DIR, "chat.json")) as f:
+        with open(os.path.join(DATA_DIR, "chat.json"), encoding="utf-8") as f:
             d = json.load(f)
     except (OSError, ValueError):
         return None
@@ -406,7 +406,7 @@ def cmd_queue(a, idx):
     if a.write:
         md = render_queue_md(idx, manifest, sections, date, notifications)
         fd, tmp = tempfile.mkstemp(dir=BOARD, prefix=".tmp-", suffix=".md")
-        with os.fdopen(fd, "w") as f:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(md)
         os.replace(tmp, QUEUE_MD)
         atomic_write(QUEUE_JSON, {**{k: v for k, v in result.items() if k not in ("chatPrompt", "chatMessage")},
@@ -585,7 +585,7 @@ def cmd_proposal(a, idx):
 
 
 def gh(args):
-    r = subprocess.run(["gh", *args], capture_output=True, text=True)
+    r = subprocess.run(["gh", *args], capture_output=True, text=True, encoding="utf-8")
     if r.returncode != 0:
         raise RuntimeError(f"gh {' '.join(args)} failed: {r.stderr.strip()}")
     return r.stdout
@@ -615,7 +615,7 @@ def cmd_apply(a, idx):
     group = a.group or p["group"]
     if group not in CLEANUP_GROUPS:
         sys.exit(f"no cleanup group for {k}; pass --group explicitly")
-    with open(a.comment_file) as f:
+    with open(a.comment_file, encoding="utf-8") as f:
         body = f.read().strip()
     if not body:
         sys.exit("empty comment")
@@ -907,7 +907,7 @@ def cmd_opinion(a, idx):
         return
     value = {"format": "my-issues/opinion", "version": 1, "key": k, "judge": "blind", **verdict}
     fd, tmp = tempfile.mkstemp(dir=OPINIONS_DIR, prefix=".tmp-", suffix=".json")
-    with os.fdopen(fd, "w") as f:
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
         json.dump(value, f, indent=2, ensure_ascii=False)
     os.replace(tmp, opinion_path(k))
     print(json.dumps(value, indent=1, ensure_ascii=False))
@@ -944,7 +944,7 @@ def _uri_path(uri):
 
 def _git(path, *args):
     try:
-        r = subprocess.run(["git", "-C", path, *args], capture_output=True, text=True, timeout=15)
+        r = subprocess.run(["git", "-C", path, *args], capture_output=True, text=True, encoding="utf-8", timeout=15)
         return r.stdout.strip() if r.returncode == 0 else None
     except (OSError, subprocess.TimeoutExpired):
         return None
