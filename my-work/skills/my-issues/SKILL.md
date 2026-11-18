@@ -27,7 +27,7 @@ Record keys are `owner/repo#number`. A bare number means `<planRepo>#number` (de
 
 ## Helper scripts
 
-`python3 <scripts>/my_issues.py <command>` (on Windows, if `python3` is the Store alias, use `python` or `py -3`)
+`python3 <scripts>/my_issues.py <command>` (on Windows `python3` may be the Microsoft Store alias; then use `python` or `py -3`)
 
 | Command | Use |
 |---|---|

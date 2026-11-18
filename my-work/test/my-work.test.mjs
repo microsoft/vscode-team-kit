@@ -45,7 +45,27 @@ test('findPython skips missing and broken Python commands (e.g. the Windows Stor
 	const real = config.findPython();
 	const storeAlias = [process.execPath, '-e', 'process.exit(9009)'];
 	assert.deepEqual(config.findPython([['no-such-python-cmd'], storeAlias, real]), real);
+	assert.equal(config.findPython([['no-such-python-cmd'], storeAlias]), null, 'no working Python is reported, not guessed');
 	assert.match(config.scriptCommand(), new RegExp(`^${real.join(' ').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} "`));
+});
+
+test('gh installed after the panel or chat started is found in its install folder', () => {
+	const dir = mkdtempSync(path.join(os.tmpdir(), 'my-work-gh-'));
+	const exe = process.platform === 'win32' ? 'gh.exe' : 'gh';
+	try {
+		const env = { PATH: path.join(dir, 'empty') };
+		assert.equal(config.ensureGhOnPath(env, [path.join(dir, 'GitHub CLI')]), false, 'not installed yet');
+		mkdirSync(path.join(dir, 'GitHub CLI'));
+		writeFileSync(path.join(dir, 'GitHub CLI', exe), '');
+		assert.equal(config.ensureGhOnPath(env, [path.join(dir, 'GitHub CLI')]), true);
+		assert.equal(env.PATH.split(path.delimiter)[0], path.join(dir, 'GitHub CLI'));
+		const py = `import json, os, sys; sys.path.insert(0, ${JSON.stringify(scripts)}); import my_work_config as c
+os.environ["PATH"] = ${JSON.stringify(path.join(dir, 'empty'))}
+print(json.dumps([c.ensure_gh_on_path([${JSON.stringify(path.join(dir, 'GitHub CLI'))}]), os.environ["PATH"].split(os.pathsep)[0]]))`;
+		assert.deepEqual(JSON.parse(String(runPython(['-c', py], { cwd: dir, env: { ...process.env, COPILOT_HOME: home, PYTHONDONTWRITEBYTECODE: '1' } }))), [true, path.join(dir, 'GitHub CLI')]);
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
 });
 
 test('Python and JS configs share their defaults', () => {

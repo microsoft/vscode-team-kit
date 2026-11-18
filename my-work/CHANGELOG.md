@@ -2,6 +2,11 @@
 
 ## 1.0.11 (2026-11-18)
 
+Setup now works on a fresh Windows machine without workarounds or a VS Code restart.
+
+- Fixed: a freshly installed GitHub CLI wasn't found until VS Code restarted, because the panel and the chats keep the PATH they started with. The panel and the helper scripts now find `gh` in its install folder (`Program Files\GitHub CLI`, WinGet links, Homebrew and similar) when it isn't on PATH.
+- When Cleanup or Implement can't load, the panel's subtitle and the `refresh` action's `listsError` now say why (for example "Python 3.9+ was not found"), instead of showing empty lists.
+- **my-work-setup** asks every question in a form and batches the decisions, including the daily automation, so setup no longer stalls at the end waiting for a "yes". It uses the Python command that works, doesn't ask for a restart after installing `gh`, and ends with a check: notifications and Sweeper lists load, and the automation exists.
 - Fixed: on Windows, Cleanup, Implement and other Sweeper-backed lists stayed empty when `python3` is the Microsoft Store alias (it exists but only prints "Python was not found"). The panel ran its helper script with `python3` and hid the failure. It now uses the first of `python3`, `python` and `py -3` that really runs Python 3.9+, gives chats that same command, and logs list failures to the extension log instead of hiding them. `my_issues.py` prints commands that use its own interpreter, and the daily indexer automation's prompt uses the Python command that worked during setup.
 - Fixed: on Windows, the helper scripts read and wrote their JSON files and `gh` output in the system code page (cp1252), so an index with non-ASCII text (e.g. `→`, `“”`, accented names) failed with `UnicodeDecodeError: 'charmap' codec can't decode`. That also left Cleanup and Implement empty. All files, subprocess output and printed JSON now use UTF-8.
 

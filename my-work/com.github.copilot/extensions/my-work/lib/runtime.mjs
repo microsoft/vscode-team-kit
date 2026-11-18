@@ -515,6 +515,7 @@ function summarize(state) {
 		currentBatches: Object.fromEntries(Object.entries(state.batches).map(([k, v]) => [k, { number: v.number, ids: v.ids, open: v.open, remaining: v.remaining }])),
 		today: state.today,
 		notificationsError: state.notificationsError,
+		listsError: state.listsError,
 	};
 }
 

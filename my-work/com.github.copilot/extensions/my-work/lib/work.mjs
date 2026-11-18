@@ -2,12 +2,13 @@
 // GitHub (the daily index can lag behind milestone moves), followed by my own ordered priority list
 // (stored locally; GitHub's On Deck milestone is too noisy to plan from).
 import { execFile } from 'node:child_process';
-import { config } from './config.mjs';
+import { config, ensureGhOnPath } from './config.mjs';
 import { getPriorities, updatePriorities } from './data.mjs';
 
 const BACKLOG = 'Backlog';
 
 function gh(args, timeout = 60_000) {
+	ensureGhOnPath();
 	return new Promise((resolve, reject) => {
 		execFile('gh', args, { timeout, maxBuffer: 32 * 1024 * 1024 }, (error, stdout, stderr) => {
 			if (error) { reject(new Error(String(stderr || error.message).trim().split('\n')[0] || 'gh failed')); return; }
