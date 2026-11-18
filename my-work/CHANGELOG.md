@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.0 (2026-11-18)
+
+- **Ready to fix** in Browse: a toggle in the search box lists the issues you can start fixing right away, from your issue index (all of them, not only GitHub's newest 100). These are bugs Sweeper keeps open that it **reproduced** (listed first) or **confirmed in the code**, then open polish, for the selected tab and feature area. Issues with a PR, dismissed, disputed by Sweeper's second review, labelled `info-needed` or already decided by you are left out. While it's on, the search box filters titles. Rows show a **Reproduced** or **Confirmed in code** tag (hover for severity and value) in every Browse list, and **Group by ? Ready to fix** sorts any list into those buckets. The new `my_issues.py ready` command gives chats the same list.
+
 ## 1.0.11 (2026-11-18)
 
 Setup now works on a fresh Windows machine without workarounds or a VS Code restart.

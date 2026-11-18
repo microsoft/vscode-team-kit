@@ -135,8 +135,8 @@ function cleanBrowse(b) {
 	const source = ['bugs', 'features', 'area', 'reviews', 'mine'].includes(b.source) ? b.source : 'bugs';
 	const area = /^[a-z0-9_-]{0,40}$/.test(b.area || '') ? (b.area || '') : '';
 	const refine = b.refine && str(b.refine.query, 300) ? { query: str(b.refine.query, 300), text: str(b.refine.text, 300), note: str(b.refine.note, 300) } : null;
-	const groupBy = ['', 'sweeper', 'reporter', 'milestone', 'age', 'interest', 'label'].includes(b.groupBy) ? b.groupBy : '';
-	return { source, area, refine, groupBy };
+	const groupBy = ['', 'sweeper', 'ready', 'reporter', 'milestone', 'age', 'interest', 'label'].includes(b.groupBy) ? b.groupBy : '';
+	return { source, area, refine, groupBy, ready: b.ready === true };
 }
 
 // Closing issues of a pull request barely change; cache them for the panel's lifetime (refresh after 30 minutes).

@@ -2355,7 +2355,7 @@ async function applyFindFilter(text) {
 	catch (error) { ui.findAsking = null; renderDetail(false, true); toast(`Could not ask the chat: ${error.message}`, true); }
 }
 // Browse grouping: computed from the search results, no extra GitHub calls.
-const GROUP_BY = [['', 'No grouping'], ['sweeper', 'Sweeper verdict'], ['reporter', 'Reporter: team / community'], ['milestone', 'Milestone'], ['age', 'Age'], ['interest', 'Interest (👍, comments)'], ['label', 'Label']];
+const GROUP_BY = [['', 'No grouping'], ['sweeper', 'Sweeper verdict'], ['ready', 'Ready to fix'], ['reporter', 'Reporter: team / community'], ['milestone', 'Milestone'], ['age', 'Age'], ['interest', 'Interest (👍, comments)'], ['label', 'Label']];
 const TEAM_ASSOC = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
 // What Sweeper says about an issue you own: already fixed, duplicate, not planned, needs info (close proposals), or agent-ready.
 const SWEEPER_VERDICTS = [
@@ -2389,6 +2389,35 @@ function sweeperTagHtml(key) {
 	const v = sweeperVerdict(key);
 	return v ? `<span class="tag ${v.cls}" title="${esc(`Sweeper: ${v.label}${v.why ? ` — ${v.why}` : ''}`)}"><i class="codicon codicon-${v.icon}" aria-hidden="true"></i>${esc(v.label)}</span>` : '';
 }
+// Issues you can start fixing, from the index (my_issues.py ready): bugs Sweeper keeps open and reproduced
+// or confirmed in the source, then open polish. Not taken by a PR, disputed, or already decided by you.
+const READY_KINDS = [
+	['reproduced', 'Reproduced', 'pass', 'ok', 'Sweeper: reproduced by the reporter, the thread or a maintainer'],
+	['source', 'Confirmed in code', 'code', 'acc', 'Sweeper: found the defect by reading the code'],
+	['polish', 'Polish', 'tools', '', 'Sweeper: open polish, a small UX fix'],
+];
+function readyOf(key) {
+	if (ui.readyIndex?.at !== ui.state) ui.readyIndex = { at: ui.state, map: new Map((ui.state.ready?.items || []).map((i, rank) => [i.key, { ...i, rank }])) };
+	return ui.readyIndex.map.get(key) || null;
+}
+// Polish carries no tag: it isn't a verification level, and the row already shows its label.
+function readyTagHtml(key) {
+	const r = readyOf(key);
+	const k = r && r.ready !== 'polish' && READY_KINDS.find(x => x[0] === r.ready);
+	if (!k) return '';
+	const why = [k[4], r.severity, r.valueRaw ? `value ${r.valueRaw}` : '', r.contentStale ? 'the issue changed since the review' : ''].filter(Boolean).join(' · ');
+	return `<span class="tag ${k[3]}" title="${esc(`Ready to fix: ${why}`)}"><i class="codicon codicon-${k[2]}" aria-hidden="true"></i>${esc(k[1])}</span>`;
+}
+// The Ready to fix list for the current tab, area and title filter: the whole index, not only GitHub's newest 100.
+function readyItems(src, area) {
+	const labels = new Set(area ? (ui.state.areas || []).find(a => a.id === area)?.labels || [] : []);
+	const words = (ui.findReadyText || '').toLowerCase().split(/\s+/).filter(Boolean);
+	return (ui.state.ready?.items || []).filter(i =>
+		(src === 'bugs' ? i.itemType === 'bug' || i.labels.includes('bug') : src === 'features' ? i.labels.includes('feature-request') : true)
+		&& (!labels.size || i.labels.some(l => labels.has(l)))
+		&& words.every(w => i.title.toLowerCase().includes(w)))
+		.map(i => ({ ...i, isPr: false }));
+}
 function groupFindItems(items, by) {
 	if (!by) return null;
 	const order = [];
@@ -2403,6 +2432,10 @@ function groupFindItems(items, by) {
 			const v = sweeperVerdict(i.key);
 			const at = v ? SWEEPER_VERDICTS.findIndex(x => x[0] === v.id) : SWEEPER_VERDICTS.length;
 			put(v ? SWEEPER_VERDICTS[at][1] : 'No Sweeper verdict', i, at);
+		} else if (by === 'ready') {
+			const r = readyOf(i.key);
+			const at = r ? READY_KINDS.findIndex(x => x[0] === r.ready) : READY_KINDS.length;
+			put(r ? READY_KINDS[at][1] : 'Not ready', i, at);
 		} else if (by === 'reporter') {
 			const bot = i.authorType === 'Bot' || /\[bot\]$/.test(i.author || '');
 			put(bot ? 'Bots' : TEAM_ASSOC.has(i.association) ? 'Team' : 'Community', i, bot ? 2 : TEAM_ASSOC.has(i.association) ? 0 : 1);
@@ -2424,6 +2457,8 @@ function groupFindItems(items, by) {
 	// Agent-ready issues like the Implement list: bugs first, then by Sweeper's value score (comparable within bugs or features only).
 	const rank = i => { const v = sweeperVerdict(i.key); return [v?.bug ? 0 : 1, -(v?.value || 0)]; };
 	if (by === 'sweeper') groups.get('Agent-ready')?.sort((a, b) => { const [x, y] = [rank(a), rank(b)]; return x[0] - y[0] || x[1] - y[1]; });
+	// Within a readiness bucket, Sweeper's order: value, then severity and upvotes.
+	if (by === 'ready') for (const [name, list] of groups) if (name !== 'Not ready') list.sort((a, b) => readyOf(a.key).rank - readyOf(b.key).rank);
 	return order.sort((a, b) => (a.rank - b.rank) || (bySize ? groups.get(b.name).length - groups.get(a.name).length : 0)).map(o => ({ name: o.name, items: groups.get(o.name) }));
 }
 
@@ -2443,9 +2478,10 @@ function renderFindWorkInto(el) {
 	const areas = (ui.state.areas || []).filter(a => a.labels?.length);
 	const area = ui.findArea || '';
 	const q = findQueryString();
-	if (ui.find?.q !== q && !ui.find?.loading) setTimeout(loadFindWork);
-	const filter = ui.findRefine;
-	const items = ui.find?.q === q ? ui.find.items || [] : [];
+	const readyMode = !!ui.findReady && src !== 'reviews';
+	if (!readyMode && ui.find?.q !== q && !ui.find?.loading) setTimeout(loadFindWork);
+	const filter = readyMode ? null : ui.findRefine;
+	const items = readyMode ? readyItems(src, area) : ui.find?.q === q ? ui.find.items || [] : [];
 	const cur = ui.work?.data?.milestones?.find(m => m.role === 'current');
 	const nxt = ui.work?.data?.milestones?.find(m => m.role === 'next');
 	const tips = { bugs: 'My open bugs', features: 'My open feature requests', area: 'My open issues in a feature area', reviews: 'Open PRs that request my review', mine: 'All my open issues' };
@@ -2463,7 +2499,7 @@ function renderFindWorkInto(el) {
 			<i class="codicon codicon-${icon} find-icon${isBug ? ' bug' : i.isPr ? ' pr' : ''}" aria-hidden="true" title="${i.isPr ? 'Pull request' : isBug ? 'Bug' : i.labels.includes('feature-request') ? 'Feature request' : 'Issue'}"></i>
 			<div class="find-main">
 				<button type="button" class="find-title" data-browse-open="${esc(i.key)}" title="Open ${esc(shortKey(i.key))} here">${esc(i.title)}</button>
-				<div class="find-meta"><span class="find-num">${esc(shortKey(i.key))}</span>${i.isPr ? '' : sweeperTagHtml(i.key)}${i.isPr ? `<span>@${esc(i.author)}</span>` : ''}${i.milestone ? `<span>${esc(i.milestone)}</span>` : ''}${chips}<span class="find-age">${esc(ago(i.updatedAt))}</span></div>
+				<div class="find-meta"><span class="find-num">${esc(shortKey(i.key))}</span>${i.isPr ? '' : sweeperTagHtml(i.key) + readyTagHtml(i.key)}${i.isPr ? `<span>@${esc(i.author)}</span>` : ''}${i.milestone ? `<span>${esc(i.milestone)}</span>` : ''}${chips}<span class="find-age">${esc(ago(i.updatedAt))}</span></div>
 			</div>
 			<div class="find-add">${has ? '<span class="find-in"><i class="codicon codicon-pass-filled" aria-hidden="true"></i>In My Work</span>'
 				: `${add('current', `+ ${cur?.title || 'Current'}`, `Add to ${cur?.title || 'current'} (local)`)}${add('next', 'Next', `Add to ${nxt?.title || 'next'} (local)`)}${add('priorities', 'Priorities', 'Add to the end of My priorities')}`}</div>
@@ -2474,24 +2510,30 @@ function renderFindWorkInto(el) {
 				<button type="button" class="link-btn" data-find-query-clear title="Clear the filter"><i class="codicon codicon-close" aria-hidden="true"></i></button>
 				${filter.note ? `<div class="find-query-note cd">${esc(filter.note)}</div>` : ''}
 			</div>` : '';
-	const asking = ui.findAsking ? `<p class="cd find-asking"><i class="codicon codicon-loading spin" aria-hidden="true"></i> Asking the chat to turn “${esc(ui.findAsking)}” into a GitHub search… <button type="button" class="link-btn" data-find-ask-cancel>Cancel</button></p>` : '';
-	el.innerHTML = `<div class="detail-head">${titleBarHtml({ title: 'Browse issues & PRs', meta: `<div class="meta"><span class="cd" title="Type a filter and press Enter: GitHub syntax or plain words. Click a row to open it here, drag it into a group on the left, or use its buttons. Added locally: GitHub milestones stay unchanged.">Live from GitHub, org:microsoft, newest first. Drag a row into a group on the left to plan it.</span></div>` })}</div>
+	const asking = ui.findAsking && !readyMode ? `<p class="cd find-asking"><i class="codicon codicon-loading spin" aria-hidden="true"></i> Asking the chat to turn “${esc(ui.findAsking)}” into a GitHub search… <button type="button" class="link-btn" data-find-ask-cancel>Cancel</button></p>` : '';
+	const readyCount = src === 'reviews' ? 0 : readyItems(src, area).length;
+	const readyTitle = src === 'reviews' ? 'Ready to fix: not for pull requests' : `Ready to fix: bugs Sweeper reproduced or confirmed in code, and polish (${readyCount} here)`;
+	const headMeta = readyMode
+		? 'From your issue index: bugs Sweeper reproduced, then bugs it confirmed in code, then polish. Not taken by a PR or decided by you.'
+		: 'Live from GitHub, org:microsoft, newest first. Drag a row into a group on the left to plan it.';
+	el.innerHTML = `<div class="detail-head">${titleBarHtml({ title: 'Browse issues & PRs', meta: `<div class="meta"><span class="cd" title="Type a filter and press Enter: GitHub syntax or plain words. Click a row to open it here, drag it into a group on the left, or use its buttons. Added locally: GitHub milestones stay unchanged.">${esc(headMeta)}</span></div>` })}</div>
 		<div class="detail-body find-view">
 			<div class="find-tools">
 				<div class="find-tabs">
 					<div class="tabs" role="group" aria-label="Source">${pills}</div>${areaSel}
 				</div>
 				<div class="find-search">
-					<i class="codicon codicon-search" aria-hidden="true"></i><label class="sr-only" for="find-filter">Filter, press Enter to apply</label><input id="find-filter" type="search" placeholder="Filter, press Enter to apply (e.g. created by ${esc(ui.state.me || 'octocat')})" value="${esc(ui.findFilter || '')}">
+					<i class="codicon codicon-search" aria-hidden="true"></i><label class="sr-only" for="find-filter">Filter, press Enter to apply</label><input id="find-filter" type="search" placeholder="${esc(readyMode ? 'Filter by title, press Enter to apply' : `Filter, press Enter to apply (e.g. created by ${ui.state.me || 'octocat'})`)}" value="${esc(readyMode ? ui.findReadyText || '' : ui.findFilter || '')}">
 					<span class="actionbar find-acts" role="toolbar" aria-label="Search actions">
-						<span class="act select-act${ui.findGroupBy ? ' on' : ''}" title="${esc(`Group by: ${(GROUP_BY.find(([id]) => id === (ui.findGroupBy || '')) || GROUP_BY[0])[1]}`)}"><i class="codicon codicon-group-by-ref-type" aria-hidden="true"></i><select id="find-group" aria-label="Group by">${GROUP_BY.map(([id, label]) => `<option value="${id}"${(ui.findGroupBy || '') === id ? ' selected' : ''}>${esc(label)}</option>`).join('')}</select></span>
+						${actHtml(`data-find-ready${src === 'reviews' ? ' disabled' : ''}`, 'verified', readyCount, readyTitle, readyMode)}						<span class="act select-act${ui.findGroupBy ? ' on' : ''}" title="${esc(`Group by: ${(GROUP_BY.find(([id]) => id === (ui.findGroupBy || '')) || GROUP_BY[0])[1]}`)}"><i class="codicon codicon-group-by-ref-type" aria-hidden="true"></i><select id="find-group" aria-label="Group by">${GROUP_BY.map(([id, label]) => `<option value="${id}"${(ui.findGroupBy || '') === id ? ' selected' : ''}>${esc(label)}</option>`).join('')}</select></span>
 						${actHtml(`data-find-history aria-expanded="${!!ui.findHistoryOpen}"`, 'history', '', 'Recent filters', !!ui.findHistoryOpen)}
 						<button type="button" class="act" data-find-refresh title="Run this search again on GitHub" aria-label="Refresh results"><i class="codicon codicon-refresh${ui.find?.loading ? ' spin' : ''}" aria-hidden="true"></i></button>
 					</span>
 				</div>
 			</div>
 			${ui.findHistoryOpen ? browseHistoryHtml() : ''}${queryBar}${asking}
-			${ui.find?.error ? `<p class="cd" style="color:var(--bad)">${esc(ui.find.error)}</p>` : ui.find?.loading && !items.length ? '<p class="cd"><i class="codicon codicon-loading spin" aria-hidden="true"></i> Searching GitHub…</p>'
+			${readyMode ? `<p class="find-count">${items.length} ready to fix${ui.findReadyText ? ' matching' : ''} · ${items.filter(i => inMyWork(i.key)).length} already in My Work</p>${findListHtml(items, row)}`
+				: ui.find?.error ? `<p class="cd" style="color:var(--bad)">${esc(ui.find.error)}</p>` : ui.find?.loading && !items.length ? '<p class="cd"><i class="codicon codicon-loading spin" aria-hidden="true"></i> Searching GitHub…</p>'
 				: `<p class="find-count">${items.length}${items.length >= 100 ? '+' : ''} ${src === 'reviews' ? (items.length === 1 ? 'pull request' : 'pull requests') : (items.length === 1 ? 'issue' : 'issues')}${filter ? ' matching' : ''} · ${items.filter(i => inMyWork(i.key)).length} already in My Work</p>${findListHtml(items, row)}`}
 		</div>`;
 
@@ -2912,7 +2954,7 @@ function switchTab(tab) {
 	if (reopen) select(reopen.kind, reopen.id).then(() => renderAreaBar());
 }
 function saveBrowse() {
-	const browse = { source: findSource(), area: ui.findArea || '', refine: ui.findRefine || null, groupBy: ui.findGroupBy || '' };
+	const browse = { source: findSource(), area: ui.findArea || '', refine: ui.findRefine || null, groupBy: ui.findGroupBy || '', ready: !!ui.findReady };
 	const patch = { browse };
 	// Every filter you apply is kept (most recent first, no duplicates) so you can run it again.
 	if (browse.refine) {
@@ -2940,6 +2982,7 @@ function restoreBrowse() {
 	ui.findSource = b.source || 'bugs';
 	ui.findArea = b.area || '';
 	ui.findGroupBy = b.groupBy || '';
+	ui.findReady = !!b.ready;
 	ui.findRefine = b.refine?.query ? b.refine : null;
 	ui.findFilter = ui.findRefine ? (ui.findRefine.text || ui.findRefine.query) : '';
 }
@@ -3492,6 +3535,7 @@ $('detail').addEventListener('click', e => {
 	const p = e.target.closest('[data-find-src]');
 	if (p) { ui.findSource = p.dataset.findSrc; saveBrowse(); renderDetail(false, true); document.querySelector(`[data-find-src="${p.dataset.findSrc}"]`)?.focus(); return; }
 	if (e.target.closest('[data-find-refresh]')) { loadFindWork(true); return; }
+	if (e.target.closest('[data-find-ready]')) { ui.findReady = !ui.findReady; saveBrowse(); renderDetail(false, true); document.querySelector('[data-find-ready]')?.focus(); return; }
 	const fold = e.target.closest('[data-find-fold]');
 	if (fold) { const set = ui.findFolded ??= new Set(); const id = fold.dataset.findFold; if (set.has(id)) set.delete(id); else set.add(id); renderDetail(false, true); return; }
 	if (e.target.closest('[data-find-history]')) { ui.findHistoryOpen = !ui.findHistoryOpen; renderDetail(false, true); return; }
@@ -3513,6 +3557,8 @@ $('detail').addEventListener('keydown', e => {
 	if (e.key !== 'Enter' || e.isComposing || !['find-filter', 'find-query'].includes(e.target.id)) return;
 	const text = e.target.value.replace(/\s+/g, ' ').trim();
 	e.preventDefault();
+	// Ready to fix lists the local index, so the box filters titles here instead of searching GitHub.
+	if (e.target.id === 'find-filter' && ui.findReady && findSource() !== 'reviews') { ui.findReadyText = text; renderDetail(false, true); document.getElementById('find-filter')?.focus(); return; }
 	if (!text && e.target.id === 'find-query') { setFindRefine(null); return; }
 	if (e.target.id === 'find-query') {
 		const same = text === ui.findRefine?.query;
@@ -3526,6 +3572,7 @@ $('detail').addEventListener('change', e => {
 // The filter applies on Enter; clearing the search box (its × button) removes it.
 $('detail').addEventListener('input', e => {
 	if (e.target.id !== 'find-filter') return;
+	if (ui.findReady && findSource() !== 'reviews') { if (!e.target.value && ui.findReadyText) { ui.findReadyText = ''; renderDetail(false, true); document.getElementById('find-filter')?.focus(); } return; }
 	ui.findFilter = e.target.value;
 	if (!e.target.value && ui.findRefine) setFindRefine(null);
 });
