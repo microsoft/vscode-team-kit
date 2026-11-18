@@ -211,6 +211,16 @@ async function loadImplement() {
 	return implementCache.data;
 }
 
+// --- Issues ready to fix: reproduced or source-confirmed bugs and polish (cached by index + outcomes mtime) ---
+let readyCache = { sig: '', data: undefined };
+const emptyReady = () => ({ total: 0, counts: { reproduced: 0, source: 0, polish: 0 }, items: [] });
+async function loadReady() {
+	const [a, b] = await Promise.all([INDEX_JSON, OUTCOMES_JSON].map(f => fs.stat(f).then(s => s.mtimeMs).catch(() => 0)));
+	const sig = `${a}:${b}`;
+	if (sig !== readyCache.sig) readyCache = { sig, data: await runScript(['ready', '--limit', '2000']) };
+	return readyCache.data;
+}
+
 // --- Live checks (cached 10 minutes per issue) ---
 const checksCache = new Map();
 export async function getChecks(key, fresh = false) {
@@ -559,13 +569,14 @@ export async function getState({ forceNotifications = false } = {}) {
 	// Why Cleanup / Implement couldn't load (e.g. Python or gh missing), shown in the panel and returned by refresh instead of empty lists.
 	const listErrors = [];
 	const listFailed = (what, empty) => e => (listErrors.push(`${what}: ${e.message.split('\n').filter(Boolean).pop() || e.message}`), console.error(`my-work: ${what} failed: ${e.message}`), empty);
-	const [index, queue, cleanup, notif, triage, activity, implement, opinions, settings, tabs] = await Promise.all([
+	const [index, queue, cleanup, notif, triage, activity, implement, opinions, settings, tabs, ready] = await Promise.all([
 		hasIndex ? loadIndex() : { issues: {}, counts: {}, refreshedAt: null },
 		readJsonFile(QUEUE_JSON).catch(() => undefined),
 		hasIndex ? loadCleanup().catch(listFailed('Cleanup', emptyCleanup())) : emptyCleanup(),
 		loadNotifications(forceNotifications), getTriage(), getActivity(startOfToday()),
 		hasIndex ? loadImplement().catch(listFailed('Implement', { total: 0, bugs: 0, items: [] })) : { total: 0, bugs: 0, items: [] },
 		getOpinions(), getSettings(), getBatches(),
+		hasIndex ? loadReady().catch(listFailed('Ready to fix', emptyReady())) : emptyReady(),
 	]);
 	const threads = await getThreads();
 	const issueChats = await listIssueChats();
@@ -660,6 +671,7 @@ export async function getState({ forceNotifications = false } = {}) {
 		investigations, hasIndex, indexing: await loadIndexing(), refreshedAt: index.refreshedAt, counts: index.counts, queueDate: queue?.date ?? null, settings, batches, opinions, opinionPending, informedPending, threads, issueChats, sessionSummaries, me: await currentLogin().catch(() => null), customGroups, areas, sessions,
 		notifications, notificationsError: notif.error ?? null, listsError: listErrors.join('; ') || null, notificationsFetchedAt: notif.at ? new Date(notif.at).toISOString() : null, untriaged, notifTriagePending, issueRules, issueRulesPending, sections, cleanup: cleanupGroups,
 		implement: { total: implement.total, bugs: implement.bugs, items: implementItems },
+		ready,
 		today: {
 			notificationsHandled: new Set(activity.filter(e => e.kind === 'notification' && e.action !== 'skip').map(e => e.id)).size,
 			issuesHandled: handledIssues.size,

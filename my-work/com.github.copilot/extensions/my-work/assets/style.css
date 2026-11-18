@@ -59,6 +59,8 @@
 .codicon-bell::before { content: "\eaa2"; }
 .codicon-clear-all::before { content: "\eabf"; }
 .codicon-tools::before { content: "\eb6d"; }
+.codicon-verified::before { content: "\eb77"; }
+.codicon-code::before { content: "\eac4"; }
 .codicon-refresh::before { content: "\eb37"; }
 .codicon-settings-gear::before { content: "\eb51"; }
 .codicon-inbox::before { content: "\eb09"; }

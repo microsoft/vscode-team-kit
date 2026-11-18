@@ -511,6 +511,7 @@ function summarize(state) {
 		queue: Object.fromEntries(state.sections.map(s => [s.id, s.total])),
 		cleanup: Object.fromEntries(Object.entries(state.cleanup).map(([g, v]) => [g, v.total])),
 		implement: { total: state.implement.total, bugs: state.implement.bugs },
+		readyToFix: { total: state.ready.total, ...state.ready.counts },
 		batchSize: state.settings.batchSize,
 		currentBatches: Object.fromEntries(Object.entries(state.batches).map(([k, v]) => [k, { number: v.number, ids: v.ids, open: v.open, remaining: v.remaining }])),
 		today: state.today,

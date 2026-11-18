@@ -675,6 +675,40 @@ def cmd_implement(a, idx):
                      indent=1, ensure_ascii=False))
 
 
+# How Sweeper verified a bug, best first: reproduced (by the reporter, the thread or a maintainer), or the defect found in the code.
+READY_LEVELS = {"Confirmed": "reproduced", "Source-confirmed": "source"}
+READY_ORDER = ["reproduced", "source", "polish"]
+
+
+def cmd_ready(a, idx):
+    """Issues you can start fixing: bugs Sweeper keeps open and reproduced or confirmed in the source, plus open polish.
+
+    Skips issues already taken by a PR, dismissed by a maintainer, disputed by Sweeper's second review, waiting for
+    information (`info-needed`), or decided by you.
+    """
+    items = []
+    for k, r in idx["issues"].items():
+        s = r.get("sweeper") or {}
+        if (not needs_attention(r) or s.get("triageAction") != "keep-open" or s.get("linkedPr") or s.get("skillPr")
+                or s.get("dismissed") or s.get("verifyVerdict") == "refuted" or "info-needed" in (r.get("labels") or [])):
+            continue
+        kind = s.get("itemType")
+        ready = READY_LEVELS.get(s.get("verification")) if kind == "bug" else "polish" if kind == "polish" else None
+        if ready:
+            items.append((READY_ORDER.index(ready), ready, k, r, s))
+    items.sort(key=lambda t: (t[0], -(t[4].get("valueRaw") or 0), SEVERITY_RANK.get(t[4].get("severity"), 99), -(t[4].get("upvotes") or 0)))
+    out = [{
+        "key": k, "url": r["url"], "title": r["title"], "ready": ready, "verification": s.get("verification"),
+        "itemType": s.get("itemType"), "severity": s.get("severity"), "valueRaw": s.get("valueRaw"),
+        "agentReadiness": s.get("agentReadiness"), "contentStale": bool(s.get("contentStale")),
+        "labels": r.get("labels") or [], "milestone": r.get("milestone"), "author": r.get("author"),
+        "createdAt": r.get("createdAt"), "updatedAt": r["updatedAt"], "comments": s.get("commentCount") or 0,
+        "thumbsUp": s.get("upvotes") or 0,
+    } for _, ready, k, r, s in items]
+    print(json.dumps({"total": len(out), "counts": {g: sum(1 for i in out if i["ready"] == g) for g in READY_ORDER},
+                      "items": out[:a.limit]}, indent=1, ensure_ascii=False))
+
+
 def gh_json(args):
     return json.loads(gh(args) or "null")
 
@@ -1039,6 +1073,7 @@ def main():
     ap.add_argument("--force", action="store_true"); ap.add_argument("--confirm", action="store_true")
     im = sub.add_parser("implement"); im.add_argument("--limit", type=int, default=25)
     im.add_argument("--readiness", action="append", default=None, choices=["implement", "plan"])
+    rd = sub.add_parser("ready"); rd.add_argument("--limit", type=int, default=25)
     ck = sub.add_parser("checks"); ck.add_argument("issue"); ck.add_argument("--popular", type=int, default=5)
     op = sub.add_parser("opinion"); op.add_argument("issue")
     og = op.add_mutually_exclusive_group(required=True)
@@ -1068,7 +1103,7 @@ def main():
         sys.exit(f"missing {INDEX}")
     {"list": cmd_list, "get": cmd_get, "stats": cmd_stats, "changes": cmd_changes, "record": cmd_record,
      "queue": cmd_queue, "mark-chat": cmd_mark_chat, "cleanup": cmd_cleanup, "proposal": cmd_proposal,
-     "apply": cmd_apply, "implement": cmd_implement, "checks": cmd_checks, "opinion": cmd_opinion,
+     "apply": cmd_apply, "implement": cmd_implement, "ready": cmd_ready, "checks": cmd_checks, "opinion": cmd_opinion,
      "judge-prompt": cmd_judge_prompt}[a.cmd](a, idx)
 
 

@@ -167,6 +167,47 @@ test('the helper script reads and prints non-ASCII issue titles as UTF-8', () =>
 	}
 });
 
+test('Ready to fix lists reproduced, then source-confirmed bugs, then polish, and skips taken or doubtful issues', () => {
+	const py = `
+import json, sys, io, contextlib
+sys.argv = ['x']
+sys.path.insert(0, ${JSON.stringify(scripts)})
+import my_issues as m
+def issue(n, **sw):
+    return {'repository': 'o/r', 'number': n, 'url': 'u', 'title': f't{n}', 'state': 'open', 'labels': [], 'updatedAt': '2026-11-01',
+            'primaryFeatureArea': 'others', 'sweeper': {'triageAction': 'keep-open', 'itemType': 'bug', **sw}}
+idx = {'issues': {
+    'o/r#1': issue(1, verification='Source-confirmed', valueRaw=9),
+    'o/r#2': issue(2, verification='Confirmed', valueRaw=1),
+    'o/r#3': issue(3, itemType='polish'),
+    'o/r#4': issue(4, verification='Plausible'),
+    'o/r#5': issue(5, verification='Confirmed', triageAction='needs-info'),
+    'o/r#6': issue(6, verification='Confirmed', linkedPr='https://github.com/o/r/pull/1'),
+    'o/r#7': issue(7, verification='Confirmed', verifyVerdict='refuted'),
+    'o/r#8': issue(8, itemType='feature-request', verification='Confirmed'),
+    'o/r#9': issue(9, verification='Confirmed', valueRaw=5),
+    'o/r#10': issue(10, verification='Confirmed'),
+}}
+idx['issues']['o/r#10']['labels'] = ['bug', 'info-needed']
+idx['issues']['o/r#9']['triageOutcome'] = {'decision': 'fixing', 'decidedAt': '2026-11-02'}
+class A: limit = 10
+buf = io.StringIO()
+with contextlib.redirect_stdout(buf):
+    m.cmd_ready(A, idx)
+out = json.loads(buf.getvalue())
+print(json.dumps({'keys': [i['key'] for i in out['items']], 'ready': [i['ready'] for i in out['items']], 'counts': out['counts']}))
+`;
+	const fresh = mkdtempSync(path.join(os.tmpdir(), 'my-work-ready-'));
+	try {
+		const out = JSON.parse(String(runPython(['-c', py], { env: { ...process.env, COPILOT_HOME: fresh, PYTHONDONTWRITEBYTECODE: '1' } })));
+		assert.deepEqual(out.keys, ['o/r#2', 'o/r#1', 'o/r#3']);
+		assert.deepEqual(out.ready, ['reproduced', 'source', 'polish']);
+		assert.deepEqual(out.counts, { reproduced: 1, source: 1, polish: 1 });
+	} finally {
+		rmSync(fresh, { recursive: true, force: true });
+	}
+});
+
 test('session references are parsed strictly', () => {
 	assert.equal(workSessions.parseSessionRef('agent-host-session://ahp-session/0add0440-c947-4b28-8a0d-f82937655e11'), '0add0440-c947-4b28-8a0d-f82937655e11');
 	assert.equal(workSessions.parseSessionRef('copilotcli:/0add0440-c947-4b28-8a0d-f82937655e11'), '0add0440-c947-4b28-8a0d-f82937655e11');
@@ -647,9 +688,11 @@ test('Browse keeps its last source and filter across panel reloads', async () =>
 	});
 	try {
 		await post({ browse: { source: 'area', area: 'agents-window', groupBy: 'reporter', refine: { query: 'author:alexdima', text: 'created by alexdima', note: '', extra: 'x' } } });
-		assert.deepEqual((await data.getSettings()).browse, { source: 'area', area: 'agents-window', groupBy: 'reporter', refine: { query: 'author:alexdima', text: 'created by alexdima', note: '' } });
-		await post({ browse: { source: 'evil', area: '../x', groupBy: 'x', refine: { query: ' ' } } });
-		assert.deepEqual((await data.getSettings()).browse, { source: 'bugs', area: '', groupBy: '', refine: null }, 'unknown values fall back to defaults');
+		assert.deepEqual((await data.getSettings()).browse, { source: 'area', area: 'agents-window', groupBy: 'reporter', refine: { query: 'author:alexdima', text: 'created by alexdima', note: '' }, ready: false });
+		await post({ browse: { source: 'bugs', area: '', groupBy: 'ready', refine: null, ready: true } });
+		assert.deepEqual((await data.getSettings()).browse, { source: 'bugs', area: '', groupBy: 'ready', refine: null, ready: true }, 'Ready to fix and its grouping are kept');
+		await post({ browse: { source: 'evil', area: '../x', groupBy: 'x', refine: { query: ' ' }, ready: 'yes' } });
+		assert.deepEqual((await data.getSettings()).browse, { source: 'bugs', area: '', groupBy: '', refine: null, ready: false }, 'unknown values fall back to defaults');
 		await post({ browseHistory: [{ source: 'area', area: 'agents-window', refine: { query: 'author:alexdima' }, at: '2026-10-28T10:00:00Z' }, { source: 'bugs', refine: null }] });
 		const history = (await data.getSettings()).browseHistory;
 		assert.equal(history.length, 1, 'entries without a filter are dropped');
