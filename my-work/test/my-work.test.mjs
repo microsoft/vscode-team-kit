@@ -28,6 +28,8 @@ const prompts = await import(new URL('lib/prompts.mjs', ext));
 const data = await import(new URL('lib/data.mjs', ext));
 const sections = await import(new URL('lib/sections.mjs', ext));
 const workSessions = await import(new URL('lib/workSessions.mjs', ext));
+// Runs Python the way the extension does (on Windows `python3` may be the Store alias).
+const runPython = (args, opts) => execFileSync(config.python()[0], [...config.python().slice(1), ...args], opts);
 
 test('config overlays the user file on the defaults', () => {
 	const c = config.config();
@@ -39,8 +41,15 @@ test('config overlays the user file on the defaults', () => {
 	assert.equal(existsSync(config.SCRIPT), true, 'helper script resolves inside the plugin');
 });
 
+test('findPython skips missing and broken Python commands (e.g. the Windows Store alias)', () => {
+	const real = config.findPython();
+	const storeAlias = [process.execPath, '-e', 'process.exit(9009)'];
+	assert.deepEqual(config.findPython([['no-such-python-cmd'], storeAlias, real]), real);
+	assert.match(config.scriptCommand(), new RegExp(`^${real.join(' ').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} "`));
+});
+
 test('Python and JS configs share their defaults', () => {
-	const out = execFileSync('python3', ['-c', 'import json, my_work_config as c; print(json.dumps({k: c.DEFAULTS[k] for k in ["org", "planRepo", "repoPaths", "sweeperRepo", "sweeperStateRepo", "rulesFile", "memoryFile"]}))'], { cwd: scripts, env: { ...process.env, COPILOT_HOME: home, PYTHONDONTWRITEBYTECODE: '1' } });
+	const out = runPython(['-c', 'import json, my_work_config as c; print(json.dumps({k: c.DEFAULTS[k] for k in ["org", "planRepo", "repoPaths", "sweeperRepo", "sweeperStateRepo", "rulesFile", "memoryFile"]}))'], { cwd: scripts, env: { ...process.env, COPILOT_HOME: home, PYTHONDONTWRITEBYTECODE: '1' } });
 	const py = JSON.parse(String(out));
 	for (const key of Object.keys(py)) {
 		assert.deepEqual(py[key], config.DEFAULTS[key], key);
@@ -71,7 +80,7 @@ print(json.dumps({
 `;
 	const fresh = mkdtempSync(path.join(os.tmpdir(), 'my-work-sweeper-'));
 	try {
-		const out = JSON.parse(String(execFileSync('python3', ['-c', py], { env: { ...process.env, COPILOT_HOME: fresh, PYTHONDONTWRITEBYTECODE: '1' } })));
+		const out = JSON.parse(String(runPython(['-c', py], { env: { ...process.env, COPILOT_HOME: fresh, PYTHONDONTWRITEBYTECODE: '1' } })));
 		assert.equal(out.mapped.duplicateOf, 5);
 		assert.equal(out.mapped.verifyVerdict, 'confirmed');
 		assert.equal(out.mapped.commentCount, 3);
@@ -115,9 +124,24 @@ print(json.dumps({'replied': next(s['keys'] for s in sections if s['id'] == 'rep
 `;
 	const fresh = mkdtempSync(path.join(os.tmpdir(), 'my-work-queue-'));
 	try {
-		const out = JSON.parse(String(execFileSync('python3', ['-c', py], { env: { ...process.env, COPILOT_HOME: fresh, PYTHONDONTWRITEBYTECODE: '1' } })));
+		const out = JSON.parse(String(runPython(['-c', py], { env: { ...process.env, COPILOT_HOME: fresh, PYTHONDONTWRITEBYTECODE: '1' } })));
 		assert.deepEqual(out.replied, ['o/r#1']);
 		assert.deepEqual(out.implement, ['o/r#2', 'o/r#1', 'o/r#4']);
+	} finally {
+		rmSync(fresh, { recursive: true, force: true });
+	}
+});
+
+test('the helper script reads and prints non-ASCII issue titles as UTF-8', () => {
+	const fresh = mkdtempSync(path.join(os.tmpdir(), 'my-work-utf8-'));
+	const title = 'Crash → “save” Ő 💥';
+	try {
+		mkdirSync(path.join(fresh, 'project-boards'), { recursive: true });
+		writeFileSync(path.join(fresh, 'project-boards', 'my-issues.json'), JSON.stringify({ issues: {
+			'o/r#1': { repository: 'o/r', number: 1, url: 'u', title, state: 'open', labels: [], updatedAt: '2026-11-01', primaryFeatureArea: 'others', sweeper: { agentReadiness: 'implement', itemType: 'bug', valueRaw: 1 } },
+		} }), 'utf8');
+		const out = JSON.parse(String(runPython([path.join(scripts, 'my_issues.py'), 'implement', '--limit', '5'], { env: { ...process.env, COPILOT_HOME: fresh, PYTHONDONTWRITEBYTECODE: '1', PYTHONUTF8: '0', PYTHONIOENCODING: '' } })));
+		assert.deepEqual(out.items.map(i => i.title), [title]);
 	} finally {
 		rmSync(fresh, { recursive: true, force: true });
 	}
@@ -213,14 +237,14 @@ test('find-clones reads local clones from the session store', { skip: process.pl
 			: path.join(fakeHome, '.config', 'Code - Insiders', 'User', 'globalStorage');
 		mkdirSync(store, { recursive: true });
 		const payload = JSON.stringify({ data: { project: { uri: `file://${clone}` }, modifiedTime: Date.now() } });
-		execFileSync('python3', ['-c', `import sqlite3, sys
+		runPython(['-c', `import sqlite3, sys
 c = sqlite3.connect(sys.argv[1])
 c.execute("create table sessions_v2 (session_uri text, payload text, modified_time integer, is_chat_backing integer)")
 c.execute("create table session_state_values (session_uri text, key text, value text)")
 c.execute("insert into sessions_v2 values ('s1', ?, 0, 0)", (sys.argv[2],))
 c.commit()`, path.join(store, 'agent-host.db'), payload]);
 		const env = { ...process.env, HOME: fakeHome, XDG_CONFIG_HOME: path.join(fakeHome, '.config'), COPILOT_HOME: home, PYTHONDONTWRITEBYTECODE: '1' };
-		const out = JSON.parse(String(execFileSync('python3', [path.join(scripts, 'my_issues.py'), 'find-clones', '--repo', 'octo/app'], { env })));
+		const out = JSON.parse(String(runPython([path.join(scripts, 'my_issues.py'), 'find-clones', '--repo', 'octo/app'], { env })));
 		assert.deepEqual(out.clones.map(c => [c.repo, c.path, c.sessions]), [['octo/app', '~/src/app', 1]]);
 	} finally {
 		rmSync(fakeHome, { recursive: true, force: true });
@@ -253,7 +277,7 @@ print(json.dumps(out))
 `;
 	const fresh = mkdtempSync(path.join(os.tmpdir(), 'my-work-passes-'));
 	try {
-		const out = JSON.parse(String(execFileSync('python3', ['-c', py], { env: { ...process.env, COPILOT_HOME: fresh, PYTHONDONTWRITEBYTECODE: '1' } })));
+		const out = JSON.parse(String(runPython(['-c', py], { env: { ...process.env, COPILOT_HOME: fresh, PYTHONDONTWRITEBYTECODE: '1' } })));
 		assert.deepEqual(out.first.map(c => c[0]), ['open', 'closed']);
 		assert.deepEqual(out.backfill.map(c => c[0]), ['closed']);
 		assert.equal(out.daily[0][0], 'delta');
@@ -280,7 +304,7 @@ print(json.dumps([
 `;
 	const fresh = mkdtempSync(path.join(os.tmpdir(), 'my-work-moved-'));
 	try {
-		const out = JSON.parse(String(execFileSync('python3', ['-c', py], { env: { ...process.env, COPILOT_HOME: fresh, PYTHONDONTWRITEBYTECODE: '1' } })));
+		const out = JSON.parse(String(runPython(['-c', py], { env: { ...process.env, COPILOT_HOME: fresh, PYTHONDONTWRITEBYTECODE: '1' } })));
 		assert.deepEqual(out, [true, true, false]);
 	} finally {
 		rmSync(fresh, { recursive: true, force: true });
@@ -378,7 +402,7 @@ test('the plugin ships no binary files', async () => {
 });
 
 test('the reused triage chat is titled My Work', () => {
-	const out = execFileSync('python3', ['-c', 'import sys; sys.argv = ["x"]; import my_issues; print(my_issues.TRIAGE_CHAT_TITLE)'], { cwd: scripts, env: { ...process.env, COPILOT_HOME: home, PYTHONDONTWRITEBYTECODE: '1' } });
+	const out = runPython(['-c', 'import sys; sys.argv = ["x"]; import my_issues; print(my_issues.TRIAGE_CHAT_TITLE)'], { cwd: scripts, env: { ...process.env, COPILOT_HOME: home, PYTHONDONTWRITEBYTECODE: '1' } });
 	assert.equal(String(out).trim(), 'My Work');
 });
 
@@ -388,7 +412,7 @@ test('the daily run posts to the My Work session when the panel has one', () => 
 	mkdirSync(path.join(cfgHome, 'project-boards'), { recursive: true });
 	writeFileSync(path.join(cfgHome, 'project-boards', 'my-work.config.json'), JSON.stringify({ dataDir }));
 	const env = { ...process.env, COPILOT_HOME: cfgHome, PYTHONDONTWRITEBYTECODE: '1' };
-	const run = () => String(execFileSync('python3', ['-c', 'import sys; sys.argv = ["x"]; import my_issues; print(my_issues.my_work_session())'], { cwd: scripts, env })).trim();
+	const run = () => String(runPython(['-c', 'import sys; sys.argv = ["x"]; import my_issues; print(my_issues.my_work_session())'], { cwd: scripts, env })).trim();
 	try {
 		assert.equal(run(), 'None');
 		writeFileSync(path.join(dataDir, 'chat.json'), JSON.stringify({ format: 'my-work/chat', version: 1, link: 'agent-host-session://ahp-session/aaaa-1?chat=bbbb-2' }));

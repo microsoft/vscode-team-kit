@@ -3,7 +3,12 @@
 Users override any field in <COPILOT_HOME>/project-boards/my-work.config.json. Keep the defaults in
 sync with com.github.copilot/extensions/my-work/lib/config.mjs.
 """
-import json, os, subprocess
+import json, os, subprocess, sys
+
+# Every script reads and prints JSON as UTF-8, whatever the platform's default (cp1252 on Windows).
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8")
 
 COPILOT_HOME = os.environ.get("COPILOT_HOME") or os.path.expanduser("~/.copilot")
 BOARD = os.path.join(COPILOT_HOME, "project-boards")
@@ -28,7 +33,7 @@ DEFAULTS = {
 def load_config():
     cfg = dict(DEFAULTS)
     try:
-        with open(CONFIG_FILE) as f:
+        with open(CONFIG_FILE, encoding="utf-8") as f:
             user = json.load(f)
     except (OSError, ValueError):
         user = {}
@@ -62,7 +67,7 @@ def login():
         _login = CFG.get("login") or ""
         if not _login:
             try:
-                r = subprocess.run(["gh", "api", "user", "--jq", ".login"], capture_output=True, text=True, timeout=30)
+                r = subprocess.run(["gh", "api", "user", "--jq", ".login"], capture_output=True, text=True, encoding="utf-8", timeout=30)
                 _login = r.stdout.strip() if r.returncode == 0 else ""
             except (OSError, subprocess.TimeoutExpired):
                 _login = ""

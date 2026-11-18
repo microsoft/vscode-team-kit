@@ -16,7 +16,7 @@ Check each and tell the user what is missing:
 | Need | Check | Notes |
 |---|---|---|
 | GitHub CLI, signed in | `gh auth status` | The index, notifications and My Work searches all use `gh`. |
-| Python 3.9+ and Node 22+ | `python3 --version`, `node --version` | |
+| Python 3.9+ and Node 22+ | `python3 --version`, `node --version` | On Windows `python3` is often the Microsoft Store alias, which only prints "Python was not found". Then use `python` or `py -3` for every `python3` command in these skills; the canvas finds a working one by itself. |
 | Agents window with canvases enabled | `list_canvas_capabilities` for `my-issues-triage` succeeds | VS Code Insiders. Canvases are off in a fresh profile: if the canvas isn't listed, ask the user to turn on the **`chat.canvases.enabled`** setting (Settings → search "canvases") and reload the window. Session features read the Agents window's local session store (best effort). |
 | Local clone for fix sessions | see below | Optional. |
 | Sweeper state clone | see below | Optional, microsoft/vscode only. |
@@ -71,7 +71,7 @@ Start `python3 "<scripts>/refresh_my_issues.py"` **in the background** (async) a
 
 ## 6. Daily automation
 
-Read [references/indexer-automation.md](references/indexer-automation.md), replace `{{SCRIPTS}}` and `{{BOARD}}` with absolute paths, and ask the user whether they want it and at what time (default weekdays 09:00 local). If yes, create it with the automation tool: name "My Issues Indexer", a quick-chat target on the local agent host, and auto-approval so its commands can run unattended. It creates the triage chat (titled "My Work") on its first run and reuses that chat every day after. Don't run it while the first index build is still going.
+Read [references/indexer-automation.md](references/indexer-automation.md), replace `{{SCRIPTS}}` and `{{BOARD}}` with absolute paths and `{{PYTHON}}` with the Python command that worked in step 1, and ask the user whether they want it and at what time (default weekdays 09:00 local). If yes, create it with the automation tool: name "My Issues Indexer", a quick-chat target on the local agent host, and auto-approval so its commands can run unattended. It creates the triage chat (titled "My Work") on its first run and reuses that chat every day after. Don't run it while the first index build is still going.
 
 ## Troubleshooting
 

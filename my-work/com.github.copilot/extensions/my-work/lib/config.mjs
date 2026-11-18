@@ -2,6 +2,7 @@
 // Users override any field in <COPILOT_HOME>/project-boards/my-work.config.json; everything else
 // falls back to defaults that suit the VS Code team. Never put team-private details in the defaults:
 // this package is public.
+import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -89,7 +90,22 @@ export function rulesHint() {
 	return `Apply the general triage principles (${PRINCIPLES}) and my inbox rules (${c.rulesFile}; they win over the principles and may not exist yet), and use my memory (${c.memoryFile}) for people, GitHub logins, owners and teams`;
 }
 
+// On Windows `python3` is often the Microsoft Store alias, which exists but only prints "Python was not found".
+const PYTHON_CANDIDATES = process.platform === 'win32' ? [['python3'], ['python'], ['py', '-3']] : [['python3'], ['python']];
+const PYTHON_CHECK = 'import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)';
+
+/** The first candidate (command and leading args) that really runs Python 3.9+, or the first candidate if none does. */
+export function findPython(candidates = PYTHON_CANDIDATES) {
+	const works = ([cmd, ...args]) => spawnSync(cmd, [...args, '-c', PYTHON_CHECK], { stdio: 'ignore', timeout: 10_000, windowsHide: true }).status === 0;
+	return candidates.find(works) ?? candidates[0];
+}
+let pythonCmd;
+/** The Python command used to run the helper scripts, found once. */
+export function python() {
+	return pythonCmd ??= findPython();
+}
+
 /** The command prefix chats use to run the helper script. */
 export function scriptCommand() {
-	return `python3 "${SCRIPT}"`;
+	return `${python().join(' ')} "${SCRIPT}"`;
 }

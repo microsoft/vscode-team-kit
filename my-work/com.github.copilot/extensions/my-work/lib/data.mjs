@@ -4,7 +4,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { sessionsFor, sessionsById } from './sessions.mjs';
 import { listIssueChats, getSessionSummaries, getSessionLinks, listPinnedIssues } from './workSessions.mjs';
-import { COPILOT_HOME, BOARD, SCRIPT, config } from './config.mjs';
+import { COPILOT_HOME, BOARD, SCRIPT, config, python } from './config.mjs';
 
 export { BOARD, SCRIPT };
 
@@ -82,7 +82,8 @@ function run(cmd, args, { timeout = 120_000 } = {}) {
 }
 
 export async function runScript(args) {
-	return JSON.parse(await run('python3', [SCRIPT, ...args]));
+	const [cmd, ...pre] = python();
+	return JSON.parse(await run(cmd, [...pre, SCRIPT, ...args]));
 }
 
 async function readJsonFile(file) {
@@ -555,9 +556,9 @@ export async function getState({ forceNotifications = false } = {}) {
 	const [index, queue, cleanup, notif, triage, activity, implement, opinions, settings, tabs] = await Promise.all([
 		hasIndex ? loadIndex() : { issues: {}, counts: {}, refreshedAt: null },
 		readJsonFile(QUEUE_JSON).catch(() => undefined),
-		hasIndex ? loadCleanup().catch(() => emptyCleanup()) : emptyCleanup(),
+		hasIndex ? loadCleanup().catch(e => (console.error(`my-work: cleanup lists failed: ${e.message}`), emptyCleanup())) : emptyCleanup(),
 		loadNotifications(forceNotifications), getTriage(), getActivity(startOfToday()),
-		hasIndex ? loadImplement().catch(() => ({ total: 0, bugs: 0, items: [] })) : { total: 0, bugs: 0, items: [] },
+		hasIndex ? loadImplement().catch(e => (console.error(`my-work: implement list failed: ${e.message}`), { total: 0, bugs: 0, items: [] })) : { total: 0, bugs: 0, items: [] },
 		getOpinions(), getSettings(), getBatches(),
 	]);
 	const threads = await getThreads();

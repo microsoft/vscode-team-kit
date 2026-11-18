@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.11 (2026-11-18)
+
+- Fixed: on Windows, Cleanup, Implement and other Sweeper-backed lists stayed empty when `python3` is the Microsoft Store alias (it exists but only prints "Python was not found"). The panel ran its helper script with `python3` and hid the failure. It now uses the first of `python3`, `python` and `py -3` that really runs Python 3.9+, gives chats that same command, and logs list failures to the extension log instead of hiding them. `my_issues.py` prints commands that use its own interpreter, and the daily indexer automation's prompt uses the Python command that worked during setup.
+- Fixed: on Windows, the helper scripts read and wrote their JSON files and `gh` output in the system code page (cp1252), so an index with non-ASCII text (e.g. `→`, `“”`, accented names) failed with `UnicodeDecodeError: 'charmap' codec can't decode`. That also left Cleanup and Implement empty. All files, subprocess output and printed JSON now use UTF-8.
+
 ## 1.0.10 (2026-11-17)
 
 - Fixed: icons were missing in the panel on Windows. The icon font is not bundled; it was looked up only in fixed install folders, but Windows installs keep each version in a subfolder (`<install>\<commit>\resources\app`) and may live elsewhere. The panel now finds the font in the VS Code build it runs in, and also checks versioned folders.
