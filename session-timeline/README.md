@@ -34,6 +34,8 @@ Once installed, enable the plugin, then ask “show the session timeline” or i
 
 ## How it works
 
+The canvas and its actions are declared in `extension.json`, so the extension stays dormant until the timeline is first opened or one of its actions is called. `extension.mjs` imports those declarations and adds only handlers.
+
 The extension joins the current session, subscribes before fetching `session.getEvents()`, and merges events by their stable IDs to avoid a history/live-update race. It groups user turns and nests system, assistant, tool, and subagent activity by semantic ownership rather than treating the chronological `parentId` chain as a tree. History is refreshed after truncation or context clearing.
 
 The canvas provides:
@@ -84,6 +86,7 @@ session-timeline/
 ├── README.md
 ├── skills/session-timeline/SKILL.md
 ├── com.github.copilot/extensions/session-timeline/
+│   ├── extension.json
 │   ├── extension.mjs
 │   ├── model.mjs
 │   ├── request-tools.mjs

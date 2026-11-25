@@ -1,0 +1,37 @@
+{
+	"version": 1,
+	"initialization": "module",
+	"canvases": [
+		{
+			"id": "vscode-session-timeline",
+			"displayName": "Session timeline",
+			"description": "Inspect the current session as a live timeline of prompts, responses, tools, and subagents.",
+			"actions": [
+				{
+					"name": "getStatus",
+					"description": "Return timeline event counts, current tool count, and any loading errors."
+				},
+				{
+					"name": "setFilter",
+					"description": "Set the Find text or visible event categories without changing session history.",
+					"inputSchema": {
+						"type": "object",
+						"additionalProperties": false,
+						"properties": {
+							"query": { "type": "string", "maxLength": 2000 },
+							"categories": {
+								"type": "array",
+								"maxItems": 5,
+								"items": { "type": "string", "enum": ["system", "user", "assistant", "tool", "subagent"] }
+							}
+						}
+					}
+				},
+				{
+					"name": "refresh",
+					"description": "Reload SDK session history, preserving timeline view state."
+				}
+			]
+		}
+	]
+}
