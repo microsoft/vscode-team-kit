@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.0
+
+- Declare the canvas and its actions in `extension.json` so the extension starts on first use instead of with every session. `extension.mjs` imports the same declarations and adds only handlers.
+
 ## 1.1.0
 
 - Persist completed request tool snapshots through the SDK session-workspace file API and restore them after extension restarts without backfilling older requests.

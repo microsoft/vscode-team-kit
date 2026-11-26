@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { createTimelineServer } from '../com.github.copilot/extensions/session-timeline/server.mjs';
+import { categories } from '../com.github.copilot/extensions/session-timeline/model.mjs';
 
 async function fixture(t) {
 	const source = {
@@ -79,4 +80,10 @@ test('plugin manifest and marketplace registration agree', async () => {
 	assert.equal(manifest.$schema, 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json');
 	assert.equal(manifest.extensions, undefined);
 	assert.match(await readFile(new URL('session-timeline/com.github.copilot/extensions/session-timeline/extension.mjs', root), 'utf8'), /createCanvas/);
+});
+
+test('extension.json declares the setFilter categories the model accepts', async () => {
+	const declaration = JSON.parse(await readFile(new URL('../com.github.copilot/extensions/session-timeline/extension.json', import.meta.url), 'utf8'));
+	const setFilter = declaration.canvases[0].actions.find(action => action.name === 'setFilter');
+	assert.deepEqual(setFilter.inputSchema.properties.categories.items.enum, categories);
 });

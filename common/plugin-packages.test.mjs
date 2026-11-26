@@ -73,7 +73,7 @@ test('Copilot components occupy their runtime discovery locations', async () => 
 		'handy-commands': ['commands/commit-and-pr.md', 'commands/fix-issue.md', 'commands/pr-comments.md'],
 		'ban-ast': ['hooks/hooks.json'],
 		'review-plan': ['hooks/hooks.json'],
-		'session-timeline': ['extensions/session-timeline/extension.mjs', 'extensions/session-timeline/public/index.html'],
+		'session-timeline': ['extensions/session-timeline/extension.mjs', 'extensions/session-timeline/extension.json', 'extensions/session-timeline/public/index.html'],
 		'my-work': ['extensions/my-work/extension.mjs', 'extensions/my-work/assets/index.html'],
 	};
 	for (const [name, paths] of Object.entries(components)) {
