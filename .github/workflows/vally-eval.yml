@@ -27,19 +27,25 @@ concurrency:
   group: vally-eval-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
-permissions:
-  contents: read
-  pull-requests: write
+permissions: {}
 
 jobs:
   evaluate:
     name: Run Skill Evaluations
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      results-id: ${{ steps.upload.outputs.artifact-id }}
     env:
       VALLY_TELEMETRY_OPTOUT: '1'
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+        # The evaluation needs the working tree, not an authenticated Git remote.
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -70,20 +76,8 @@ jobs:
         env:
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_TOKEN }}
 
-      - name: Comment on PR
-        if: github.event_name == 'pull_request' && always()
-        run: |
-          if [ ! -d vally-results ]; then
-            exit 0
-          fi
-          COMMENT_FILE="$(find vally-results -type f -name eval-results.md -print -quit)"
-          if [ -n "$COMMENT_FILE" ] && [ -s "$COMMENT_FILE" ]; then
-            gh pr comment "${{ github.event.pull_request.number }}" --body-file "$COMMENT_FILE"
-          fi
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Upload results
+        id: upload
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -91,3 +85,31 @@ jobs:
           path: vally-results/
           retention-days: 30
           if-no-files-found: warn
+
+  comment:
+    name: Comment on PR
+    needs: evaluate
+    if: >-
+      !cancelled() && github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.actor != 'dependabot[bot]' &&
+      needs.evaluate.outputs.results-id != ''
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Download results
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          artifact-ids: ${{ needs.evaluate.outputs.results-id }}
+          path: vally-results
+
+      - name: Post evaluation report
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          COMMENT_FILE="$(find vally-results -type f -name eval-results.md -print -quit)"
+          if [ -n "$COMMENT_FILE" ] && [ -s "$COMMENT_FILE" ]; then
+            gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file "$COMMENT_FILE"
+          fi
